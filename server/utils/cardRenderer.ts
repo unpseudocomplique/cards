@@ -12,14 +12,6 @@ type RenderCard = {
 const pokerCard = { width: 900, height: 1200 }
 const tarotCard = { width: 900, height: 1600 }
 
-function escapeXml(value: string) {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
-
 function getCardColor(card: RenderCard) {
   if (card.suit === 'hearts' || card.suit === 'diamonds') {
     return '#b91c1c'
@@ -211,7 +203,6 @@ function drawIndex(card: RenderCard, x: number, y: number, rotate: boolean) {
 }
 
 function buildOverlay(card: RenderCard, width: number, height: number) {
-  const safeLabel = escapeXml(card.label)
   const color = getCardColor(card)
   const indexInset = 38
   const indexWidth = 124
@@ -221,11 +212,9 @@ function buildOverlay(card: RenderCard, width: number, height: number) {
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
       <rect x="20" y="20" width="${width - 40}" height="${height - 40}" rx="42" fill="none" stroke="#111827" stroke-width="18"/>
       <rect x="50" y="50" width="${width - 100}" height="${height - 100}" rx="30" fill="none" stroke="#d4af37" stroke-width="7"/>
-      <rect x="72" y="72" width="${width - 144}" height="${height - 144}" rx="22" fill="none" stroke="rgba(17,24,39,0.22)" stroke-width="3"/>
-      ${drawSuit(card, width / 2, height - 116, 70, color, 0.9)}
+      <rect x="72" y="72" width="${width - 144}" height="${height - 144}" rx="22" fill="none" stroke="${color}" stroke-width="4" opacity="0.36"/>
       ${drawIndex(card, indexInset, indexInset, false)}
       ${drawIndex(card, width - indexInset - indexWidth, height - indexInset - indexHeight, true)}
-      <rect x="${width * 0.28}" y="${height - 74}" width="${width * 0.44}" height="4" rx="2" fill="${color}" opacity="0.48" aria-label="${safeLabel}"/>
     </svg>
   `)
 }

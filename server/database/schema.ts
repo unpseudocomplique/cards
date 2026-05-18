@@ -70,10 +70,12 @@ export const decks = pgTable('decks', {
   cardCount: integer('card_count').default(0).notNull(),
   readyCardCount: integer('ready_card_count').default(0).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull()
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at')
 }, table => [
   index('decks_user_id_idx').on(table.userId),
-  index('decks_status_idx').on(table.status)
+  index('decks_status_idx').on(table.status),
+  index('decks_deleted_at_idx').on(table.deletedAt)
 ])
 
 export const deckPhotos = pgTable('deck_photos', {

@@ -8,6 +8,13 @@
       "when": 1779106483663,
       "tag": "0000_purple_maddog",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1779119905229,
+      "tag": "0001_curved_flatman",
+      "breakpoints": true
     }
   ]
 }

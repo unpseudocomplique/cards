@@ -6,8 +6,11 @@ definePageMeta({
 })
 
 const route = useRoute()
+const router = useRouter()
+const toast = useToast()
 const deckId = computed(() => String(route.params.id))
 const requestFetch = useRequestFetch()
+const isDeletingDeck = shallowRef(false)
 
 const { data, pending, refresh } = await useAsyncData(
   () => `deck-${deckId.value}`,
@@ -28,6 +31,42 @@ useSeoMeta({
 
 async function handlePhotoUploaded(_photos: DeckPhoto[]) {
   await refresh()
+}
+
+async function deleteDeck() {
+  if (!data.value?.deck || isDeletingDeck.value) {
+    return
+  }
+
+  const confirmed = window.confirm(`Supprimer le deck "${data.value.deck.title}" ?`)
+
+  if (!confirmed) {
+    return
+  }
+
+  isDeletingDeck.value = true
+
+  try {
+    await $fetch(`/api/decks/${data.value.deck.id}`, {
+      method: 'DELETE'
+    })
+    toast.add({
+      title: 'Deck supprimé',
+      description: 'Le deck a été retiré de votre dashboard.',
+      color: 'success',
+      icon: 'i-lucide-check'
+    })
+    await router.push('/dashboard')
+  } catch (error) {
+    toast.add({
+      title: 'Suppression impossible',
+      description: error instanceof Error ? error.message : 'Veuillez réessayer.',
+      color: 'error',
+      icon: 'i-lucide-alert-circle'
+    })
+  } finally {
+    isDeletingDeck.value = false
+  }
 }
 </script>
 
@@ -124,6 +163,15 @@ async function handlePhotoUploaded(_photos: DeckPhoto[]) {
             @click="refresh()"
           >
             Rafraîchir
+          </UButton>
+          <UButton
+            color="error"
+            variant="subtle"
+            icon="i-lucide-trash-2"
+            :loading="isDeletingDeck"
+            @click="deleteDeck"
+          >
+            Supprimer le deck
           </UButton>
         </div>
 

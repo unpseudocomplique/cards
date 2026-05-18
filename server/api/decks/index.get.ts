@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq, isNull } from 'drizzle-orm'
 import { db, decks } from '~~/server/utils/db'
 
 export default defineEventHandler(async (event) => {
@@ -7,6 +7,6 @@ export default defineEventHandler(async (event) => {
   return db
     .select()
     .from(decks)
-    .where(eq(decks.userId, session.user.id))
+    .where(and(eq(decks.userId, session.user.id), isNull(decks.deletedAt)))
     .orderBy(desc(decks.updatedAt))
 })
