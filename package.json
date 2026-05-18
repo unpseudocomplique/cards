@@ -3,8 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "nuxt build",
+    "build": "NODE_OPTIONS=--max-old-space-size=4096 nuxt build",
     "dev": "nuxt dev",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "lint": "eslint .",
@@ -12,6 +16,8 @@
     "typecheck": "nuxt typecheck"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.53",
+    "@aws-sdk/client-s3": "^3.970.0",
     "@iconify-json/lucide": "^1.2.106",
     "@iconify-json/simple-icons": "^1.2.81",
     "@nuxt/content": "^3.13.0",
@@ -19,16 +25,32 @@
     "@nuxt/ui": "^4.7.1",
     "@takumi-rs/core": "^1.1.2",
     "@vueuse/nuxt": "^14.3.0",
+    "ai": "^6.0.141",
+    "browser-image-compression": "^2.0.2",
+    "drizzle-orm": "^0.45.1",
+    "jszip": "^3.10.1",
     "motion-v": "^2.2.1",
     "nuxt": "^4.4.5",
+    "nuxt-auth-utils": "^0.5.27",
     "nuxt-og-image": "^6.5.0",
-    "tailwindcss": "^4.3.0"
+    "pdf-lib": "^1.17.1",
+    "pg": "8.17.1",
+    "sharp": "^0.34.5",
+    "tailwindcss": "^4.3.0",
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@nuxt/eslint": "^1.15.2",
+    "@types/pg": "^8.16.0",
+    "drizzle-kit": "^0.31.8",
     "eslint": "^10.3.0",
     "typescript": "^6.0.3",
     "vue-tsc": "^3.2.8"
+  },
+  "pnpm": {
+    "overrides": {
+      "pg-connection-string": "2.12.0"
+    }
   },
   "packageManager": "pnpm@10.33.4"
 }

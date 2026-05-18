@@ -1,0 +1,15 @@
+node_modules
+.output
+.nuxt
+.nitro
+.cache
+.data
+dist
+.git
+.gitignore
+.env*
+.vscode
+.agents
+public/uploads
+*.log
+.DS_Store

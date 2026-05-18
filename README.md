@@ -1,3 +1,82 @@
+# Cartes personnalisées
+
+Application Nuxt pour créer des jeux de cartes personnalisés avec photos, affectations par carte/personnage et génération IA.
+
+## Déploiement production
+
+Le déploiement est prévu sur le même modèle que Quizwar: build Docker multi-stage, serveur Nitro sur le port `3000`, migrations Drizzle lancées au build puis au démarrage du conteneur.
+
+### Configuration plateforme
+
+Dans Coolify ou la plateforme qui construit le `Dockerfile`:
+
+- Build pack: `Dockerfile`
+- Port exposé: `3000`
+- Domaine: `https://cards.untestcomplique.com`
+- Variables d'environnement disponibles au build et au runtime:
+
+```dotenv
+DATABASE_URL=postgresql://quizwar:quizwar@<postgres-host>:5432/cards
+NUXT_PUBLIC_SITE_URL=https://cards.untestcomplique.com
+NUXT_SESSION_PASSWORD=<secret-long-32-chars-minimum>
+NUXT_OAUTH_GOOGLE_CLIENT_ID=<google-client-id-prod>
+NUXT_OAUTH_GOOGLE_CLIENT_SECRET=<google-client-secret-prod>
+GOOGLE_GENERATIVE_AI_API_KEY=<google-generative-ai-key>
+NUXT_BUCKET_ENDPOINT=s3.quizwar.app
+NUXT_BUCKET_NAME=quizwar
+NUXT_BUCKET_PUBLIC_URL=https://s3.quizwar.app
+MINIO_USER=<s3-access-key>
+MINIO_PASSWORD=<s3-secret-key>
+```
+
+Si la base `cards` n'existe pas encore sur le Postgres partagé de Quizwar:
+
+```sql
+CREATE DATABASE cards OWNER quizwar;
+```
+
+### Google OAuth
+
+Dans le client OAuth Google de production, ajouter:
+
+Authorized JavaScript origins:
+
+```text
+https://cards.untestcomplique.com
+```
+
+Authorized redirect URIs:
+
+```text
+https://cards.untestcomplique.com/auth/google
+```
+
+Pour le développement local, ajouter aussi:
+
+```text
+http://localhost:3003
+http://localhost:3003/auth/google
+```
+
+### Test local du conteneur
+
+Le `Dockerfile` lance une migration pendant le build, comme Quizwar. Il faut donc fournir au moins `DATABASE_URL` au build:
+
+```bash
+docker build \
+  --build-arg DATABASE_URL=postgresql://quizwar:quizwar@host.docker.internal:5432/cards \
+  --build-arg NUXT_PUBLIC_SITE_URL=https://cards.untestcomplique.com \
+  -t cards .
+```
+
+Puis lancer le conteneur avec les variables runtime:
+
+```bash
+docker run --rm -p 3000:3000 --env-file .env.production cards
+```
+
+---
+
 # Nuxt Portfolio Template
 
 [![Nuxt UI](https://img.shields.io/badge/Made%20with-Nuxt%20UI-00DC82?logo=nuxt&labelColor=020420)](https://ui.nuxt.com)
