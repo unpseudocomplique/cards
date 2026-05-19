@@ -26,6 +26,7 @@ const greenSpillMinimum = 80
 const greenSpillRange = 120
 const neutralGreenTolerance = 6
 
+/** Constrains chroma ratios used for alpha and spill cleanup to the [0, 1] range. */
 function clamp(value: number) {
   return Math.min(1, Math.max(0, value))
 }
