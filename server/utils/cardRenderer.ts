@@ -247,16 +247,34 @@ async function removeChromaGreen(source: Buffer) {
     .raw()
     .toBuffer({ resolveWithObject: true })
 
+  const clamp = (value: number) => Math.min(1, Math.max(0, value))
+
   for (let index = 0; index < data.length; index += 4) {
     const red = data[index] || 0
     const green = data[index + 1] || 0
     const blue = data[index + 2] || 0
     const alpha = data[index + 3] || 0
-    const greenDominance = green - Math.max(red, blue)
+    const strongestNonGreen = Math.max(red, blue)
+    const weakestNonGreen = Math.min(red, blue)
+    const greenDominance = green - strongestNonGreen
 
-    if (green > 145 && greenDominance > 38) {
-      const removal = Math.min(1, Math.max(0, (greenDominance - 38) / 78))
+    if (green > 96 && greenDominance > 18) {
+      const greenStrength = clamp((green - 96) / 112)
+      const dominanceStrength = clamp((greenDominance - 18) / 86)
+      const purityStrength = clamp((green - weakestNonGreen - 32) / 128)
+      const removal = Math.max(
+        greenStrength * dominanceStrength,
+        dominanceStrength * purityStrength * 0.8
+      )
+
       data[index + 3] = Math.round(alpha * (1 - removal))
+    }
+
+    if (greenDominance > 8) {
+      const spillReduction = clamp((greenDominance - 8) / 70) * clamp((green - 80) / 120)
+      const neutralGreen = Math.min(green, strongestNonGreen + 6)
+
+      data[index + 1] = Math.round(green + (neutralGreen - green) * spillReduction)
     }
   }
 

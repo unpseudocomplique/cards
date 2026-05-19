@@ -81,6 +81,7 @@ export function buildCardForegroundPrompt(card: PromptCard, settings: DeckStyleS
     cardPrompt ? `Instructions spécifiques pour cette carte: ${cardPrompt}.` : null,
     'Le personnage doit être entier ou en trois-quarts, au premier plan, avec une silhouette lisible qui pourra dépasser de la fenêtre de décor.',
     'Fond obligatoire: vert chroma key pur, uniforme, plat, couleur #00ff00, sans texture, sans décor, sans ombre portée verte.',
+    'La silhouette doit rester propre, sans reflet vert, sans halo vert et sans contamination verte sur les cheveux, la peau ou les vêtements.',
     'Ne mets aucun décor derrière le personnage, uniquement le fond vert pur pour permettre un détourage automatique.',
     'Aucun texte, aucun chiffre, aucune lettre, aucun symbole de carte, aucun cadre et aucun liseré.',
     'Conserve une ressemblance claire avec la personne, expression naturelle et flatteuse, rendu net et premium.'
