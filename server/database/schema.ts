@@ -23,6 +23,8 @@ export const exportJobStatusEnum = pgEnum('export_job_status', ['queued', 'runni
 export type DeckStyleSettings = {
   allowPhotoReuse: boolean
   visualStyle: string
+  rolePrompts?: Partial<Record<'number' | 'ace' | 'jack' | 'knight' | 'queen' | 'king' | 'trump' | 'excuse', string>>
+  suitPrompts?: Partial<Record<'hearts' | 'diamonds' | 'clubs' | 'spades' | 'trumps', string>>
   cardBackPrompt?: string
 }
 

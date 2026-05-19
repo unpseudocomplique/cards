@@ -151,6 +151,8 @@ async function deleteDeck() {
         <DeckGenerationPanel
           :deck-id="data.deck.id"
           :visual-style="data.deck.settings.visualStyle"
+          :role-prompts="data.deck.settings.rolePrompts"
+          :suit-prompts="data.deck.settings.suitPrompts"
           :cards="data.cards"
           @updated="refresh()"
         />
@@ -175,7 +177,12 @@ async function deleteDeck() {
           </UButton>
         </div>
 
-        <DeckCardGrid :cards="data.cards" />
+        <DeckCardGrid
+          :deck-id="data.deck.id"
+          :cards="data.cards"
+          :photos="data.photos"
+          @updated="refresh()"
+        />
       </div>
     </UPageSection>
   </UPage>

@@ -3,10 +3,11 @@ import { join } from 'node:path'
 import { generateImage } from 'ai'
 import { and, count, eq } from 'drizzle-orm'
 import { aiImageModel } from '~~/server/utils/ai'
-import { buildCardImagePrompt } from '~~/server/utils/cardPromptBuilder'
+import { buildCardForegroundPrompt, buildCardScenePrompt } from '~~/server/utils/cardPromptBuilder'
 import { renderCardImage } from '~~/server/utils/cardRenderer'
 import { requireOwnedDeck } from '~~/server/utils/deckAccess'
 import { db, deckCards, deckPhotos, decks } from '~~/server/utils/db'
+import { assertCanGenerate } from '~~/server/utils/generationAccess'
 import { generateFileKey, uploadFile } from '~~/server/utils/s3'
 
 function mediaTypeToExtension(mediaType?: string) {
@@ -55,7 +56,8 @@ async function updateDeckProgress(deckId: string) {
 }
 
 export default defineEventHandler(async (event) => {
-  const session = await requireUserSession(event) as { user: { id: string } }
+  const session = await requireUserSession(event) as { user: { email: string, id: string } }
+  assertCanGenerate(session.user)
   const deckId = getRouterParam(event, 'id')
   const cardId = getRouterParam(event, 'cardId')
 
@@ -97,18 +99,32 @@ export default defineEventHandler(async (event) => {
 
   try {
     const sourceBuffer = await readPhotoBuffer(row.photo.url)
-    const prompt = buildCardImagePrompt(row.card.metadata, deck.settings, row.card.prompt)
-    const { image } = await generateImage({
-      model: aiImageModel,
-      prompt: {
-        text: prompt,
-        images: [sourceBuffer]
-      },
-      aspectRatio: row.card.metadata.aspectRatio,
-      n: 1
-    })
+    const scenePrompt = buildCardScenePrompt(row.card.metadata, deck.settings, row.card.prompt)
+    const foregroundPrompt = buildCardForegroundPrompt(row.card.metadata, deck.settings, row.card.prompt)
+    const [sceneResult, foregroundResult] = await Promise.all([
+      generateImage({
+        model: aiImageModel,
+        prompt: {
+          text: scenePrompt,
+          images: [sourceBuffer]
+        },
+        aspectRatio: row.card.metadata.aspectRatio,
+        n: 1
+      }),
+      generateImage({
+        model: aiImageModel,
+        prompt: {
+          text: foregroundPrompt,
+          images: [sourceBuffer]
+        },
+        aspectRatio: row.card.metadata.aspectRatio,
+        n: 1
+      })
+    ])
+    const image = sceneResult.image
+    const foregroundImage = foregroundResult.image
 
-    if (!image?.uint8Array) {
+    if (!image?.uint8Array || !foregroundImage?.uint8Array) {
       throw new Error('Aucune image générée')
     }
 
@@ -118,7 +134,7 @@ export default defineEventHandler(async (event) => {
     const prefix = `users/${session.user.id}/decks/${deck.id}/cards/${row.card.id}`
     const rawImageKey = generateFileKey(prefix, `raw.${rawExtension}`)
     const rawImageUrl = await uploadFile(rawBuffer, rawImageKey, rawMediaType)
-    const finalBuffer = await renderCardImage(rawBuffer, row.card.metadata)
+    const finalBuffer = await renderCardImage(rawBuffer, row.card.metadata, Buffer.from(foregroundImage.uint8Array))
     const finalImageKey = generateFileKey(prefix, 'final.png')
     const finalImageUrl = await uploadFile(finalBuffer, finalImageKey, 'image/png')
 

@@ -12,6 +12,16 @@ type RenderCard = {
 const pokerCard = { width: 900, height: 1200 }
 const tarotCard = { width: 900, height: 1600 }
 
+function getSceneFrame(width: number, height: number) {
+  return {
+    x: Math.round(width * 0.16),
+    y: Math.round(height * 0.1),
+    width: Math.round(width * 0.68),
+    height: Math.round(height * 0.78),
+    radius: 18
+  }
+}
+
 function getCardColor(card: RenderCard) {
   if (card.suit === 'hearts' || card.suit === 'diamonds') {
     return '#b91c1c'
@@ -158,7 +168,9 @@ function drawSuit(card: RenderCard, cx: number, cy: number, size: number, color:
   const fill = `fill="${color}" opacity="${opacity}"`
 
   if (card.suit === 'hearts') {
-    return `<path ${fill} d="M ${cx} ${cy + half * 0.72} C ${cx - half} ${cy + quarter} ${cx - half} ${cy - quarter} ${cx - quarter * 0.2} ${cy - quarter} C ${cx - quarter * 0.03} ${cy - quarter} ${cx - quarter * 0.03} ${cy - quarter * 0.03} ${cx} ${cy} C ${cx + quarter * 0.03} ${cy - quarter * 0.03} ${cx + quarter * 0.03} ${cy - quarter} ${cx + quarter * 0.2} ${cy - quarter} C ${cx + half} ${cy - quarter} ${cx + half} ${cy + quarter} ${cx} ${cy + half * 0.72} Z"/>`
+    const scale = size / 100
+
+    return `<path ${fill} transform="translate(${cx} ${cy + size * 0.06}) scale(${scale})" d="M 0 40 C -6 31 -43 8 -43 -21 C -43 -45 -17 -55 0 -32 C 17 -55 43 -45 43 -21 C 43 8 6 31 0 40 Z"/>`
   }
 
   if (card.suit === 'diamonds') {
@@ -203,28 +215,100 @@ function drawIndex(card: RenderCard, x: number, y: number, rotate: boolean) {
 }
 
 function buildOverlay(card: RenderCard, width: number, height: number) {
-  const color = getCardColor(card)
-  const indexInset = 38
+  const indexInset = 36
   const indexWidth = 124
   const indexHeight = 184
 
   return Buffer.from(`
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-      <rect x="20" y="20" width="${width - 40}" height="${height - 40}" rx="42" fill="none" stroke="#111827" stroke-width="18"/>
-      <rect x="50" y="50" width="${width - 100}" height="${height - 100}" rx="30" fill="none" stroke="#d4af37" stroke-width="7"/>
-      <rect x="72" y="72" width="${width - 144}" height="${height - 144}" rx="22" fill="none" stroke="${color}" stroke-width="4" opacity="0.36"/>
       ${drawIndex(card, indexInset, indexInset, false)}
       ${drawIndex(card, width - indexInset - indexWidth, height - indexInset - indexHeight, true)}
     </svg>
   `)
 }
 
-export async function renderCardImage(source: Buffer, card: RenderCard) {
-  const dimensions = card.aspectRatio === '9:16' ? tarotCard : pokerCard
+async function buildSceneImage(source: Buffer, width: number, height: number, radius: number) {
+  const mask = Buffer.from(`
+    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="0" width="${width}" height="${height}" rx="${radius}" fill="#ffffff"/>
+    </svg>
+  `)
 
-  const base = await sharp(source)
-    .resize(dimensions.width, dimensions.height, { fit: 'cover' })
-    .composite([{ input: buildOverlay(card, dimensions.width, dimensions.height), top: 0, left: 0 }])
+  return sharp(source)
+    .resize(width, height, { fit: 'cover', position: 'attention' })
+    .composite([{ input: mask, blend: 'dest-in' }])
+    .png()
+    .toBuffer()
+}
+
+async function removeChromaGreen(source: Buffer) {
+  const { data, info } = await sharp(source)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+
+  for (let index = 0; index < data.length; index += 4) {
+    const red = data[index] || 0
+    const green = data[index + 1] || 0
+    const blue = data[index + 2] || 0
+    const alpha = data[index + 3] || 0
+    const greenDominance = green - Math.max(red, blue)
+
+    if (green > 145 && greenDominance > 38) {
+      const removal = Math.min(1, Math.max(0, (greenDominance - 38) / 78))
+      data[index + 3] = Math.round(alpha * (1 - removal))
+    }
+  }
+
+  return sharp(data, {
+    raw: {
+      width: info.width,
+      height: info.height,
+      channels: 4
+    }
+  })
+    .png()
+    .toBuffer()
+}
+
+async function buildForegroundImage(source: Buffer, width: number, height: number) {
+  const cutout = await removeChromaGreen(source)
+
+  return sharp(cutout)
+    .resize(width, height, {
+      fit: 'contain',
+      background: { r: 0, g: 0, b: 0, alpha: 0 }
+    })
+    .png()
+    .toBuffer()
+}
+
+export async function renderCardImage(source: Buffer, card: RenderCard, foreground?: Buffer) {
+  const dimensions = card.aspectRatio === '9:16' ? tarotCard : pokerCard
+  const scene = getSceneFrame(dimensions.width, dimensions.height)
+  const sceneImage = await buildSceneImage(source, scene.width, scene.height, scene.radius)
+  const foregroundImage = foreground
+    ? await buildForegroundImage(foreground, dimensions.width, dimensions.height)
+    : null
+  const layers = [
+    { input: sceneImage, top: scene.y, left: scene.x }
+  ]
+
+  if (foregroundImage) {
+    layers.push({ input: foregroundImage, top: 0, left: 0 })
+  }
+
+  layers.push({ input: buildOverlay(card, dimensions.width, dimensions.height), top: 0, left: 0 })
+
+  const base = await sharp({
+    create: {
+      width: dimensions.width,
+      height: dimensions.height,
+      channels: 4,
+      background: '#ffffff'
+    }
+  })
+    .composite(layers)
     .png()
     .toBuffer()
 

@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import type { DeckCard } from '~/types/deck'
+import type { CardRolePrompts, CardSuitPrompts } from '~~/shared/utils/cardPromptPresets'
+import { mergeRolePrompts, mergeSuitPrompts } from '~~/shared/utils/cardPromptPresets'
 
 type RoleValue = 'number' | 'ace' | 'jack' | 'knight' | 'queen' | 'king' | 'trump' | 'excuse'
+type SuitValue = 'hearts' | 'diamonds' | 'clubs' | 'spades' | 'trumps'
 
 type GenerateJob = {
   totalCards: number
@@ -10,6 +13,8 @@ type GenerateJob = {
 const props = defineProps<{
   deckId: string
   visualStyle: string
+  rolePrompts?: CardRolePrompts
+  suitPrompts?: CardSuitPrompts
   cards: DeckCard[]
 }>()
 
@@ -19,6 +24,10 @@ const emit = defineEmits<{
 
 const toast = useToast()
 const globalPromptDraft = shallowRef(props.visualStyle)
+const selectedRolePrompt = shallowRef<RoleValue>('king')
+const selectedSuitPrompt = shallowRef<SuitValue>('hearts')
+const rolePromptDraft = shallowRef('')
+const suitPromptDraft = shallowRef('')
 const selectedTestCardId = shallowRef(props.cards[0]?.id || '')
 const selectedPromptCardId = shallowRef(props.cards[0]?.id || '')
 const cardPromptDraft = shallowRef('')
@@ -28,6 +37,7 @@ const isSavingGlobalPrompt = shallowRef(false)
 const isSavingCardPrompt = shallowRef(false)
 const isTestingCard = shallowRef(false)
 const isQueueing = shallowRef(false)
+const selectedGenerationProgress = shallowRef<{ completed: number, total: number } | null>(null)
 
 const roleOptions: Array<{ value: RoleValue, label: string }> = [
   { value: 'queen', label: 'Dames' },
@@ -38,6 +48,14 @@ const roleOptions: Array<{ value: RoleValue, label: string }> = [
   { value: 'excuse', label: 'Excuse' },
   { value: 'ace', label: 'As' },
   { value: 'number', label: 'Cartes numérales' }
+]
+
+const suitOptions: Array<{ value: SuitValue, label: string }> = [
+  { value: 'hearts', label: 'Coeurs' },
+  { value: 'diamonds', label: 'Carreaux' },
+  { value: 'clubs', label: 'Trèfles' },
+  { value: 'spades', label: 'Piques' },
+  { value: 'trumps', label: 'Atouts' }
 ]
 
 const roleFilterOptions = computed(() => [
@@ -61,10 +79,25 @@ const visibleCards = computed(() => {
 const selectedPromptCard = computed(() => props.cards.find(card => card.id === selectedPromptCardId.value) || null)
 const selectedTestCard = computed(() => props.cards.find(card => card.id === selectedTestCardId.value) || null)
 const selectedCount = computed(() => selectedCardIds.value.length)
+const selectedCards = computed(() => props.cards.filter(card => selectedCardIds.value.includes(card.id)))
+const selectedCardsWithPhoto = computed(() => selectedCards.value.filter(card => card.sourcePhotoId))
+const selectedGenerationLabel = computed(() => selectedGenerationProgress.value
+  ? `Génération ${selectedGenerationProgress.value.completed}/${selectedGenerationProgress.value.total}`
+  : 'Relancer la sélection')
+const mergedRolePrompts = computed(() => mergeRolePrompts(props.rolePrompts))
+const mergedSuitPrompts = computed(() => mergeSuitPrompts(props.suitPrompts))
 
 watch(() => props.visualStyle, (visualStyle) => {
   globalPromptDraft.value = visualStyle
 })
+
+watch([mergedRolePrompts, selectedRolePrompt], ([rolePrompts, role]) => {
+  rolePromptDraft.value = rolePrompts[role]
+}, { immediate: true })
+
+watch([mergedSuitPrompts, selectedSuitPrompt], ([suitPrompts, suit]) => {
+  suitPromptDraft.value = suitPrompts[suit]
+}, { immediate: true })
 
 watch(() => props.cards, (cards) => {
   if (!cards.some(card => card.id === selectedTestCardId.value)) {
@@ -108,11 +141,13 @@ function clearSelectedCards() {
 
 async function saveGlobalPrompt() {
   const visualStyle = globalPromptDraft.value.trim()
+  const rolePrompt = rolePromptDraft.value.trim()
+  const suitPrompt = suitPromptDraft.value.trim()
 
-  if (!visualStyle) {
+  if (!visualStyle || !rolePrompt || !suitPrompt) {
     toast.add({
-      title: 'Prompt global requis',
-      description: 'Ajoutez une direction visuelle avant de sauvegarder.',
+      title: 'Prompts requis',
+      description: 'Le style global, le style de carré et le style de couleur doivent être renseignés.',
       color: 'warning',
       icon: 'i-lucide-alert-triangle'
     })
@@ -124,11 +159,19 @@ async function saveGlobalPrompt() {
   try {
     await $fetch(`/api/decks/${props.deckId}/prompt`, {
       method: 'PATCH',
-      body: { visualStyle }
+      body: {
+        visualStyle,
+        rolePrompts: {
+          [selectedRolePrompt.value]: rolePrompt
+        },
+        suitPrompts: {
+          [selectedSuitPrompt.value]: suitPrompt
+        }
+      }
     })
 
     toast.add({
-      title: 'Prompt global sauvegardé',
+      title: 'Prompts sauvegardés',
       color: 'success',
       icon: 'i-lucide-check'
     })
@@ -233,7 +276,60 @@ async function queueSelectedCards() {
     return
   }
 
-  await queueGeneration({ scope: 'cards', cardIds: selectedCardIds.value })
+  if (!selectedCardsWithPhoto.value.length) {
+    toast.add({
+      title: 'Aucune photo affectée',
+      description: 'Les cartes sélectionnées doivent avoir une photo avant de pouvoir être générées.',
+      color: 'warning',
+      icon: 'i-lucide-image-off'
+    })
+    return
+  }
+
+  const skippedCount = selectedCards.value.length - selectedCardsWithPhoto.value.length
+  let generatedCount = 0
+  let failedCount = 0
+
+  isQueueing.value = true
+  selectedGenerationProgress.value = { completed: 0, total: selectedCardsWithPhoto.value.length }
+
+  try {
+    if (skippedCount) {
+      toast.add({
+        title: 'Cartes ignorées',
+        description: `${skippedCount} carte(s) sans photo ne seront pas générées.`,
+        color: 'warning',
+        icon: 'i-lucide-image-off'
+      })
+    }
+
+    for (const card of selectedCardsWithPhoto.value) {
+      try {
+        await $fetch(`/api/decks/${props.deckId}/cards/${card.id}/generate`, {
+          method: 'POST'
+        })
+        generatedCount += 1
+      } catch {
+        failedCount += 1
+      }
+
+      selectedGenerationProgress.value = {
+        completed: generatedCount + failedCount,
+        total: selectedCardsWithPhoto.value.length
+      }
+    }
+
+    toast.add({
+      title: failedCount ? 'Relance terminée avec erreurs' : 'Cartes générées',
+      description: `${generatedCount} carte(s) générée(s), ${failedCount} échec(s).`,
+      color: failedCount ? 'warning' : 'success',
+      icon: failedCount ? 'i-lucide-alert-triangle' : 'i-lucide-check'
+    })
+    emit('updated')
+  } finally {
+    isQueueing.value = false
+    selectedGenerationProgress.value = null
+  }
 }
 
 async function queueGeneration(body: { scope: 'pending' } | { scope: 'cards', cardIds: string[] }) {
@@ -284,7 +380,7 @@ async function queueGeneration(body: { scope: 'pending' } | { scope: 'cards', ca
       </UBadge>
     </div>
 
-    <div class="grid gap-4 lg:grid-cols-2">
+    <div class="grid gap-4 xl:grid-cols-3">
       <div class="space-y-3 rounded-lg border border-default p-3">
         <UFormField label="Prompt global">
           <textarea
@@ -293,15 +389,64 @@ async function queueGeneration(body: { scope: 'pending' } | { scope: 'cards', ca
             maxlength="1200"
           />
         </UFormField>
-        <UButton
-          icon="i-lucide-save"
-          :loading="isSavingGlobalPrompt"
-          @click="saveGlobalPrompt"
-        >
-          Sauvegarder
-        </UButton>
       </div>
 
+      <div class="space-y-3 rounded-lg border border-default p-3">
+        <UFormField label="Style du carré">
+          <select
+            v-model="selectedRolePrompt"
+            class="mb-3 h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option
+              v-for="role in roleOptions"
+              :key="role.value"
+              :value="role.value"
+            >
+              {{ role.label }}
+            </option>
+          </select>
+          <textarea
+            v-model="rolePromptDraft"
+            class="min-h-32 w-full resize-y rounded-md border border-default bg-default px-3 py-2 text-sm text-highlighted outline-none focus:ring-2 focus:ring-primary"
+            maxlength="1600"
+          />
+        </UFormField>
+      </div>
+
+      <div class="space-y-3 rounded-lg border border-default p-3">
+        <UFormField label="Style de couleur">
+          <select
+            v-model="selectedSuitPrompt"
+            class="mb-3 h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option
+              v-for="suit in suitOptions"
+              :key="suit.value"
+              :value="suit.value"
+            >
+              {{ suit.label }}
+            </option>
+          </select>
+          <textarea
+            v-model="suitPromptDraft"
+            class="min-h-32 w-full resize-y rounded-md border border-default bg-default px-3 py-2 text-sm text-highlighted outline-none focus:ring-2 focus:ring-primary"
+            maxlength="1600"
+          />
+        </UFormField>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <UButton
+        icon="i-lucide-save"
+        :loading="isSavingGlobalPrompt"
+        @click="saveGlobalPrompt"
+      >
+        Sauvegarder les prompts de style
+      </UButton>
+    </div>
+
+    <div class="grid gap-4 lg:grid-cols-2">
       <div class="space-y-3 rounded-lg border border-default p-3">
         <UFormField label="Test avec une carte">
           <select
@@ -391,7 +536,7 @@ async function queueGeneration(body: { scope: 'pending' } | { scope: 'cards', ca
             :loading="isQueueing"
             @click="queueSelectedCards"
           >
-            Relancer la sélection
+            {{ selectedGenerationLabel }}
           </UButton>
         </div>
 

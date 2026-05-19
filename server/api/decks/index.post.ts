@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { defaultRolePrompts, defaultSuitPrompts } from '~~/shared/utils/cardPromptPresets'
 import { getCardCatalog } from '~~/server/utils/cardCatalog'
 import { db, deckCards, decks } from '~~/server/utils/db'
 
@@ -37,7 +38,9 @@ export default defineEventHandler(async (event) => {
         cardCount: catalog.length,
         settings: {
           allowPhotoReuse: input.allowPhotoReuse,
-          visualStyle: input.visualStyle
+          visualStyle: input.visualStyle,
+          rolePrompts: defaultRolePrompts,
+          suitPrompts: defaultSuitPrompts
         }
       })
       .returning()

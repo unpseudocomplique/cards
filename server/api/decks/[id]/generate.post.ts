@@ -2,6 +2,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { requireOwnedDeck } from '~~/server/utils/deckAccess'
 import { db, deckCards, decks, generationJobs } from '~~/server/utils/db'
+import { assertCanGenerate } from '~~/server/utils/generationAccess'
 
 const cardRoleSchema = z.enum(['number', 'ace', 'jack', 'knight', 'queen', 'king', 'trump', 'excuse'])
 
@@ -12,7 +13,8 @@ const generateSchema = z.object({
 }).default({ scope: 'pending' })
 
 export default defineEventHandler(async (event) => {
-  const session = await requireUserSession(event) as { user: { id: string } }
+  const session = await requireUserSession(event) as { user: { email: string, id: string } }
+  assertCanGenerate(session.user)
   const deckId = getRouterParam(event, 'id')
 
   if (!deckId) {
