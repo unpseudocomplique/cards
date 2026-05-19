@@ -26,6 +26,10 @@ const greenSpillMinimum = 80
 const greenSpillRange = 120
 const neutralGreenTolerance = 6
 
+function clamp(value: number) {
+  return Math.min(1, Math.max(0, value))
+}
+
 function getSceneFrame(width: number, height: number) {
   return {
     x: Math.round(width * 0.16),
@@ -260,8 +264,6 @@ async function removeChromaGreen(source: Buffer) {
     .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true })
-
-  const clamp = (value: number) => Math.min(1, Math.max(0, value))
 
   for (let index = 0; index < data.length; index += 4) {
     const red = data[index] || 0
