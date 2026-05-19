@@ -12,6 +12,25 @@ type RenderCard = {
 const pokerCard = { width: 900, height: 1200 }
 const tarotCard = { width: 900, height: 1600 }
 
+// Thresholds use 0-255 channel values tuned to remove antialiased chroma edges while preserving muted natural greens.
+const chromaGreenMinimum = 96
+const chromaDominanceMinimum = 18
+const chromaGreenRange = 112
+const chromaDominanceRange = 86
+const chromaPurityOffset = 32
+const chromaPurityRange = 128
+const chromaPurityWeight = 0.8
+const greenSpillDominanceMinimum = 8
+const greenSpillDominanceRange = 70
+const greenSpillMinimum = 80
+const greenSpillRange = 120
+const neutralGreenTolerance = 6
+
+/** Constrains chroma ratios used for alpha and spill cleanup to the [0, 1] range. */
+function clamp(value: number) {
+  return Math.min(1, Math.max(0, value))
+}
+
 function getSceneFrame(width: number, height: number) {
   return {
     x: Math.round(width * 0.16),
@@ -252,11 +271,29 @@ async function removeChromaGreen(source: Buffer) {
     const green = data[index + 1] || 0
     const blue = data[index + 2] || 0
     const alpha = data[index + 3] || 0
-    const greenDominance = green - Math.max(red, blue)
+    const strongestNonGreen = Math.max(red, blue)
+    const weakestNonGreen = Math.min(red, blue)
+    const greenDominance = green - strongestNonGreen
 
-    if (green > 145 && greenDominance > 38) {
-      const removal = Math.min(1, Math.max(0, (greenDominance - 38) / 78))
+    if (green > chromaGreenMinimum && greenDominance > chromaDominanceMinimum) {
+      const greenStrength = clamp((green - chromaGreenMinimum) / chromaGreenRange)
+      const dominanceStrength = clamp((greenDominance - chromaDominanceMinimum) / chromaDominanceRange)
+      const purityStrength = clamp((green - weakestNonGreen - chromaPurityOffset) / chromaPurityRange)
+      const removal = Math.max(
+        greenStrength * dominanceStrength,
+        dominanceStrength * purityStrength * chromaPurityWeight
+      )
+
       data[index + 3] = Math.round(alpha * (1 - removal))
+    }
+
+    if (greenDominance > greenSpillDominanceMinimum) {
+      const spillDominanceRatio = clamp((greenDominance - greenSpillDominanceMinimum) / greenSpillDominanceRange)
+      const spillGreenRatio = clamp((green - greenSpillMinimum) / greenSpillRange)
+      const spillReduction = spillDominanceRatio * spillGreenRatio
+      const neutralGreen = Math.min(green, strongestNonGreen + neutralGreenTolerance)
+
+      data[index + 1] = Math.round(green + (neutralGreen - green) * spillReduction)
     }
   }
 
