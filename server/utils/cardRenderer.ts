@@ -11,6 +11,8 @@ type RenderCard = {
 
 const pokerCard = { width: 900, height: 1200 }
 const tarotCard = { width: 900, height: 1600 }
+
+// Thresholds use 0-255 channel values tuned to remove antialiased chroma edges while preserving muted natural greens.
 const chromaGreenMinimum = 96
 const chromaDominanceMinimum = 18
 const chromaGreenRange = 112
@@ -283,8 +285,9 @@ async function removeChromaGreen(source: Buffer) {
     }
 
     if (greenDominance > greenSpillDominanceMinimum) {
-      const spillReduction = clamp((greenDominance - greenSpillDominanceMinimum) / greenSpillDominanceRange)
-        * clamp((green - greenSpillMinimum) / greenSpillRange)
+      const spillDominanceRatio = clamp((greenDominance - greenSpillDominanceMinimum) / greenSpillDominanceRange)
+      const spillGreenRatio = clamp((green - greenSpillMinimum) / greenSpillRange)
+      const spillReduction = spillDominanceRatio * spillGreenRatio
       const neutralGreen = Math.min(green, strongestNonGreen + neutralGreenTolerance)
 
       data[index + 1] = Math.round(green + (neutralGreen - green) * spillReduction)
