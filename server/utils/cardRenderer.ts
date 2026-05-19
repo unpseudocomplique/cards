@@ -188,8 +188,8 @@ function drawSuit(card: RenderCard, cx: number, cy: number, size: number, color:
 
   if (card.suit === 'spades') {
     return [
-      `<path ${fill} d="M ${cx} ${cy - half * 0.72} C ${cx - half} ${cy - quarter} ${cx - half} ${cy + quarter} ${cx - quarter * 0.2} ${cy + quarter} C ${cx - quarter * 0.03} ${cy + quarter} ${cx - quarter * 0.03} ${cy + quarter * 0.03} ${cx} ${cy} C ${cx + quarter * 0.03} ${cy + quarter * 0.03} ${cx + quarter * 0.03} ${cy + quarter} ${cx + quarter * 0.2} ${cy + quarter} C ${cx + half} ${cy + quarter} ${cx + half} ${cy - quarter} ${cx} ${cy - half * 0.72} Z"/>`,
-      `<path ${fill} d="M ${cx - quarter * 0.35} ${cy + quarter * 0.2} L ${cx + quarter * 0.35} ${cy + quarter * 0.2} L ${cx + quarter * 0.55} ${cy + half} L ${cx - quarter * 0.55} ${cy + half} Z"/>`
+      `<path ${fill} d="M ${cx} ${cy - half * 0.9} C ${cx - half * 0.45} ${cy - half * 0.45} ${cx - half * 0.9} ${cy - half * 0.18} ${cx - half * 0.86} ${cy + quarter * 0.38} C ${cx - half * 0.82} ${cy + quarter * 0.96} ${cx - quarter * 0.14} ${cy + quarter * 1.08} ${cx} ${cy + quarter * 0.2} C ${cx + quarter * 0.14} ${cy + quarter * 1.08} ${cx + half * 0.82} ${cy + quarter * 0.96} ${cx + half * 0.86} ${cy + quarter * 0.38} C ${cx + half * 0.9} ${cy - half * 0.18} ${cx + half * 0.45} ${cy - half * 0.45} ${cx} ${cy - half * 0.9} Z"/>`,
+      `<path ${fill} d="M ${cx - quarter * 0.22} ${cy + quarter * 0.12} C ${cx - quarter * 0.12} ${cy + quarter * 0.6} ${cx - quarter * 0.35} ${cy + half * 0.76} ${cx - quarter * 0.62} ${cy + half * 0.84} L ${cx + quarter * 0.62} ${cy + half * 0.84} C ${cx + quarter * 0.35} ${cy + half * 0.76} ${cx + quarter * 0.12} ${cy + quarter * 0.6} ${cx + quarter * 0.22} ${cy + quarter * 0.12} Z"/>`
     ].join('')
   }
 
