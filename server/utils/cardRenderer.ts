@@ -11,6 +11,18 @@ type RenderCard = {
 
 const pokerCard = { width: 900, height: 1200 }
 const tarotCard = { width: 900, height: 1600 }
+const chromaGreenMinimum = 96
+const chromaDominanceMinimum = 18
+const chromaGreenRange = 112
+const chromaDominanceRange = 86
+const chromaPurityOffset = 32
+const chromaPurityRange = 128
+const chromaPurityWeight = 0.8
+const greenSpillDominanceMinimum = 8
+const greenSpillDominanceRange = 70
+const greenSpillMinimum = 80
+const greenSpillRange = 120
+const neutralGreenTolerance = 6
 
 function getSceneFrame(width: number, height: number) {
   return {
@@ -258,21 +270,22 @@ async function removeChromaGreen(source: Buffer) {
     const weakestNonGreen = Math.min(red, blue)
     const greenDominance = green - strongestNonGreen
 
-    if (green > 96 && greenDominance > 18) {
-      const greenStrength = clamp((green - 96) / 112)
-      const dominanceStrength = clamp((greenDominance - 18) / 86)
-      const purityStrength = clamp((green - weakestNonGreen - 32) / 128)
+    if (green > chromaGreenMinimum && greenDominance > chromaDominanceMinimum) {
+      const greenStrength = clamp((green - chromaGreenMinimum) / chromaGreenRange)
+      const dominanceStrength = clamp((greenDominance - chromaDominanceMinimum) / chromaDominanceRange)
+      const purityStrength = clamp((green - weakestNonGreen - chromaPurityOffset) / chromaPurityRange)
       const removal = Math.max(
         greenStrength * dominanceStrength,
-        dominanceStrength * purityStrength * 0.8
+        dominanceStrength * purityStrength * chromaPurityWeight
       )
 
       data[index + 3] = Math.round(alpha * (1 - removal))
     }
 
-    if (greenDominance > 8) {
-      const spillReduction = clamp((greenDominance - 8) / 70) * clamp((green - 80) / 120)
-      const neutralGreen = Math.min(green, strongestNonGreen + 6)
+    if (greenDominance > greenSpillDominanceMinimum) {
+      const spillReduction = clamp((greenDominance - greenSpillDominanceMinimum) / greenSpillDominanceRange)
+        * clamp((green - greenSpillMinimum) / greenSpillRange)
+      const neutralGreen = Math.min(green, strongestNonGreen + neutralGreenTolerance)
 
       data[index + 1] = Math.round(green + (neutralGreen - green) * spillReduction)
     }
