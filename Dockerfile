@@ -34,6 +34,7 @@ RUN --mount=type=cache,target=/root/.npm \
     npm install --no-package-lock drizzle-kit drizzle-orm pg tsx
 
 COPY --from=builder /app/.output /app/.output
+COPY --from=builder /app/public/fonts /app/public/fonts
 COPY --from=builder /app/drizzle.config.ts /app/drizzle.config.ts
 COPY --from=builder /app/server/database /app/server/database
 

@@ -24,7 +24,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  updated: []
+  'card-updated': [card: DeckCard]
 }>()
 
 const toast = useToast()
@@ -32,7 +32,6 @@ const selectedSuitFilter = shallowRef<SuitFilterValue>('all')
 const selectedRoleFilter = shallowRef<RoleFilterValue>('all')
 const assigningCardIds = shallowRef(new Set<string>())
 const regeneratingCardIds = shallowRef(new Set<string>())
-const cardOverrides = shallowRef(new Map<string, DeckCard>())
 
 const faceRoles: CardRolePromptKey[] = ['jack', 'knight', 'queen', 'king']
 const noPersonValue = '__no_person__'
@@ -93,7 +92,7 @@ const statusColor = computed(() => ({
   failed: 'error'
 } as const))
 
-const displayedCards = computed(() => props.cards.map(card => cardOverrides.value.get(card.id) || card))
+const displayedCards = computed(() => props.cards)
 const readyCount = computed(() => displayedCards.value.filter(card => card.status === 'ready').length)
 const filteredReadyCount = computed(() => visibleCards.value.filter(card => card.status === 'ready').length)
 const personById = computed(() => new Map(props.persons.map(person => [person.id, person])))
@@ -146,10 +145,6 @@ const personSelectItems = computed<PersonSelectItem[]>(() => [
     }
   })
 ])
-
-watch(() => props.cards, () => {
-  cardOverrides.value = new Map()
-})
 
 function getCardPerson(card: DeckCard) {
   if (!card.sourcePersonId) {
@@ -211,13 +206,6 @@ function isRegeneratingCard(card: DeckCard) {
   return regeneratingCardIds.value.has(card.id)
 }
 
-function updateCardOverride(card: DeckCard) {
-  const nextCards = new Map(cardOverrides.value)
-
-  nextCards.set(card.id, card)
-  cardOverrides.value = nextCards
-}
-
 async function assignCard(card: DeckCard, personId: string) {
   addCardLoadingState(assigningCardIds, card.id)
 
@@ -237,7 +225,7 @@ async function assignCard(card: DeckCard, personId: string) {
       color: 'success',
       icon: 'i-lucide-check'
     })
-    updateCardOverride({
+    emit('card-updated', {
       ...card,
       sourcePersonId: personId || null,
       sourcePhotoId: personId ? (personById.value.get(personId)?.photos[0]?.id || null) : null
@@ -246,7 +234,7 @@ async function assignCard(card: DeckCard, personId: string) {
     const failedCard = getApiErrorCard(error)
 
     if (failedCard) {
-      updateCardOverride(failedCard)
+      emit('card-updated', failedCard)
     }
 
     toast.add({
@@ -272,6 +260,7 @@ async function regenerateCard(card: DeckCard) {
   }
 
   addCardLoadingState(regeneratingCardIds, card.id)
+  emit('card-updated', { ...card, status: 'generating', errorMessage: null })
 
   try {
     const updatedCard = await $fetch<DeckCard>(`/api/decks/${props.deckId}/cards/${card.id}/generate`, {
@@ -284,13 +273,18 @@ async function regenerateCard(card: DeckCard) {
       color: 'success',
       icon: 'i-lucide-sparkles'
     })
-    updateCardOverride(updatedCard)
-    emit('updated')
+    emit('card-updated', updatedCard)
   } catch (error) {
     const failedCard = getApiErrorCard(error)
 
     if (failedCard) {
-      updateCardOverride(failedCard)
+      emit('card-updated', failedCard)
+    } else {
+      emit('card-updated', {
+        ...card,
+        status: 'failed',
+        errorMessage: getApiErrorMessage(error)
+      })
     }
 
     toast.add({
@@ -299,7 +293,6 @@ async function regenerateCard(card: DeckCard) {
       color: 'error',
       icon: 'i-lucide-alert-circle'
     })
-    emit('updated')
   } finally {
     removeCardLoadingState(regeneratingCardIds, card.id)
   }

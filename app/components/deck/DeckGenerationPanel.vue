@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { DeckCard } from '~/types/deck'
+import type { DeckCard, DeckDetails } from '~/types/deck'
 import type { CardRolePrompts, CardSuitPrompts } from '~~/shared/utils/cardPromptPresets'
 import { mergeRolePrompts, mergeSuitPrompts } from '~~/shared/utils/cardPromptPresets'
 
@@ -19,7 +19,8 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  updated: []
+  'card-updated': [card: DeckCard]
+  'deck-settings-updated': [settings: Partial<DeckDetails['deck']['settings']>]
 }>()
 
 const toast = useToast()
@@ -181,12 +182,27 @@ function formatBatchErrorSummary(errors: string[]) {
 }
 
 async function generateCardWithHandling(card: DeckCard) {
+  emit('card-updated', { ...card, status: 'generating', errorMessage: null })
+
   try {
-    await $fetch(`/api/decks/${props.deckId}/cards/${card.id}/generate`, {
+    const updatedCard = await $fetch<DeckCard>(`/api/decks/${props.deckId}/cards/${card.id}/generate`, {
       method: 'POST'
     })
-    return { ok: true as const }
+    emit('card-updated', updatedCard)
+    return { ok: true as const, card: updatedCard }
   } catch (error) {
+    const failedCard = getApiErrorCard(error)
+
+    if (failedCard) {
+      emit('card-updated', failedCard)
+    } else {
+      emit('card-updated', {
+        ...card,
+        status: 'failed',
+        errorMessage: getApiErrorMessage(error, 'Génération impossible.')
+      })
+    }
+
     return {
       ok: false as const,
       message: getApiErrorMessage(error, 'Génération impossible.')
@@ -222,7 +238,7 @@ async function saveGlobalPrompt() {
   isSavingGlobalPrompt.value = true
 
   try {
-    await $fetch(`/api/decks/${props.deckId}/prompt`, {
+    const updatedDeck = await $fetch<{ settings: DeckDetails['deck']['settings'] }>(`/api/decks/${props.deckId}/prompt`, {
       method: 'PATCH',
       body: showAdvancedStyle.value
         ? {
@@ -242,7 +258,7 @@ async function saveGlobalPrompt() {
       color: 'success',
       icon: 'i-lucide-check'
     })
-    emit('updated')
+    emit('deck-settings-updated', updatedDeck.settings)
   } catch (error) {
     toast.add({
       title: 'Enregistrement impossible',
@@ -263,7 +279,7 @@ async function saveCardPrompt(clear = false) {
   isSavingCardPrompt.value = true
 
   try {
-    await $fetch(`/api/decks/${props.deckId}/cards/${selectedPromptCard.value.id}/prompt`, {
+    const updatedCard = await $fetch<DeckCard>(`/api/decks/${props.deckId}/cards/${selectedPromptCard.value.id}/prompt`, {
       method: 'PATCH',
       body: { prompt: clear ? null : cardPromptDraft.value.trim() || null }
     })
@@ -273,7 +289,7 @@ async function saveCardPrompt(clear = false) {
       color: 'success',
       icon: 'i-lucide-check'
     })
-    emit('updated')
+    emit('card-updated', updatedCard)
   } catch (error) {
     toast.add({
       title: 'Enregistrement impossible',
@@ -303,29 +319,25 @@ async function testSelectedCard() {
 
   isTestingCard.value = true
 
-  try {
-    await $fetch(`/api/decks/${props.deckId}/cards/${selectedTestCard.value.id}/generate`, {
-      method: 'POST'
-    })
+  const result = await generateCardWithHandling(selectedTestCard.value)
 
+  if (result.ok) {
     toast.add({
       title: 'Carte créée',
       description: selectedTestCard.value.metadata.label,
       color: 'success',
       icon: 'i-lucide-check'
     })
-    emit('updated')
-  } catch (error) {
+  } else {
     toast.add({
       title: 'Création impossible',
-      description: getApiErrorMessage(error),
+      description: result.message,
       color: 'error',
       icon: 'i-lucide-alert-circle'
     })
-    emit('updated')
-  } finally {
-    isTestingCard.value = false
   }
+
+  isTestingCard.value = false
 }
 
 async function generatePendingCards() {
@@ -374,7 +386,6 @@ async function generatePendingCards() {
       color: failedCount ? 'warning' : 'success',
       icon: failedCount ? 'i-lucide-alert-triangle' : 'i-lucide-check'
     })
-    emit('updated')
   } finally {
     isQueueing.value = false
     selectedGenerationProgress.value = null
@@ -444,7 +455,6 @@ async function queueSelectedCards() {
       color: failedCount ? 'warning' : 'success',
       icon: failedCount ? 'i-lucide-alert-triangle' : 'i-lucide-check'
     })
-    emit('updated')
   } finally {
     isQueueing.value = false
     selectedGenerationProgress.value = null
@@ -460,13 +470,16 @@ async function queuePendingCards() {
       body: { scope: 'pending' }
     })
 
+    for (const card of pendingCardsWithPerson.value) {
+      emit('card-updated', { ...card, status: 'queued', errorMessage: null })
+    }
+
     toast.add({
       title: 'File préparée',
       description: `${job.totalCards} carte(s) prêtes à être générées.`,
       color: 'success',
       icon: 'i-lucide-check'
     })
-    emit('updated')
   } catch (error) {
     toast.add({
       title: 'Démarrage impossible',

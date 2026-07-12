@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { DeckDetails, DeckPhoto } from '~/types/deck'
+import type { DeckCard, DeckDetails, DeckPhoto } from '~/types/deck'
+import { patchDeckSettings, patchDeckWithCard } from '~/utils/deckState'
 
 definePageMeta({
   middleware: 'auth'
@@ -53,6 +54,22 @@ useSeoMeta({
 
 async function handlePhotoUploaded(_photos: DeckPhoto[]) {
   await refresh()
+}
+
+function handleCardUpdated(card: DeckCard) {
+  if (!data.value) {
+    return
+  }
+
+  data.value = patchDeckWithCard(data.value, card)
+}
+
+function handleDeckSettingsUpdated(settings: Partial<DeckDetails['deck']['settings']>) {
+  if (!data.value) {
+    return
+  }
+
+  data.value = patchDeckSettings(data.value, settings)
 }
 
 async function deleteDeck() {
@@ -183,7 +200,8 @@ async function deleteDeck() {
           :role-prompts="data.deck.settings.rolePrompts"
           :suit-prompts="data.deck.settings.suitPrompts"
           :cards="data.cards"
-          @updated="refresh()"
+          @card-updated="handleCardUpdated"
+          @deck-settings-updated="handleDeckSettingsUpdated"
         />
 
         <div class="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">
@@ -212,7 +230,7 @@ async function deleteDeck() {
           :deck-id="data.deck.id"
           :cards="data.cards"
           :persons="data.persons"
-          @updated="refresh()"
+          @card-updated="handleCardUpdated"
         />
       </div>
     </UPageSection>

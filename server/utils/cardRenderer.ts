@@ -1,36 +1,5 @@
-import { existsSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
-import opentype from 'opentype.js'
 import sharp from 'sharp'
-
-function resolveIndexFontPath() {
-  const fileName = 'LiberationSerif-Bold.ttf'
-  const candidates = [
-    join(process.cwd(), 'server/assets/fonts', fileName),
-    join(process.cwd(), 'public/fonts', fileName),
-    join(process.cwd(), '.output/server/fonts', fileName),
-    join(process.cwd(), '.output/public/fonts', fileName)
-  ]
-
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) {
-      return candidate
-    }
-  }
-
-  throw new Error(`Index font not found. Tried: ${candidates.join(', ')}`)
-}
-
-let indexFont: opentype.Font | null = null
-
-function getIndexFont() {
-  if (!indexFont) {
-    const buffer = readFileSync(resolveIndexFontPath())
-    indexFont = opentype.parse(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength))
-  }
-
-  return indexFont
-}
+import { ensureIndexFont, getIndexFont } from '~~/server/utils/indexFont'
 
 type RenderCard = {
   label: string
@@ -595,6 +564,7 @@ async function applyCardCornerMask(image: Buffer, width: number, height: number,
  * then overlay indices and outer chrome.
  */
 export async function renderCardImage(source: Buffer, card: RenderCard, foreground?: Buffer) {
+  await ensureIndexFont()
   const layout = getCardLayout(card.aspectRatio)
   const { width, height, cardRadius, scene } = layout
   const sceneImage = await buildSceneImage(source, scene.width, scene.height, scene.radius)
