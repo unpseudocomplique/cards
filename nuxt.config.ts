@@ -68,6 +68,12 @@ export default defineNuxtConfig({
   compatibilityDate: '2024-11-01',
 
   nitro: {
+    serverAssets: [
+      {
+        baseName: 'fonts',
+        dir: './server/assets/fonts'
+      }
+    ],
     prerender: {
       routes: [
         '/'

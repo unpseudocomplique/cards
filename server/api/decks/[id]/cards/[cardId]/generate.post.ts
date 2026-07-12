@@ -9,6 +9,7 @@ import { requireOwnedDeck } from '~~/server/utils/deckAccess'
 import { MAX_PERSON_REFERENCE_PHOTOS } from '~~/server/utils/deckPersons'
 import { db, deckCards, deckPhotos, decks } from '~~/server/utils/db'
 import { assertCanGenerate } from '~~/server/utils/generationAccess'
+import { normalizeGenerationError } from '~~/server/utils/generationErrors'
 import { generateFileKey, uploadFile } from '~~/server/utils/s3'
 
 function mediaTypeToExtension(mediaType?: string) {
@@ -113,12 +114,14 @@ export default defineEventHandler(async (event) => {
       .where(eq(deckCards.id, card.id))
   })
 
+  const currentCard = card
+
   try {
     const referenceBuffers = await Promise.all(
       referencePhotos.map(photo => readPhotoBuffer(photo.url))
     )
-    const scenePrompt = buildCardScenePrompt(card.metadata, deck.settings, card.prompt)
-    const foregroundPrompt = buildCardForegroundPrompt(card.metadata, deck.settings, card.prompt)
+    const scenePrompt = buildCardScenePrompt(currentCard.metadata, deck.settings, currentCard.prompt)
+    const foregroundPrompt = buildCardForegroundPrompt(currentCard.metadata, deck.settings, currentCard.prompt)
     const imageProviderOptions = {
       google: {
         responseModalities: ['TEXT', 'IMAGE'] as Array<'TEXT' | 'IMAGE'>
@@ -139,9 +142,17 @@ export default defineEventHandler(async (event) => {
             return result
           }
 
-          lastError = new Error(`Aucune image générée (${label}, tentative ${attempt})`)
+          lastError = new Error(`Aucune image générée (${label}, tentative ${attempt}/3)`)
+          console.warn('[card.generate] empty image', { deckId: deck.id, cardId: currentCard.id, label, attempt })
         } catch (error) {
           lastError = error
+          console.warn('[card.generate] attempt failed', {
+            deckId: deck.id,
+            cardId: currentCard.id,
+            label,
+            attempt,
+            message: error instanceof Error ? error.message : String(error)
+          })
         }
       }
 
@@ -152,7 +163,7 @@ export default defineEventHandler(async (event) => {
       generateWithRetry('décor', {
         model: aiImageModel,
         prompt: scenePrompt,
-        aspectRatio: card.metadata.aspectRatio,
+        aspectRatio: currentCard.metadata.aspectRatio,
         providerOptions: imageProviderOptions
       }),
       generateWithRetry('personnage', {
@@ -161,7 +172,7 @@ export default defineEventHandler(async (event) => {
           text: foregroundPrompt,
           images: referenceBuffers
         },
-        aspectRatio: card.metadata.aspectRatio,
+        aspectRatio: currentCard.metadata.aspectRatio,
         providerOptions: imageProviderOptions
       })
     ])
@@ -178,7 +189,7 @@ export default defineEventHandler(async (event) => {
     const foregroundBuffer = Buffer.from(foregroundImage.uint8Array)
     const foregroundMediaType = foregroundImage.mediaType || 'image/png'
     const foregroundExtension = mediaTypeToExtension(foregroundMediaType)
-    const prefix = `users/${session.user.id}/decks/${deck.id}/cards/${card.id}`
+    const prefix = `users/${session.user.id}/decks/${deck.id}/cards/${currentCard.id}`
     const rawImageKey = generateFileKey(prefix, `scene.${rawExtension}`)
     const rawImageUrl = await uploadFile(rawBuffer, rawImageKey, rawMediaType)
     // Foreground layer saved alongside for debugging / future re-composite.
@@ -187,7 +198,9 @@ export default defineEventHandler(async (event) => {
       generateFileKey(prefix, `foreground.${foregroundExtension}`),
       foregroundMediaType
     )
-    const finalBuffer = await renderCardImage(rawBuffer, card.metadata, foregroundBuffer)
+    const finalBuffer = await renderCardImage(rawBuffer, currentCard.metadata, foregroundBuffer).catch((error) => {
+      throw new Error(`Assemblage de la carte impossible: ${error instanceof Error ? error.message : 'erreur inconnue'}`)
+    })
     const finalImageKey = generateFileKey(prefix, 'final.png')
     const finalImageUrl = await uploadFile(finalBuffer, finalImageKey, 'image/png')
 
@@ -202,27 +215,44 @@ export default defineEventHandler(async (event) => {
         errorMessage: null,
         updatedAt: new Date()
       })
-      .where(eq(deckCards.id, card.id))
+      .where(eq(deckCards.id, currentCard.id))
       .returning()
 
     await updateDeckProgress(deck.id)
 
     return updatedCard
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Génération impossible'
+    const normalized = normalizeGenerationError(error)
 
-    await db.transaction(async (tx) => {
-      await tx
-        .update(deckCards)
-        .set({ status: 'failed', errorMessage: message, updatedAt: new Date() })
-        .where(eq(deckCards.id, card.id))
-
-      await tx
-        .update(decks)
-        .set({ status: 'failed', updatedAt: new Date() })
-        .where(eq(decks.id, deck.id))
+    console.error('[card.generate] failed', {
+      deckId: deck.id,
+      cardId: currentCard.id,
+      cardLabel: currentCard.metadata.label,
+      code: normalized.code,
+      message: normalized.message,
+      cause: normalized.cause
     })
 
-    throw createError({ status: 500, message })
+    const [failedCard] = await db
+      .update(deckCards)
+      .set({
+        status: 'failed',
+        errorMessage: normalized.message,
+        updatedAt: new Date()
+      })
+      .where(eq(deckCards.id, currentCard.id))
+      .returning()
+
+    await updateDeckProgress(deck.id)
+
+    throw createError({
+      status: normalized.status,
+      message: normalized.message,
+      data: {
+        code: normalized.code,
+        cardId: currentCard.id,
+        card: failedCard
+      }
+    })
   }
 })

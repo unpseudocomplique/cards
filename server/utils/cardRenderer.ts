@@ -4,9 +4,12 @@ import opentype from 'opentype.js'
 import sharp from 'sharp'
 
 function resolveIndexFontPath() {
+  const fileName = 'LiberationSerif-Bold.ttf'
   const candidates = [
-    join(process.cwd(), 'server/assets/fonts/LiberationSerif-Bold.ttf'),
-    join(process.cwd(), 'public/fonts/LiberationSerif-Bold.ttf')
+    join(process.cwd(), 'server/assets/fonts', fileName),
+    join(process.cwd(), 'public/fonts', fileName),
+    join(process.cwd(), '.output/server/fonts', fileName),
+    join(process.cwd(), '.output/public/fonts', fileName)
   ]
 
   for (const candidate of candidates) {

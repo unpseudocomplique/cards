@@ -166,6 +166,34 @@ function clearSelectedCards() {
   selectedCardIds.value = []
 }
 
+function formatBatchErrorSummary(errors: string[]) {
+  if (!errors.length) {
+    return ''
+  }
+
+  const uniqueErrors = [...new Set(errors)]
+
+  if (uniqueErrors.length === 1) {
+    return uniqueErrors[0]!
+  }
+
+  return `${uniqueErrors[0]} (+${uniqueErrors.length - 1} autre(s) erreur(s))`
+}
+
+async function generateCardWithHandling(card: DeckCard) {
+  try {
+    await $fetch(`/api/decks/${props.deckId}/cards/${card.id}/generate`, {
+      method: 'POST'
+    })
+    return { ok: true as const }
+  } catch (error) {
+    return {
+      ok: false as const,
+      message: getApiErrorMessage(error, 'Génération impossible.')
+    }
+  }
+}
+
 async function saveGlobalPrompt() {
   const visualStyle = globalPromptDraft.value.trim()
   const rolePrompt = rolePromptDraft.value.trim()
@@ -218,7 +246,7 @@ async function saveGlobalPrompt() {
   } catch (error) {
     toast.add({
       title: 'Enregistrement impossible',
-      description: error instanceof Error ? error.message : 'Veuillez réessayer.',
+      description: getApiErrorMessage(error),
       color: 'error',
       icon: 'i-lucide-alert-circle'
     })
@@ -249,7 +277,7 @@ async function saveCardPrompt(clear = false) {
   } catch (error) {
     toast.add({
       title: 'Enregistrement impossible',
-      description: error instanceof Error ? error.message : 'Veuillez réessayer.',
+      description: getApiErrorMessage(error),
       color: 'error',
       icon: 'i-lucide-alert-circle'
     })
@@ -290,7 +318,7 @@ async function testSelectedCard() {
   } catch (error) {
     toast.add({
       title: 'Création impossible',
-      description: error instanceof Error ? error.message : 'Veuillez réessayer.',
+      description: getApiErrorMessage(error),
       color: 'error',
       icon: 'i-lucide-alert-circle'
     })
@@ -315,6 +343,7 @@ async function generatePendingCards() {
 
   let generatedCount = 0
   let failedCount = 0
+  const failureMessages: string[] = []
   const targets = pendingCardsWithPerson.value
 
   isQueueing.value = true
@@ -322,13 +351,13 @@ async function generatePendingCards() {
 
   try {
     for (const card of targets) {
-      try {
-        await $fetch(`/api/decks/${props.deckId}/cards/${card.id}/generate`, {
-          method: 'POST'
-        })
+      const result = await generateCardWithHandling(card)
+
+      if (result.ok) {
         generatedCount += 1
-      } catch {
+      } else {
         failedCount += 1
+        failureMessages.push(result.message)
       }
 
       selectedGenerationProgress.value = {
@@ -339,7 +368,9 @@ async function generatePendingCards() {
 
     toast.add({
       title: failedCount ? 'Génération terminée avec quelques erreurs' : 'Cartes générées',
-      description: `${generatedCount} carte(s) créée(s)${failedCount ? `, ${failedCount} échec(s)` : ''}.`,
+      description: failedCount
+        ? `${generatedCount} carte(s) créée(s), ${failedCount} échec(s). ${formatBatchErrorSummary(failureMessages)}`
+        : `${generatedCount} carte(s) créée(s).`,
       color: failedCount ? 'warning' : 'success',
       icon: failedCount ? 'i-lucide-alert-triangle' : 'i-lucide-check'
     })
@@ -374,6 +405,7 @@ async function queueSelectedCards() {
   const skippedCount = selectedCards.value.length - selectedCardsWithPerson.value.length
   let generatedCount = 0
   let failedCount = 0
+  const failureMessages: string[] = []
 
   isQueueing.value = true
   selectedGenerationProgress.value = { completed: 0, total: selectedCardsWithPerson.value.length }
@@ -389,13 +421,13 @@ async function queueSelectedCards() {
     }
 
     for (const card of selectedCardsWithPerson.value) {
-      try {
-        await $fetch(`/api/decks/${props.deckId}/cards/${card.id}/generate`, {
-          method: 'POST'
-        })
+      const result = await generateCardWithHandling(card)
+
+      if (result.ok) {
         generatedCount += 1
-      } catch {
+      } else {
         failedCount += 1
+        failureMessages.push(result.message)
       }
 
       selectedGenerationProgress.value = {
@@ -406,7 +438,9 @@ async function queueSelectedCards() {
 
     toast.add({
       title: failedCount ? 'Relance terminée avec erreurs' : 'Cartes mises à jour',
-      description: `${generatedCount} carte(s) régénérée(s)${failedCount ? `, ${failedCount} échec(s)` : ''}.`,
+      description: failedCount
+        ? `${generatedCount} carte(s) régénérée(s), ${failedCount} échec(s). ${formatBatchErrorSummary(failureMessages)}`
+        : `${generatedCount} carte(s) régénérée(s).`,
       color: failedCount ? 'warning' : 'success',
       icon: failedCount ? 'i-lucide-alert-triangle' : 'i-lucide-check'
     })
@@ -436,7 +470,7 @@ async function queuePendingCards() {
   } catch (error) {
     toast.add({
       title: 'Démarrage impossible',
-      description: error instanceof Error ? error.message : 'Veuillez réessayer.',
+      description: getApiErrorMessage(error),
       color: 'error',
       icon: 'i-lucide-alert-circle'
     })

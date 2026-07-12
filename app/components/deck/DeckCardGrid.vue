@@ -23,7 +23,7 @@ const props = defineProps<{
   persons: DeckPerson[]
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   updated: []
 }>()
 
@@ -243,9 +243,15 @@ async function assignCard(card: DeckCard, personId: string) {
       sourcePhotoId: personId ? (personById.value.get(personId)?.photos[0]?.id || null) : null
     })
   } catch (error) {
+    const failedCard = getApiErrorCard(error)
+
+    if (failedCard) {
+      updateCardOverride(failedCard)
+    }
+
     toast.add({
       title: 'Affectation impossible',
-      description: error instanceof Error ? error.message : 'Veuillez réessayer.',
+      description: getApiErrorMessage(error),
       color: 'error',
       icon: 'i-lucide-alert-circle'
     })
@@ -279,13 +285,21 @@ async function regenerateCard(card: DeckCard) {
       icon: 'i-lucide-sparkles'
     })
     updateCardOverride(updatedCard)
+    emit('updated')
   } catch (error) {
+    const failedCard = getApiErrorCard(error)
+
+    if (failedCard) {
+      updateCardOverride(failedCard)
+    }
+
     toast.add({
       title: 'Génération impossible',
-      description: error instanceof Error ? error.message : 'Veuillez réessayer.',
+      description: getApiErrorMessage(error),
       color: 'error',
       icon: 'i-lucide-alert-circle'
     })
+    emit('updated')
   } finally {
     removeCardLoadingState(regeneratingCardIds, card.id)
   }
@@ -385,6 +399,13 @@ function handleCardPersonUpdate(card: DeckCard, personId: unknown) {
               {{ getCardPerson(card)?.label || 'Sans personne' }}
             </UBadge>
           </div>
+
+          <p
+            v-if="card.status === 'failed' && card.errorMessage"
+            class="text-xs leading-snug text-error"
+          >
+            {{ card.errorMessage }}
+          </p>
 
           <div class="space-y-2 pt-1">
             <USelect
