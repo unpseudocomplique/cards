@@ -184,9 +184,10 @@ export function buildCardForegroundPrompt(card: PromptCard, settings: DeckStyleS
       'premium digital illustration, clean edges, studio cutout look'
     ],
     constraints: [
-      'Mandatory background: flat pure chroma-key green #00FF00, uniform, no texture, no scenery, no green cast shadow.',
-      'Sharp silhouette against the green, no green halo, fringe, glow, or outline, and no green contamination on hair, skin, or clothes.',
-      'No text, no letters, no numbers, no card index, no suit pips, no frame, no border.'
+      'Mandatory background: flat pure chroma-key green #00FF00 only, edge-to-edge, uniform, no texture, no scenery, no gradient, no green cast shadow.',
+      'Character fully opaque against that green. Hard clean silhouette edges. Absolutely no green halo, fringe, glow, outline, or green contamination on hair, skin, clothes, or props.',
+      'Do not paint any card frame, border, number, letter, or suit pip.',
+      'Leave empty green margin around the silhouette so cutout is easy.'
     ]
   })
 }

@@ -37,32 +37,34 @@ const tarotCard = { width: 900, height: 1600 }
 /** Crop AI-painted edge frames before fitting the scene window. */
 const SCENE_EDGE_CROP = 0.04
 
-// Thresholds use 0-255 channel values tuned to remove antialiased chroma edges while preserving muted natural greens.
-const chromaGreenMinimum = 96
-const chromaDominanceMinimum = 18
-const chromaGreenRange = 112
-const chromaDominanceRange = 86
-const chromaPurityOffset = 32
-const chromaPurityRange = 128
-const chromaPurityWeight = 0.8
-const greenSpillDominanceMinimum = 8
-const greenSpillDominanceRange = 70
-const greenSpillMinimum = 80
-const greenSpillRange = 120
-const neutralGreenTolerance = 6
+// Thresholds use 0-255 channel values. Tuned aggressively against antialiased green fringes.
+const chromaGreenMinimum = 72
+const chromaDominanceMinimum = 12
+const chromaGreenRange = 100
+const chromaDominanceRange = 70
+const chromaPurityOffset = 24
+const chromaPurityRange = 110
+const chromaPurityWeight = 0.9
+const greenSpillDominanceMinimum = 4
+const greenSpillDominanceRange = 55
+const greenSpillMinimum = 55
+const greenSpillRange = 100
+const neutralGreenTolerance = 4
+const fringeAlphaCutoff = 0.18
 
 /** Constrains chroma ratios used for alpha and spill cleanup to the [0, 1] range. */
 function clamp(value: number) {
   return Math.min(1, Math.max(0, value))
 }
+
 function getCardLayout(aspectRatio: RenderCard['aspectRatio']): CardLayout {
   const dimensions = aspectRatio === '9:16' ? tarotCard : pokerCard
   const isTarot = aspectRatio === '9:16'
-  const indexInset = Math.round(dimensions.width * 0.03)
-  const indexGap = Math.round(dimensions.width * 0.012)
-  // Margins sized so classic free-floating indices stay entirely in the passe-partout.
-  const indexWidth = Math.round(dimensions.width * 0.072)
-  const indexHeight = Math.round(dimensions.height * (isTarot ? 0.078 : 0.092))
+  const indexInset = Math.round(dimensions.width * 0.028)
+  const indexGap = Math.round(dimensions.width * 0.01)
+  // Slightly wider indices on tarot so two-digit atouts (10–21) stay readable.
+  const indexWidth = Math.round(dimensions.width * (isTarot ? 0.09 : 0.072))
+  const indexHeight = Math.round(dimensions.height * (isTarot ? 0.086 : 0.092))
   const marginX = indexInset + indexWidth + indexGap
   const marginY = indexInset + indexHeight + indexGap
 
@@ -411,27 +413,6 @@ function drawSuit(card: RenderCard, cx: number, cy: number, size: number, color:
   return ''
 }
 
-/** Clean index typography for trump numbers (avoids odd custom glyph paths). */
-function drawTrumpRank(label: string, x: number, y: number, width: number, height: number, color: string) {
-  const fontSize = label.length > 2
-    ? height * 0.62
-    : label.length > 1
-      ? height * 0.72
-      : height * 0.78
-
-  return `
-    <text
-      x="${x + width / 2}"
-      y="${y + height * 0.78}"
-      text-anchor="middle"
-      font-family="Georgia, 'Times New Roman', Times, serif"
-      font-size="${fontSize}"
-      font-weight="700"
-      fill="${color}"
-    >${label}</text>
-  `
-}
-
 function drawIndex(card: RenderCard, layout: CardLayout, x: number, y: number, rotate: boolean) {
   const color = getCardColor(card)
   const rankLabel = getRankLabel(card)
@@ -442,10 +423,15 @@ function drawIndex(card: RenderCard, layout: CardLayout, x: number, y: number, r
     ? ` transform="rotate(180 ${centerX} ${y + indexHeight / 2})"`
     : ''
 
+  // Use path glyphs (not SVG <text>) so Sharp/librsvg always renders indices.
   if (isTrumpIndex) {
+    const rankHeight = indexHeight * (rankLabel.length > 1 ? 0.55 : 0.62)
+    const rankWidth = indexWidth * (rankLabel.length > 1 ? 1.05 : 0.85)
+    const rankX = centerX - rankWidth / 2
+
     return `
       <g${transform}>
-        ${drawTrumpRank(rankLabel, x, y + indexHeight * 0.12, indexWidth, indexHeight * 0.7, color)}
+        ${drawRank(rankLabel, rankX, y + indexHeight * 0.18, rankWidth, rankHeight, color)}
       </g>
     `
   }
@@ -629,7 +615,10 @@ async function removeChromaGreen(source: Buffer) {
     const greenDominance = green - strongestNonGreen
     let nextAlpha = sourceAlpha
 
-    if (green > chromaGreenMinimum && greenDominance > chromaDominanceMinimum) {
+    // Near-pure screen green → fully transparent.
+    if (green >= 200 && red <= 90 && blue <= 90) {
+      nextAlpha = 0
+    } else if (green > chromaGreenMinimum && greenDominance > chromaDominanceMinimum) {
       const greenStrength = clamp((green - chromaGreenMinimum) / chromaGreenRange)
       const dominanceStrength = clamp((greenDominance - chromaDominanceMinimum) / chromaDominanceRange)
       const purityStrength = clamp((green - weakestNonGreen - chromaPurityOffset) / chromaPurityRange)
@@ -644,54 +633,47 @@ async function removeChromaGreen(source: Buffer) {
     if (greenDominance > greenSpillDominanceMinimum) {
       const spillDominanceRatio = clamp((greenDominance - greenSpillDominanceMinimum) / greenSpillDominanceRange)
       const spillGreenRatio = clamp((green - greenSpillMinimum) / greenSpillRange)
-      const spillReduction = spillDominanceRatio * spillGreenRatio
+      const spillReduction = Math.min(1, spillDominanceRatio * spillGreenRatio * 1.35)
       const neutralGreen = Math.min(green, strongestNonGreen + neutralGreenTolerance)
 
       data[index + 1] = Math.round(green + (neutralGreen - green) * spillReduction)
+
+      // Pull red/blue up slightly on spill edges so leftover fringe is less neon.
+      if (spillReduction > 0.25) {
+        data[index] = Math.min(255, Math.round(red + spillReduction * 12))
+        data[index + 2] = Math.min(255, Math.round(blue + spillReduction * 8))
+      }
+    }
+
+    // Drop nearly-transparent fringe pixels that still look green.
+    if (nextAlpha < fringeAlphaCutoff && greenDominance > 10) {
+      nextAlpha = 0
     }
 
     alpha[pixel] = nextAlpha
   }
 
-  // Soft erode then dilate on alpha to trim green fringe while keeping silhouette.
-  const eroded = new Float32Array(alpha.length)
-  const cleaned = new Float32Array(alpha.length)
-
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      let minAlpha = 1
-
-      for (let oy = -1; oy <= 1; oy += 1) {
-        for (let ox = -1; ox <= 1; ox += 1) {
-          const nx = Math.min(width - 1, Math.max(0, x + ox))
-          const ny = Math.min(height - 1, Math.max(0, y + oy))
-          minAlpha = Math.min(minAlpha, alpha[ny * width + nx] || 0)
-        }
-      }
-
-      eroded[y * width + x] = minAlpha
-    }
-  }
-
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      let maxAlpha = 0
-
-      for (let oy = -1; oy <= 1; oy += 1) {
-        for (let ox = -1; ox <= 1; ox += 1) {
-          const nx = Math.min(width - 1, Math.max(0, x + ox))
-          const ny = Math.min(height - 1, Math.max(0, y + oy))
-          maxAlpha = Math.max(maxAlpha, eroded[ny * width + nx] || 0)
-        }
-      }
-
-      cleaned[y * width + x] = maxAlpha
-    }
-  }
+  // Net-shrink silhouette: two erodes, one dilate — removes green halo while keeping shape.
+  const erodedOnce = morphologyMin(alpha, width, height)
+  const erodedTwice = morphologyMin(erodedOnce, width, height)
+  const cleaned = morphologyMax(erodedTwice, width, height)
 
   for (let index = 0; index < data.length; index += 4) {
     const pixel = index / 4
-    data[index + 3] = Math.round((cleaned[pixel] || 0) * 255)
+    const nextAlpha = cleaned[pixel] || 0
+    data[index + 3] = Math.round(nextAlpha * 255)
+
+    // Final despill on remaining edge pixels.
+    if (nextAlpha > 0 && nextAlpha < 0.92) {
+      const red = data[index] || 0
+      const green = data[index + 1] || 0
+      const blue = data[index + 2] || 0
+      const maxRB = Math.max(red, blue)
+
+      if (green > maxRB + 4) {
+        data[index + 1] = Math.round(maxRB + 2)
+      }
+    }
   }
 
   return sharp(data, {
@@ -705,14 +687,78 @@ async function removeChromaGreen(source: Buffer) {
     .toBuffer()
 }
 
+function morphologyMin(source: Float32Array, width: number, height: number) {
+  const output = new Float32Array(source.length)
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      let minAlpha = 1
+
+      for (let oy = -1; oy <= 1; oy += 1) {
+        for (let ox = -1; ox <= 1; ox += 1) {
+          const nx = Math.min(width - 1, Math.max(0, x + ox))
+          const ny = Math.min(height - 1, Math.max(0, y + oy))
+          minAlpha = Math.min(minAlpha, source[ny * width + nx] || 0)
+        }
+      }
+
+      output[y * width + x] = minAlpha
+    }
+  }
+
+  return output
+}
+
+function morphologyMax(source: Float32Array, width: number, height: number) {
+  const output = new Float32Array(source.length)
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      let maxAlpha = 0
+
+      for (let oy = -1; oy <= 1; oy += 1) {
+        for (let ox = -1; ox <= 1; ox += 1) {
+          const nx = Math.min(width - 1, Math.max(0, x + ox))
+          const ny = Math.min(height - 1, Math.max(0, y + oy))
+          maxAlpha = Math.max(maxAlpha, source[ny * width + nx] || 0)
+        }
+      }
+
+      output[y * width + x] = maxAlpha
+    }
+  }
+
+  return output
+}
+
+/**
+ * Build a transparent character layer sized to the full card.
+ * Slightly inset so the figure can overlap the scene frame without covering indices.
+ */
 async function buildForegroundImage(source: Buffer, width: number, height: number) {
   const cutout = await removeChromaGreen(source)
-
-  return sharp(cutout)
-    .resize(width, height, {
+  const targetHeight = Math.round(height * 0.92)
+  const targetWidth = Math.round(width * 0.88)
+  const resized = await sharp(cutout)
+    .resize(targetWidth, targetHeight, {
       fit: 'contain',
       background: { r: 0, g: 0, b: 0, alpha: 0 }
     })
+    .png()
+    .toBuffer()
+
+  const left = Math.round((width - targetWidth) / 2)
+  const top = Math.round(height * 0.06)
+
+  return sharp({
+    create: {
+      width,
+      height,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 }
+    }
+  })
+    .composite([{ input: resized, left, top }])
     .png()
     .toBuffer()
 }
@@ -730,6 +776,12 @@ async function applyCardCornerMask(image: Buffer, width: number, height: number,
     .toBuffer()
 }
 
+/**
+ * Assemble card from two distinct AI images:
+ * 1) scene/background (clipped into the vignette)
+ * 2) character cutout (transparent, drawn above the frame)
+ * then overlay indices and outer chrome.
+ */
 export async function renderCardImage(source: Buffer, card: RenderCard, foreground?: Buffer) {
   const layout = getCardLayout(card.aspectRatio)
   const { width, height, cardRadius, scene } = layout
@@ -739,7 +791,6 @@ export async function renderCardImage(source: Buffer, card: RenderCard, foregrou
     : null
   const layers = [
     { input: sceneImage, top: scene.y, left: scene.x },
-    // Frame sits under the subject so limbs/hair can overlap the border.
     { input: buildSceneFrameOverlay(card, layout), top: 0, left: 0 }
   ]
 
@@ -747,7 +798,6 @@ export async function renderCardImage(source: Buffer, card: RenderCard, foregrou
     layers.push({ input: foregroundImage, top: 0, left: 0 })
   }
 
-  // Indices and outer stroke stay above so corners remain readable.
   layers.push({ input: buildChromeOverlay(card, layout), top: 0, left: 0 })
 
   const flat = await sharp({

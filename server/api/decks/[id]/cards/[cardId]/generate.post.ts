@@ -175,10 +175,19 @@ export default defineEventHandler(async (event) => {
     const rawBuffer = Buffer.from(image.uint8Array)
     const rawMediaType = image.mediaType || 'image/png'
     const rawExtension = mediaTypeToExtension(rawMediaType)
+    const foregroundBuffer = Buffer.from(foregroundImage.uint8Array)
+    const foregroundMediaType = foregroundImage.mediaType || 'image/png'
+    const foregroundExtension = mediaTypeToExtension(foregroundMediaType)
     const prefix = `users/${session.user.id}/decks/${deck.id}/cards/${card.id}`
-    const rawImageKey = generateFileKey(prefix, `raw.${rawExtension}`)
+    const rawImageKey = generateFileKey(prefix, `scene.${rawExtension}`)
     const rawImageUrl = await uploadFile(rawBuffer, rawImageKey, rawMediaType)
-    const finalBuffer = await renderCardImage(rawBuffer, card.metadata, Buffer.from(foregroundImage.uint8Array))
+    // Foreground layer saved alongside for debugging / future re-composite.
+    await uploadFile(
+      foregroundBuffer,
+      generateFileKey(prefix, `foreground.${foregroundExtension}`),
+      foregroundMediaType
+    )
+    const finalBuffer = await renderCardImage(rawBuffer, card.metadata, foregroundBuffer)
     const finalImageKey = generateFileKey(prefix, 'final.png')
     const finalImageUrl = await uploadFile(finalBuffer, finalImageKey, 'image/png')
 
