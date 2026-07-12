@@ -103,7 +103,14 @@ function getExpressionDirection(card: PromptCard) {
 const sharedArtConstraints = [
   'No text, no letters, no numbers, no card index, no suit pips.',
   'No painted frame, no gold or black border, no ornamental edge, no white margin, no passe-partout.',
-  'Full-bleed image to the edges.'
+  'Full-bleed image to the edges.',
+  'NOT cartoon, NOT comic-book, NOT cel-shaded, NOT thick black outlines, NOT manga or clip-art style.'
+]
+
+const premiumIllustrationStyle = [
+  'premium European playing-card / Marseille-tarot illustration',
+  'painterly refined shading, soft natural edges, print-ready card art',
+  'no cartoon outlines, no comic ink lines, no flat cel shading'
 ]
 
 /**
@@ -125,6 +132,7 @@ export function buildCardImagePrompt(card: PromptCard, settings: DeckStyleSettin
     ],
     style: [
       settings.visualStyle,
+      ...premiumIllustrationStyle,
       'cohesive premium card art, soft lighting, high detail on the face, quieter background'
     ],
     constraints: sharedArtConstraints
@@ -150,7 +158,8 @@ export function buildCardScenePrompt(card: PromptCard, settings: DeckStyleSettin
     ],
     style: [
       settings.visualStyle,
-      'premium digital illustration, gentle lighting, painterly background, edge-to-edge composition'
+      ...premiumIllustrationStyle,
+      'gentle lighting, painterly background, edge-to-edge composition'
     ],
     constraints: sharedArtConstraints
   })
@@ -181,7 +190,8 @@ export function buildCardForegroundPrompt(card: PromptCard, settings: DeckStyleS
     ],
     style: [
       settings.visualStyle,
-      'premium digital illustration, clean edges, studio cutout look'
+      ...premiumIllustrationStyle,
+      'clean silhouette edges, studio cutout look, refined costume rendering'
     ],
     constraints: [
       'Mandatory background: flat pure chroma-key green #00FF00 only, edge-to-edge, uniform, no texture, no scenery, no gradient, no green cast shadow.',

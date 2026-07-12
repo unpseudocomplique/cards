@@ -12,7 +12,7 @@ export const defaultRolePrompts: Record<CardPromptRole, string> = {
   knight: 'Les Cavaliers forment un carré héroïque et mobile. Tenue de chevalerie ou de voyage, allure dynamique, monture seulement suggérée si elle ne surcharge pas la carte, décor clairement en retrait.',
   queen: 'Les Dames forment un carré royal et élégant. Port noble, bijoux ou couronne discrets, textile raffiné, fond doux et cérémoniel repoussé derrière la silhouette.',
   king: 'Les Rois forment un carré souverain. Posture stable, présence majestueuse, manteau ou couronne visible, fond plus solennel et structuré mais toujours derrière le personnage.',
-  trump: 'Les Atouts (arcanes majeurs) sont des figures de tarot Marseille, pas des cartes d enseigne: composition verticale théâtrale, thème symbolique propre à l arcane, expression fidèle à sa signification, peu d accessoires.',
+  trump: 'Les Atouts (arcanes majeurs) sont des figures de tarot Marseille picturales et sobres, pas des cartes d enseigne et surtout pas du style cartoon ou comic: composition verticale théâtrale, rendu peintre/illustration premium, thème symbolique propre à l arcane, expression fidèle à sa signification, peu d accessoires.',
   excuse: 'L Excuse (Le Mat) est un arcane libre: voyageur au bord du chemin, innocence audacieuse, pas de symbole d enseigne.',
   number: 'Les cartes numérales restent très sobres: portrait clair, peu d accessoires, arrière-plan simple, focus sur la personne.'
 }

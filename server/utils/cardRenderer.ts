@@ -1,4 +1,33 @@
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import opentype from 'opentype.js'
 import sharp from 'sharp'
+
+function resolveIndexFontPath() {
+  const candidates = [
+    join(process.cwd(), 'server/assets/fonts/LiberationSerif-Bold.ttf'),
+    join(process.cwd(), 'public/fonts/LiberationSerif-Bold.ttf')
+  ]
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      return candidate
+    }
+  }
+
+  throw new Error(`Index font not found. Tried: ${candidates.join(', ')}`)
+}
+
+let indexFont: opentype.Font | null = null
+
+function getIndexFont() {
+  if (!indexFont) {
+    const buffer = readFileSync(resolveIndexFontPath())
+    indexFont = opentype.parse(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength))
+  }
+
+  return indexFont
+}
 
 type RenderCard = {
   label: string
@@ -60,24 +89,25 @@ function clamp(value: number) {
 function getCardLayout(aspectRatio: RenderCard['aspectRatio']): CardLayout {
   const dimensions = aspectRatio === '9:16' ? tarotCard : pokerCard
   const isTarot = aspectRatio === '9:16'
-  const indexInset = Math.round(dimensions.width * 0.028)
-  const indexGap = Math.round(dimensions.width * 0.01)
-  // Slightly wider indices on tarot so two-digit atouts (10–21) stay readable.
-  const indexWidth = Math.round(dimensions.width * (isTarot ? 0.09 : 0.072))
-  const indexHeight = Math.round(dimensions.height * (isTarot ? 0.086 : 0.092))
+  // Equal optical inset from top and left edges.
+  const indexInset = Math.round(dimensions.width * 0.036)
+  const indexGap = Math.round(dimensions.width * 0.014)
+  const indexWidth = Math.round(dimensions.width * (isTarot ? 0.078 : 0.072))
+  const indexHeight = Math.round(dimensions.height * (isTarot ? 0.078 : 0.09))
   const marginX = indexInset + indexWidth + indexGap
   const marginY = indexInset + indexHeight + indexGap
 
   return {
     width: dimensions.width,
     height: dimensions.height,
-    cardRadius: Math.round(dimensions.width * 0.045),
+    // Classic playing-card corners (~2.5–3% of width), not soft-toy round.
+    cardRadius: Math.round(dimensions.width * 0.028),
     scene: {
       x: marginX,
       y: marginY,
       width: dimensions.width - marginX * 2,
       height: dimensions.height - marginY * 2,
-      radius: Math.round(dimensions.width * 0.022)
+      radius: Math.round(dimensions.width * 0.014)
     },
     indexInset,
     indexWidth,
@@ -129,253 +159,29 @@ function getRankLabel(card: RenderCard) {
   return rankMap[card.rank || ''] || card.rank || card.shortLabel
 }
 
-function filledPath(d: string, color: string) {
-  return `<path d="${d}" fill="${color}" fill-rule="evenodd"/>`
-}
-
-/** Classic filled playing-card digit outlines (not seven-segment). */
-function drawDigit(digit: string, x: number, y: number, width: number, height: number, color: string) {
-  const paths: Record<string, string> = {
-    0: `M ${x + width * 0.18} ${y + height * 0.12}
-        C ${x + width * 0.18} ${y + height * 0.02} ${x + width * 0.82} ${y + height * 0.02} ${x + width * 0.82} ${y + height * 0.12}
-        L ${x + width * 0.82} ${y + height * 0.88}
-        C ${x + width * 0.82} ${y + height * 0.98} ${x + width * 0.18} ${y + height * 0.98} ${x + width * 0.18} ${y + height * 0.88}
-        Z
-        M ${x + width * 0.34} ${y + height * 0.22}
-        L ${x + width * 0.34} ${y + height * 0.78}
-        C ${x + width * 0.34} ${y + height * 0.84} ${x + width * 0.66} ${y + height * 0.84} ${x + width * 0.66} ${y + height * 0.78}
-        L ${x + width * 0.66} ${y + height * 0.22}
-        C ${x + width * 0.66} ${y + height * 0.16} ${x + width * 0.34} ${y + height * 0.16} ${x + width * 0.34} ${y + height * 0.22}
-        Z`,
-    1: `M ${x + width * 0.28} ${y + height * 0.22}
-        L ${x + width * 0.52} ${y + height * 0.08}
-        L ${x + width * 0.66} ${y + height * 0.08}
-        L ${x + width * 0.66} ${y + height * 0.92}
-        L ${x + width * 0.46} ${y + height * 0.92}
-        L ${x + width * 0.46} ${y + height * 0.28}
-        L ${x + width * 0.28} ${y + height * 0.38}
-        Z`,
-    2: `M ${x + width * 0.16} ${y + height * 0.2}
-        C ${x + width * 0.16} ${y + height * 0.04} ${x + width * 0.84} ${y + height * 0.04} ${x + width * 0.84} ${y + height * 0.22}
-        C ${x + width * 0.84} ${y + height * 0.4} ${x + width * 0.42} ${y + height * 0.5} ${x + width * 0.28} ${y + height * 0.62}
-        L ${x + width * 0.28} ${y + height * 0.78}
-        L ${x + width * 0.84} ${y + height * 0.78}
-        L ${x + width * 0.84} ${y + height * 0.92}
-        L ${x + width * 0.14} ${y + height * 0.92}
-        L ${x + width * 0.14} ${y + height * 0.68}
-        C ${x + width * 0.14} ${y + height * 0.56} ${x + width * 0.62} ${y + height * 0.48} ${x + width * 0.62} ${y + height * 0.26}
-        C ${x + width * 0.62} ${y + height * 0.18} ${x + width * 0.36} ${y + height * 0.18} ${x + width * 0.36} ${y + height * 0.28}
-        Z`,
-    3: `M ${x + width * 0.18} ${y + height * 0.08}
-        L ${x + width * 0.78} ${y + height * 0.08}
-        C ${x + width * 0.96} ${y + height * 0.08} ${x + width * 0.96} ${y + height * 0.4} ${x + width * 0.72} ${y + height * 0.48}
-        C ${x + width * 0.96} ${y + height * 0.54} ${x + width * 0.96} ${y + height * 0.92} ${x + width * 0.72} ${y + height * 0.92}
-        L ${x + width * 0.18} ${y + height * 0.92}
-        L ${x + width * 0.18} ${y + height * 0.76}
-        L ${x + width * 0.66} ${y + height * 0.76}
-        C ${x + width * 0.78} ${y + height * 0.76} ${x + width * 0.78} ${y + height * 0.6} ${x + width * 0.62} ${y + height * 0.56}
-        L ${x + width * 0.34} ${y + height * 0.56}
-        L ${x + width * 0.34} ${y + height * 0.42}
-        L ${x + width * 0.62} ${y + height * 0.42}
-        C ${x + width * 0.76} ${y + height * 0.42} ${x + width * 0.76} ${y + height * 0.24} ${x + width * 0.62} ${y + height * 0.24}
-        L ${x + width * 0.18} ${y + height * 0.24}
-        Z`,
-    4: `M ${x + width * 0.62} ${y + height * 0.08}
-        L ${x + width * 0.62} ${y + height * 0.52}
-        L ${x + width * 0.84} ${y + height * 0.52}
-        L ${x + width * 0.84} ${y + height * 0.66}
-        L ${x + width * 0.62} ${y + height * 0.66}
-        L ${x + width * 0.62} ${y + height * 0.92}
-        L ${x + width * 0.42} ${y + height * 0.92}
-        L ${x + width * 0.42} ${y + height * 0.66}
-        L ${x + width * 0.14} ${y + height * 0.66}
-        L ${x + width * 0.14} ${y + height * 0.5}
-        L ${x + width * 0.42} ${y + height * 0.08}
-        Z
-        M ${x + width * 0.42} ${y + height * 0.28}
-        L ${x + width * 0.42} ${y + height * 0.52}
-        L ${x + width * 0.3} ${y + height * 0.52}
-        Z`,
-    5: `M ${x + width * 0.22} ${y + height * 0.08}
-        L ${x + width * 0.82} ${y + height * 0.08}
-        L ${x + width * 0.82} ${y + height * 0.24}
-        L ${x + width * 0.4} ${y + height * 0.24}
-        L ${x + width * 0.4} ${y + height * 0.4}
-        L ${x + width * 0.66} ${y + height * 0.4}
-        C ${x + width * 0.96} ${y + height * 0.4} ${x + width * 0.96} ${y + height * 0.92} ${x + width * 0.64} ${y + height * 0.92}
-        L ${x + width * 0.2} ${y + height * 0.92}
-        L ${x + width * 0.2} ${y + height * 0.76}
-        L ${x + width * 0.62} ${y + height * 0.76}
-        C ${x + width * 0.76} ${y + height * 0.76} ${x + width * 0.76} ${y + height * 0.56} ${x + width * 0.62} ${y + height * 0.56}
-        L ${x + width * 0.22} ${y + height * 0.56}
-        Z`,
-    6: `M ${x + width * 0.72} ${y + height * 0.08}
-        L ${x + width * 0.42} ${y + height * 0.08}
-        C ${x + width * 0.12} ${y + height * 0.08} ${x + width * 0.12} ${y + height * 0.92} ${x + width * 0.42} ${y + height * 0.92}
-        L ${x + width * 0.64} ${y + height * 0.92}
-        C ${x + width * 0.94} ${y + height * 0.92} ${x + width * 0.94} ${y + height * 0.44} ${x + width * 0.64} ${y + height * 0.44}
-        L ${x + width * 0.42} ${y + height * 0.44}
-        C ${x + width * 0.3} ${y + height * 0.44} ${x + width * 0.3} ${y + height * 0.24} ${x + width * 0.42} ${y + height * 0.24}
-        L ${x + width * 0.72} ${y + height * 0.24}
-        Z
-        M ${x + width * 0.42} ${y + height * 0.58}
-        L ${x + width * 0.62} ${y + height * 0.58}
-        C ${x + width * 0.74} ${y + height * 0.58} ${x + width * 0.74} ${y + height * 0.78} ${x + width * 0.62} ${y + height * 0.78}
-        L ${x + width * 0.42} ${y + height * 0.78}
-        C ${x + width * 0.3} ${y + height * 0.78} ${x + width * 0.3} ${y + height * 0.58} ${x + width * 0.42} ${y + height * 0.58}
-        Z`,
-    7: `M ${x + width * 0.16} ${y + height * 0.08}
-        L ${x + width * 0.86} ${y + height * 0.08}
-        L ${x + width * 0.86} ${y + height * 0.24}
-        L ${x + width * 0.48} ${y + height * 0.92}
-        L ${x + width * 0.26} ${y + height * 0.92}
-        L ${x + width * 0.62} ${y + height * 0.28}
-        L ${x + width * 0.16} ${y + height * 0.28}
-        Z`,
-    8: `M ${x + width * 0.5} ${y + height * 0.04}
-        C ${x + width * 0.82} ${y + height * 0.04} ${x + width * 0.9} ${y + height * 0.3} ${x + width * 0.72} ${y + height * 0.42}
-        C ${x + width * 0.92} ${y + height * 0.5} ${x + width * 0.92} ${y + height * 0.96} ${x + width * 0.5} ${y + height * 0.96}
-        C ${x + width * 0.08} ${y + height * 0.96} ${x + width * 0.08} ${y + height * 0.5} ${x + width * 0.28} ${y + height * 0.42}
-        C ${x + width * 0.1} ${y + height * 0.3} ${x + width * 0.18} ${y + height * 0.04} ${x + width * 0.5} ${y + height * 0.04}
-        Z
-        M ${x + width * 0.5} ${y + height * 0.18}
-        C ${x + width * 0.34} ${y + height * 0.18} ${x + width * 0.34} ${y + height * 0.36} ${x + width * 0.5} ${y + height * 0.36}
-        C ${x + width * 0.66} ${y + height * 0.36} ${x + width * 0.66} ${y + height * 0.18} ${x + width * 0.5} ${y + height * 0.18}
-        Z
-        M ${x + width * 0.5} ${y + height * 0.5}
-        C ${x + width * 0.32} ${y + height * 0.5} ${x + width * 0.32} ${y + height * 0.82} ${x + width * 0.5} ${y + height * 0.82}
-        C ${x + width * 0.68} ${y + height * 0.82} ${x + width * 0.68} ${y + height * 0.5} ${x + width * 0.5} ${y + height * 0.5}
-        Z`,
-    9: `M ${x + width * 0.28} ${y + height * 0.92}
-        L ${x + width * 0.58} ${y + height * 0.92}
-        C ${x + width * 0.88} ${y + height * 0.92} ${x + width * 0.88} ${y + height * 0.08} ${x + width * 0.58} ${y + height * 0.08}
-        L ${x + width * 0.36} ${y + height * 0.08}
-        C ${x + width * 0.06} ${y + height * 0.08} ${x + width * 0.06} ${y + height * 0.56} ${x + width * 0.36} ${y + height * 0.56}
-        L ${x + width * 0.58} ${y + height * 0.56}
-        C ${x + width * 0.7} ${y + height * 0.56} ${x + width * 0.7} ${y + height * 0.76} ${x + width * 0.58} ${y + height * 0.76}
-        L ${x + width * 0.28} ${y + height * 0.76}
-        Z
-        M ${x + width * 0.38} ${y + height * 0.22}
-        L ${x + width * 0.56} ${y + height * 0.22}
-        C ${x + width * 0.68} ${y + height * 0.22} ${x + width * 0.68} ${y + height * 0.42} ${x + width * 0.56} ${y + height * 0.42}
-        L ${x + width * 0.38} ${y + height * 0.42}
-        C ${x + width * 0.26} ${y + height * 0.42} ${x + width * 0.26} ${y + height * 0.22} ${x + width * 0.38} ${y + height * 0.22}
-        Z`
-  }
-
-  return paths[digit] ? filledPath(paths[digit], color) : ''
-}
-
-function drawLetter(letter: string, x: number, y: number, width: number, height: number, color: string) {
-  const paths: Record<string, string> = {
-    A: `M ${x + width * 0.08} ${y + height * 0.92}
-        L ${x + width * 0.38} ${y + height * 0.08}
-        L ${x + width * 0.62} ${y + height * 0.08}
-        L ${x + width * 0.92} ${y + height * 0.92}
-        L ${x + width * 0.7} ${y + height * 0.92}
-        L ${x + width * 0.64} ${y + height * 0.72}
-        L ${x + width * 0.36} ${y + height * 0.72}
-        L ${x + width * 0.3} ${y + height * 0.92}
-        Z
-        M ${x + width * 0.4} ${y + height * 0.56}
-        L ${x + width * 0.6} ${y + height * 0.56}
-        L ${x + width * 0.5} ${y + height * 0.26}
-        Z`,
-    V: `M ${x + width * 0.08} ${y + height * 0.08}
-        L ${x + width * 0.3} ${y + height * 0.08}
-        L ${x + width * 0.5} ${y + height * 0.72}
-        L ${x + width * 0.7} ${y + height * 0.08}
-        L ${x + width * 0.92} ${y + height * 0.08}
-        L ${x + width * 0.62} ${y + height * 0.92}
-        L ${x + width * 0.38} ${y + height * 0.92}
-        Z`,
-    C: `M ${x + width * 0.86} ${y + height * 0.22}
-        C ${x + width * 0.78} ${y + height * 0.06} ${x + width * 0.14} ${y + height * 0.02} ${x + width * 0.14} ${y + height * 0.5}
-        C ${x + width * 0.14} ${y + height * 0.98} ${x + width * 0.78} ${y + height * 0.94} ${x + width * 0.86} ${y + height * 0.78}
-        L ${x + width * 0.64} ${y + height * 0.68}
-        C ${x + width * 0.58} ${y + height * 0.78} ${x + width * 0.34} ${y + height * 0.78} ${x + width * 0.34} ${y + height * 0.5}
-        C ${x + width * 0.34} ${y + height * 0.22} ${x + width * 0.58} ${y + height * 0.22} ${x + width * 0.64} ${y + height * 0.32}
-        Z`,
-    D: `M ${x + width * 0.14} ${y + height * 0.08}
-        L ${x + width * 0.48} ${y + height * 0.08}
-        C ${x + width * 0.92} ${y + height * 0.08} ${x + width * 0.92} ${y + height * 0.92} ${x + width * 0.48} ${y + height * 0.92}
-        L ${x + width * 0.14} ${y + height * 0.92}
-        Z
-        M ${x + width * 0.32} ${y + height * 0.24}
-        L ${x + width * 0.32} ${y + height * 0.76}
-        L ${x + width * 0.46} ${y + height * 0.76}
-        C ${x + width * 0.7} ${y + height * 0.76} ${x + width * 0.7} ${y + height * 0.24} ${x + width * 0.46} ${y + height * 0.24}
-        Z`,
-    R: `M ${x + width * 0.14} ${y + height * 0.08}
-        L ${x + width * 0.58} ${y + height * 0.08}
-        C ${x + width * 0.9} ${y + height * 0.08} ${x + width * 0.9} ${y + height * 0.48} ${x + width * 0.58} ${y + height * 0.52}
-        L ${x + width * 0.86} ${y + height * 0.92}
-        L ${x + width * 0.62} ${y + height * 0.92}
-        L ${x + width * 0.38} ${y + height * 0.56}
-        L ${x + width * 0.32} ${y + height * 0.56}
-        L ${x + width * 0.32} ${y + height * 0.92}
-        L ${x + width * 0.14} ${y + height * 0.92}
-        Z
-        M ${x + width * 0.32} ${y + height * 0.24}
-        L ${x + width * 0.32} ${y + height * 0.42}
-        L ${x + width * 0.54} ${y + height * 0.42}
-        C ${x + width * 0.68} ${y + height * 0.42} ${x + width * 0.68} ${y + height * 0.24} ${x + width * 0.54} ${y + height * 0.24}
-        Z`,
-    K: `M ${x + width * 0.14} ${y + height * 0.08}
-        L ${x + width * 0.34} ${y + height * 0.08}
-        L ${x + width * 0.34} ${y + height * 0.42}
-        L ${x + width * 0.58} ${y + height * 0.08}
-        L ${x + width * 0.84} ${y + height * 0.08}
-        L ${x + width * 0.5} ${y + height * 0.48}
-        L ${x + width * 0.86} ${y + height * 0.92}
-        L ${x + width * 0.6} ${y + height * 0.92}
-        L ${x + width * 0.34} ${y + height * 0.58}
-        L ${x + width * 0.34} ${y + height * 0.92}
-        L ${x + width * 0.14} ${y + height * 0.92}
-        Z`,
-    E: `M ${x + width * 0.16} ${y + height * 0.08}
-        L ${x + width * 0.84} ${y + height * 0.08}
-        L ${x + width * 0.84} ${y + height * 0.24}
-        L ${x + width * 0.36} ${y + height * 0.24}
-        L ${x + width * 0.36} ${y + height * 0.4}
-        L ${x + width * 0.74} ${y + height * 0.4}
-        L ${x + width * 0.74} ${y + height * 0.56}
-        L ${x + width * 0.36} ${y + height * 0.56}
-        L ${x + width * 0.36} ${y + height * 0.76}
-        L ${x + width * 0.84} ${y + height * 0.76}
-        L ${x + width * 0.84} ${y + height * 0.92}
-        L ${x + width * 0.16} ${y + height * 0.92}
-        Z`,
-    X: `M ${x + width * 0.12} ${y + height * 0.08}
-        L ${x + width * 0.34} ${y + height * 0.08}
-        L ${x + width * 0.5} ${y + height * 0.36}
-        L ${x + width * 0.66} ${y + height * 0.08}
-        L ${x + width * 0.88} ${y + height * 0.08}
-        L ${x + width * 0.62} ${y + height * 0.5}
-        L ${x + width * 0.88} ${y + height * 0.92}
-        L ${x + width * 0.66} ${y + height * 0.92}
-        L ${x + width * 0.5} ${y + height * 0.64}
-        L ${x + width * 0.34} ${y + height * 0.92}
-        L ${x + width * 0.12} ${y + height * 0.92}
-        L ${x + width * 0.38} ${y + height * 0.5}
-        Z`
-  }
-
-  return paths[letter] ? filledPath(paths[letter], color) : ''
-}
-
+/** Real serif face → SVG paths (Sharp cannot rasterize <text> reliably). */
 function drawRank(label: string, x: number, y: number, width: number, height: number, color: string) {
-  const chars = label.slice(0, 2).split('')
-  const gap = chars.length > 1 ? width * 0.06 : 0
-  const glyphWidth = chars.length > 1 ? (width - gap) / 2 : width
+  const text = label.slice(0, 2).toUpperCase()
 
-  return chars.map((char, index) => {
-    const glyphX = x + index * (glyphWidth + gap)
+  if (!text) {
+    return ''
+  }
 
-    return /\d/.test(char)
-      ? drawDigit(char, glyphX, y, glyphWidth, height, color)
-      : drawLetter(char.toUpperCase(), glyphX, y, glyphWidth, height, color)
-  }).join('')
+  const font = getIndexFont()
+  // Fit to the index box; slight side padding so glyphs don't kiss the edge.
+  let fontSize = height * 0.92
+  let advance = font.getAdvanceWidth(text, fontSize)
+
+  if (advance > width * 0.98) {
+    fontSize *= (width * 0.98) / advance
+    advance = font.getAdvanceWidth(text, fontSize)
+  }
+
+  const baseline = y + height * 0.82
+  const textX = x + (width - advance) / 2
+  const path = font.getPath(text, textX, baseline, fontSize)
+
+  return `<path d="${path.toPathData(1)}" fill="${color}"/>`
 }
 
 function drawSuit(card: RenderCard, cx: number, cy: number, size: number, color: string, opacity = 1) {
@@ -423,27 +229,30 @@ function drawIndex(card: RenderCard, layout: CardLayout, x: number, y: number, r
     ? ` transform="rotate(180 ${centerX} ${y + indexHeight / 2})"`
     : ''
 
-  // Use path glyphs (not SVG <text>) so Sharp/librsvg always renders indices.
-  if (isTrumpIndex) {
-    const rankHeight = indexHeight * (rankLabel.length > 1 ? 0.55 : 0.62)
-    const rankWidth = indexWidth * (rankLabel.length > 1 ? 1.05 : 0.85)
-    const rankX = centerX - rankWidth / 2
+  // Rank sits in the top of the index column; suit sits clearly below with a gap.
+  const rankWidth = indexWidth * (rankLabel.length > 1 ? 0.98 : 0.86)
+  const rankHeight = isTrumpIndex
+    ? Math.round(indexHeight * 0.72)
+    : Math.round(indexHeight * 0.48)
+  const rankX = centerX - rankWidth / 2
+  const rankY = y + Math.round(indexWidth * 0.02)
 
+  if (isTrumpIndex) {
     return `
       <g${transform}>
-        ${drawRank(rankLabel, rankX, y + indexHeight * 0.18, rankWidth, rankHeight, color)}
+        ${drawRank(rankLabel, rankX, rankY, rankWidth, rankHeight, color)}
       </g>
     `
   }
 
-  const rankHeight = indexHeight * 0.48
-  const suitSize = indexWidth * 0.72
-  const rankWidth = indexWidth * 0.9
+  const suitSize = indexWidth * 0.62
+  const suitGap = Math.round(indexWidth * 0.14)
+  const suitCy = rankY + rankHeight + suitGap + suitSize * 0.45
 
   return `
     <g${transform}>
-      ${drawRank(rankLabel, x + indexWidth * 0.05, y, rankWidth, rankHeight, color)}
-      ${drawSuit(card, centerX, y + indexHeight * 0.72, suitSize, color)}
+      ${drawRank(rankLabel, rankX, rankY, rankWidth, rankHeight, color)}
+      ${drawSuit(card, centerX, suitCy, suitSize, color)}
     </g>
   `
 }

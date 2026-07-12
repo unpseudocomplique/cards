@@ -160,7 +160,7 @@ export const tarotArcana: Record<TarotArcanaKey, TarotArcanaDefinition> = {
     roman: 'XVI',
     meaning: 'Bouleversement, révélation brutale, effondrement libérateur.',
     expression: 'choc et révélation, visage saisi par la rupture, intensité dramatique — pas de détente ni de sourire.',
-    designPrompt: 'La Maison Dieu: tour ou édifice foudroyé, éclair et pierres en chute, rupture soudaine, révélation dramatique.'
+    designPrompt: 'La Maison Dieu: tour ou édifice de pierre foudroyé dans une illustration de tarot Marseille sobre et picturale (pas cartoon, pas comic, pas contours noirs épais), éclair dramatique, pierres et couronne ou fragments en chute, rupture soudaine, révélation violente, ambiance orageuse peinte.'
   },
   17: {
     key: '17',
