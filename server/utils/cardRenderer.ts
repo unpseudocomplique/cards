@@ -9,8 +9,33 @@ type RenderCard = {
   aspectRatio: '3:4' | '9:16'
 }
 
+type SceneFrame = {
+  x: number
+  y: number
+  width: number
+  height: number
+  radius: number
+}
+
+type CardLayout = {
+  width: number
+  height: number
+  cardRadius: number
+  scene: SceneFrame
+  indexInset: number
+  indexWidth: number
+  indexHeight: number
+  outerStroke: number
+  frameGap: number
+  frameOuter: number
+  frameInner: number
+}
+
 const pokerCard = { width: 900, height: 1200 }
 const tarotCard = { width: 900, height: 1600 }
+
+/** Crop AI-painted edge frames before fitting the scene window. */
+const SCENE_EDGE_CROP = 0.04
 
 // Thresholds use 0-255 channel values tuned to remove antialiased chroma edges while preserving muted natural greens.
 const chromaGreenMinimum = 96
@@ -30,27 +55,60 @@ const neutralGreenTolerance = 6
 function clamp(value: number) {
   return Math.min(1, Math.max(0, value))
 }
+function getCardLayout(aspectRatio: RenderCard['aspectRatio']): CardLayout {
+  const dimensions = aspectRatio === '9:16' ? tarotCard : pokerCard
+  const isTarot = aspectRatio === '9:16'
+  const indexInset = Math.round(dimensions.width * 0.03)
+  const indexGap = Math.round(dimensions.width * 0.012)
+  // Margins sized so classic free-floating indices stay entirely in the passe-partout.
+  const indexWidth = Math.round(dimensions.width * 0.072)
+  const indexHeight = Math.round(dimensions.height * (isTarot ? 0.078 : 0.092))
+  const marginX = indexInset + indexWidth + indexGap
+  const marginY = indexInset + indexHeight + indexGap
 
-function getSceneFrame(width: number, height: number) {
   return {
-    x: Math.round(width * 0.16),
-    y: Math.round(height * 0.1),
-    width: Math.round(width * 0.68),
-    height: Math.round(height * 0.78),
-    radius: 18
+    width: dimensions.width,
+    height: dimensions.height,
+    cardRadius: Math.round(dimensions.width * 0.045),
+    scene: {
+      x: marginX,
+      y: marginY,
+      width: dimensions.width - marginX * 2,
+      height: dimensions.height - marginY * 2,
+      radius: Math.round(dimensions.width * 0.022)
+    },
+    indexInset,
+    indexWidth,
+    indexHeight,
+    outerStroke: Math.max(2, Math.round(dimensions.width * 0.004)),
+    frameGap: Math.max(3, Math.round(dimensions.width * 0.005)),
+    frameOuter: Math.max(3, Math.round(dimensions.width * 0.0055)),
+    frameInner: Math.max(2, Math.round(dimensions.width * 0.0035))
   }
 }
 
 function getCardColor(card: RenderCard) {
   if (card.suit === 'hearts' || card.suit === 'diamonds') {
-    return '#b91c1c'
+    return '#b42318'
   }
 
   if (card.suit === 'trumps') {
-    return '#7c5c13'
+    return '#8a6a1a'
   }
 
-  return '#111827'
+  return '#1c1917'
+}
+
+function getIndexStrokeColor(card: RenderCard) {
+  if (card.suit === 'hearts' || card.suit === 'diamonds') {
+    return 'rgba(180, 35, 24, 0.18)'
+  }
+
+  if (card.suit === 'trumps') {
+    return 'rgba(138, 106, 26, 0.22)'
+  }
+
+  return 'rgba(28, 25, 23, 0.16)'
 }
 
 function getRankLabel(card: RenderCard) {
@@ -69,114 +127,251 @@ function getRankLabel(card: RenderCard) {
   return rankMap[card.rank || ''] || card.rank || card.shortLabel
 }
 
-function line(x1: number, y1: number, x2: number, y2: number, color: string, width = 7) {
-  return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"/>`
+function filledPath(d: string, color: string) {
+  return `<path d="${d}" fill="${color}" fill-rule="evenodd"/>`
 }
 
-function path(d: string, color: string, width = 7) {
-  return `<path d="${d}" fill="none" stroke="${color}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"/>`
-}
-
-function drawSevenSegmentDigit(digit: string, x: number, y: number, width: number, height: number, color: string) {
-  const segmentWidth = Math.max(5, Math.round(width * 0.13))
-  const x1 = x + segmentWidth
-  const x2 = x + width - segmentWidth
-  const y1 = y + segmentWidth
-  const y2 = y + height / 2
-  const y3 = y + height - segmentWidth
-  const segments: Record<string, string[]> = {
-    0: ['a', 'b', 'c', 'd', 'e', 'f'],
-    1: ['b', 'c'],
-    2: ['a', 'b', 'g', 'e', 'd'],
-    3: ['a', 'b', 'g', 'c', 'd'],
-    4: ['f', 'g', 'b', 'c'],
-    5: ['a', 'f', 'g', 'c', 'd'],
-    6: ['a', 'f', 'g', 'e', 'c', 'd'],
-    7: ['a', 'b', 'c'],
-    8: ['a', 'b', 'c', 'd', 'e', 'f', 'g'],
-    9: ['a', 'b', 'c', 'd', 'f', 'g']
+/** Classic filled playing-card digit outlines (not seven-segment). */
+function drawDigit(digit: string, x: number, y: number, width: number, height: number, color: string) {
+  const paths: Record<string, string> = {
+    0: `M ${x + width * 0.18} ${y + height * 0.12}
+        C ${x + width * 0.18} ${y + height * 0.02} ${x + width * 0.82} ${y + height * 0.02} ${x + width * 0.82} ${y + height * 0.12}
+        L ${x + width * 0.82} ${y + height * 0.88}
+        C ${x + width * 0.82} ${y + height * 0.98} ${x + width * 0.18} ${y + height * 0.98} ${x + width * 0.18} ${y + height * 0.88}
+        Z
+        M ${x + width * 0.34} ${y + height * 0.22}
+        L ${x + width * 0.34} ${y + height * 0.78}
+        C ${x + width * 0.34} ${y + height * 0.84} ${x + width * 0.66} ${y + height * 0.84} ${x + width * 0.66} ${y + height * 0.78}
+        L ${x + width * 0.66} ${y + height * 0.22}
+        C ${x + width * 0.66} ${y + height * 0.16} ${x + width * 0.34} ${y + height * 0.16} ${x + width * 0.34} ${y + height * 0.22}
+        Z`,
+    1: `M ${x + width * 0.28} ${y + height * 0.22}
+        L ${x + width * 0.52} ${y + height * 0.08}
+        L ${x + width * 0.66} ${y + height * 0.08}
+        L ${x + width * 0.66} ${y + height * 0.92}
+        L ${x + width * 0.46} ${y + height * 0.92}
+        L ${x + width * 0.46} ${y + height * 0.28}
+        L ${x + width * 0.28} ${y + height * 0.38}
+        Z`,
+    2: `M ${x + width * 0.16} ${y + height * 0.2}
+        C ${x + width * 0.16} ${y + height * 0.04} ${x + width * 0.84} ${y + height * 0.04} ${x + width * 0.84} ${y + height * 0.22}
+        C ${x + width * 0.84} ${y + height * 0.4} ${x + width * 0.42} ${y + height * 0.5} ${x + width * 0.28} ${y + height * 0.62}
+        L ${x + width * 0.28} ${y + height * 0.78}
+        L ${x + width * 0.84} ${y + height * 0.78}
+        L ${x + width * 0.84} ${y + height * 0.92}
+        L ${x + width * 0.14} ${y + height * 0.92}
+        L ${x + width * 0.14} ${y + height * 0.68}
+        C ${x + width * 0.14} ${y + height * 0.56} ${x + width * 0.62} ${y + height * 0.48} ${x + width * 0.62} ${y + height * 0.26}
+        C ${x + width * 0.62} ${y + height * 0.18} ${x + width * 0.36} ${y + height * 0.18} ${x + width * 0.36} ${y + height * 0.28}
+        Z`,
+    3: `M ${x + width * 0.18} ${y + height * 0.08}
+        L ${x + width * 0.78} ${y + height * 0.08}
+        C ${x + width * 0.96} ${y + height * 0.08} ${x + width * 0.96} ${y + height * 0.4} ${x + width * 0.72} ${y + height * 0.48}
+        C ${x + width * 0.96} ${y + height * 0.54} ${x + width * 0.96} ${y + height * 0.92} ${x + width * 0.72} ${y + height * 0.92}
+        L ${x + width * 0.18} ${y + height * 0.92}
+        L ${x + width * 0.18} ${y + height * 0.76}
+        L ${x + width * 0.66} ${y + height * 0.76}
+        C ${x + width * 0.78} ${y + height * 0.76} ${x + width * 0.78} ${y + height * 0.6} ${x + width * 0.62} ${y + height * 0.56}
+        L ${x + width * 0.34} ${y + height * 0.56}
+        L ${x + width * 0.34} ${y + height * 0.42}
+        L ${x + width * 0.62} ${y + height * 0.42}
+        C ${x + width * 0.76} ${y + height * 0.42} ${x + width * 0.76} ${y + height * 0.24} ${x + width * 0.62} ${y + height * 0.24}
+        L ${x + width * 0.18} ${y + height * 0.24}
+        Z`,
+    4: `M ${x + width * 0.62} ${y + height * 0.08}
+        L ${x + width * 0.62} ${y + height * 0.52}
+        L ${x + width * 0.84} ${y + height * 0.52}
+        L ${x + width * 0.84} ${y + height * 0.66}
+        L ${x + width * 0.62} ${y + height * 0.66}
+        L ${x + width * 0.62} ${y + height * 0.92}
+        L ${x + width * 0.42} ${y + height * 0.92}
+        L ${x + width * 0.42} ${y + height * 0.66}
+        L ${x + width * 0.14} ${y + height * 0.66}
+        L ${x + width * 0.14} ${y + height * 0.5}
+        L ${x + width * 0.42} ${y + height * 0.08}
+        Z
+        M ${x + width * 0.42} ${y + height * 0.28}
+        L ${x + width * 0.42} ${y + height * 0.52}
+        L ${x + width * 0.3} ${y + height * 0.52}
+        Z`,
+    5: `M ${x + width * 0.22} ${y + height * 0.08}
+        L ${x + width * 0.82} ${y + height * 0.08}
+        L ${x + width * 0.82} ${y + height * 0.24}
+        L ${x + width * 0.4} ${y + height * 0.24}
+        L ${x + width * 0.4} ${y + height * 0.4}
+        L ${x + width * 0.66} ${y + height * 0.4}
+        C ${x + width * 0.96} ${y + height * 0.4} ${x + width * 0.96} ${y + height * 0.92} ${x + width * 0.64} ${y + height * 0.92}
+        L ${x + width * 0.2} ${y + height * 0.92}
+        L ${x + width * 0.2} ${y + height * 0.76}
+        L ${x + width * 0.62} ${y + height * 0.76}
+        C ${x + width * 0.76} ${y + height * 0.76} ${x + width * 0.76} ${y + height * 0.56} ${x + width * 0.62} ${y + height * 0.56}
+        L ${x + width * 0.22} ${y + height * 0.56}
+        Z`,
+    6: `M ${x + width * 0.72} ${y + height * 0.08}
+        L ${x + width * 0.42} ${y + height * 0.08}
+        C ${x + width * 0.12} ${y + height * 0.08} ${x + width * 0.12} ${y + height * 0.92} ${x + width * 0.42} ${y + height * 0.92}
+        L ${x + width * 0.64} ${y + height * 0.92}
+        C ${x + width * 0.94} ${y + height * 0.92} ${x + width * 0.94} ${y + height * 0.44} ${x + width * 0.64} ${y + height * 0.44}
+        L ${x + width * 0.42} ${y + height * 0.44}
+        C ${x + width * 0.3} ${y + height * 0.44} ${x + width * 0.3} ${y + height * 0.24} ${x + width * 0.42} ${y + height * 0.24}
+        L ${x + width * 0.72} ${y + height * 0.24}
+        Z
+        M ${x + width * 0.42} ${y + height * 0.58}
+        L ${x + width * 0.62} ${y + height * 0.58}
+        C ${x + width * 0.74} ${y + height * 0.58} ${x + width * 0.74} ${y + height * 0.78} ${x + width * 0.62} ${y + height * 0.78}
+        L ${x + width * 0.42} ${y + height * 0.78}
+        C ${x + width * 0.3} ${y + height * 0.78} ${x + width * 0.3} ${y + height * 0.58} ${x + width * 0.42} ${y + height * 0.58}
+        Z`,
+    7: `M ${x + width * 0.16} ${y + height * 0.08}
+        L ${x + width * 0.86} ${y + height * 0.08}
+        L ${x + width * 0.86} ${y + height * 0.24}
+        L ${x + width * 0.48} ${y + height * 0.92}
+        L ${x + width * 0.26} ${y + height * 0.92}
+        L ${x + width * 0.62} ${y + height * 0.28}
+        L ${x + width * 0.16} ${y + height * 0.28}
+        Z`,
+    8: `M ${x + width * 0.5} ${y + height * 0.04}
+        C ${x + width * 0.82} ${y + height * 0.04} ${x + width * 0.9} ${y + height * 0.3} ${x + width * 0.72} ${y + height * 0.42}
+        C ${x + width * 0.92} ${y + height * 0.5} ${x + width * 0.92} ${y + height * 0.96} ${x + width * 0.5} ${y + height * 0.96}
+        C ${x + width * 0.08} ${y + height * 0.96} ${x + width * 0.08} ${y + height * 0.5} ${x + width * 0.28} ${y + height * 0.42}
+        C ${x + width * 0.1} ${y + height * 0.3} ${x + width * 0.18} ${y + height * 0.04} ${x + width * 0.5} ${y + height * 0.04}
+        Z
+        M ${x + width * 0.5} ${y + height * 0.18}
+        C ${x + width * 0.34} ${y + height * 0.18} ${x + width * 0.34} ${y + height * 0.36} ${x + width * 0.5} ${y + height * 0.36}
+        C ${x + width * 0.66} ${y + height * 0.36} ${x + width * 0.66} ${y + height * 0.18} ${x + width * 0.5} ${y + height * 0.18}
+        Z
+        M ${x + width * 0.5} ${y + height * 0.5}
+        C ${x + width * 0.32} ${y + height * 0.5} ${x + width * 0.32} ${y + height * 0.82} ${x + width * 0.5} ${y + height * 0.82}
+        C ${x + width * 0.68} ${y + height * 0.82} ${x + width * 0.68} ${y + height * 0.5} ${x + width * 0.5} ${y + height * 0.5}
+        Z`,
+    9: `M ${x + width * 0.28} ${y + height * 0.92}
+        L ${x + width * 0.58} ${y + height * 0.92}
+        C ${x + width * 0.88} ${y + height * 0.92} ${x + width * 0.88} ${y + height * 0.08} ${x + width * 0.58} ${y + height * 0.08}
+        L ${x + width * 0.36} ${y + height * 0.08}
+        C ${x + width * 0.06} ${y + height * 0.08} ${x + width * 0.06} ${y + height * 0.56} ${x + width * 0.36} ${y + height * 0.56}
+        L ${x + width * 0.58} ${y + height * 0.56}
+        C ${x + width * 0.7} ${y + height * 0.56} ${x + width * 0.7} ${y + height * 0.76} ${x + width * 0.58} ${y + height * 0.76}
+        L ${x + width * 0.28} ${y + height * 0.76}
+        Z
+        M ${x + width * 0.38} ${y + height * 0.22}
+        L ${x + width * 0.56} ${y + height * 0.22}
+        C ${x + width * 0.68} ${y + height * 0.22} ${x + width * 0.68} ${y + height * 0.42} ${x + width * 0.56} ${y + height * 0.42}
+        L ${x + width * 0.38} ${y + height * 0.42}
+        C ${x + width * 0.26} ${y + height * 0.42} ${x + width * 0.26} ${y + height * 0.22} ${x + width * 0.38} ${y + height * 0.22}
+        Z`
   }
-  const active = new Set(segments[digit] || [])
-  const output = []
 
-  if (active.has('a')) output.push(line(x1, y1, x2, y1, color, segmentWidth))
-  if (active.has('b')) output.push(line(x2, y1, x2, y2, color, segmentWidth))
-  if (active.has('c')) output.push(line(x2, y2, x2, y3, color, segmentWidth))
-  if (active.has('d')) output.push(line(x1, y3, x2, y3, color, segmentWidth))
-  if (active.has('e')) output.push(line(x1, y2, x1, y3, color, segmentWidth))
-  if (active.has('f')) output.push(line(x1, y1, x1, y2, color, segmentWidth))
-  if (active.has('g')) output.push(line(x1, y2, x2, y2, color, segmentWidth))
-
-  return output.join('')
+  return paths[digit] ? filledPath(paths[digit], color) : ''
 }
 
 function drawLetter(letter: string, x: number, y: number, width: number, height: number, color: string) {
-  const strokeWidth = Math.max(6, Math.round(width * 0.12))
-  const left = x + strokeWidth
-  const right = x + width - strokeWidth
-  const top = y + strokeWidth
-  const middle = y + height / 2
-  const bottom = y + height - strokeWidth
-  const center = x + width / 2
-
-  switch (letter) {
-    case 'A':
-      return [
-        line(left, bottom, center, top, color, strokeWidth),
-        line(center, top, right, bottom, color, strokeWidth),
-        line(left + width * 0.22, middle, right - width * 0.22, middle, color, strokeWidth)
-      ].join('')
-    case 'V':
-      return [
-        line(left, top, center, bottom, color, strokeWidth),
-        line(center, bottom, right, top, color, strokeWidth)
-      ].join('')
-    case 'C':
-      return path(`M ${right} ${top + height * 0.08} C ${left} ${top} ${left} ${bottom} ${right} ${bottom - height * 0.08}`, color, strokeWidth)
-    case 'D':
-      return [
-        line(left, top, left, bottom, color, strokeWidth),
-        path(`M ${left} ${top} C ${right} ${top} ${right} ${bottom} ${left} ${bottom}`, color, strokeWidth)
-      ].join('')
-    case 'R':
-      return [
-        line(left, top, left, bottom, color, strokeWidth),
-        path(`M ${left} ${top} L ${right - width * 0.12} ${top} C ${right} ${top} ${right} ${middle} ${left} ${middle}`, color, strokeWidth),
-        line(left + width * 0.32, middle, right, bottom, color, strokeWidth)
-      ].join('')
-    case 'K':
-      return [
-        line(left, top, left, bottom, color, strokeWidth),
-        line(left + width * 0.1, middle, right, top, color, strokeWidth),
-        line(left + width * 0.1, middle, right, bottom, color, strokeWidth)
-      ].join('')
-    case 'E':
-      return [
-        line(left, top, left, bottom, color, strokeWidth),
-        line(left, top, right, top, color, strokeWidth),
-        line(left, middle, right - width * 0.12, middle, color, strokeWidth),
-        line(left, bottom, right, bottom, color, strokeWidth)
-      ].join('')
-    case 'X':
-      return [
-        line(left, top, right, bottom, color, strokeWidth),
-        line(right, top, left, bottom, color, strokeWidth)
-      ].join('')
-    default:
-      return ''
+  const paths: Record<string, string> = {
+    A: `M ${x + width * 0.08} ${y + height * 0.92}
+        L ${x + width * 0.38} ${y + height * 0.08}
+        L ${x + width * 0.62} ${y + height * 0.08}
+        L ${x + width * 0.92} ${y + height * 0.92}
+        L ${x + width * 0.7} ${y + height * 0.92}
+        L ${x + width * 0.64} ${y + height * 0.72}
+        L ${x + width * 0.36} ${y + height * 0.72}
+        L ${x + width * 0.3} ${y + height * 0.92}
+        Z
+        M ${x + width * 0.4} ${y + height * 0.56}
+        L ${x + width * 0.6} ${y + height * 0.56}
+        L ${x + width * 0.5} ${y + height * 0.26}
+        Z`,
+    V: `M ${x + width * 0.08} ${y + height * 0.08}
+        L ${x + width * 0.3} ${y + height * 0.08}
+        L ${x + width * 0.5} ${y + height * 0.72}
+        L ${x + width * 0.7} ${y + height * 0.08}
+        L ${x + width * 0.92} ${y + height * 0.08}
+        L ${x + width * 0.62} ${y + height * 0.92}
+        L ${x + width * 0.38} ${y + height * 0.92}
+        Z`,
+    C: `M ${x + width * 0.86} ${y + height * 0.22}
+        C ${x + width * 0.78} ${y + height * 0.06} ${x + width * 0.14} ${y + height * 0.02} ${x + width * 0.14} ${y + height * 0.5}
+        C ${x + width * 0.14} ${y + height * 0.98} ${x + width * 0.78} ${y + height * 0.94} ${x + width * 0.86} ${y + height * 0.78}
+        L ${x + width * 0.64} ${y + height * 0.68}
+        C ${x + width * 0.58} ${y + height * 0.78} ${x + width * 0.34} ${y + height * 0.78} ${x + width * 0.34} ${y + height * 0.5}
+        C ${x + width * 0.34} ${y + height * 0.22} ${x + width * 0.58} ${y + height * 0.22} ${x + width * 0.64} ${y + height * 0.32}
+        Z`,
+    D: `M ${x + width * 0.14} ${y + height * 0.08}
+        L ${x + width * 0.48} ${y + height * 0.08}
+        C ${x + width * 0.92} ${y + height * 0.08} ${x + width * 0.92} ${y + height * 0.92} ${x + width * 0.48} ${y + height * 0.92}
+        L ${x + width * 0.14} ${y + height * 0.92}
+        Z
+        M ${x + width * 0.32} ${y + height * 0.24}
+        L ${x + width * 0.32} ${y + height * 0.76}
+        L ${x + width * 0.46} ${y + height * 0.76}
+        C ${x + width * 0.7} ${y + height * 0.76} ${x + width * 0.7} ${y + height * 0.24} ${x + width * 0.46} ${y + height * 0.24}
+        Z`,
+    R: `M ${x + width * 0.14} ${y + height * 0.08}
+        L ${x + width * 0.58} ${y + height * 0.08}
+        C ${x + width * 0.9} ${y + height * 0.08} ${x + width * 0.9} ${y + height * 0.48} ${x + width * 0.58} ${y + height * 0.52}
+        L ${x + width * 0.86} ${y + height * 0.92}
+        L ${x + width * 0.62} ${y + height * 0.92}
+        L ${x + width * 0.38} ${y + height * 0.56}
+        L ${x + width * 0.32} ${y + height * 0.56}
+        L ${x + width * 0.32} ${y + height * 0.92}
+        L ${x + width * 0.14} ${y + height * 0.92}
+        Z
+        M ${x + width * 0.32} ${y + height * 0.24}
+        L ${x + width * 0.32} ${y + height * 0.42}
+        L ${x + width * 0.54} ${y + height * 0.42}
+        C ${x + width * 0.68} ${y + height * 0.42} ${x + width * 0.68} ${y + height * 0.24} ${x + width * 0.54} ${y + height * 0.24}
+        Z`,
+    K: `M ${x + width * 0.14} ${y + height * 0.08}
+        L ${x + width * 0.34} ${y + height * 0.08}
+        L ${x + width * 0.34} ${y + height * 0.42}
+        L ${x + width * 0.58} ${y + height * 0.08}
+        L ${x + width * 0.84} ${y + height * 0.08}
+        L ${x + width * 0.5} ${y + height * 0.48}
+        L ${x + width * 0.86} ${y + height * 0.92}
+        L ${x + width * 0.6} ${y + height * 0.92}
+        L ${x + width * 0.34} ${y + height * 0.58}
+        L ${x + width * 0.34} ${y + height * 0.92}
+        L ${x + width * 0.14} ${y + height * 0.92}
+        Z`,
+    E: `M ${x + width * 0.16} ${y + height * 0.08}
+        L ${x + width * 0.84} ${y + height * 0.08}
+        L ${x + width * 0.84} ${y + height * 0.24}
+        L ${x + width * 0.36} ${y + height * 0.24}
+        L ${x + width * 0.36} ${y + height * 0.4}
+        L ${x + width * 0.74} ${y + height * 0.4}
+        L ${x + width * 0.74} ${y + height * 0.56}
+        L ${x + width * 0.36} ${y + height * 0.56}
+        L ${x + width * 0.36} ${y + height * 0.76}
+        L ${x + width * 0.84} ${y + height * 0.76}
+        L ${x + width * 0.84} ${y + height * 0.92}
+        L ${x + width * 0.16} ${y + height * 0.92}
+        Z`,
+    X: `M ${x + width * 0.12} ${y + height * 0.08}
+        L ${x + width * 0.34} ${y + height * 0.08}
+        L ${x + width * 0.5} ${y + height * 0.36}
+        L ${x + width * 0.66} ${y + height * 0.08}
+        L ${x + width * 0.88} ${y + height * 0.08}
+        L ${x + width * 0.62} ${y + height * 0.5}
+        L ${x + width * 0.88} ${y + height * 0.92}
+        L ${x + width * 0.66} ${y + height * 0.92}
+        L ${x + width * 0.5} ${y + height * 0.64}
+        L ${x + width * 0.34} ${y + height * 0.92}
+        L ${x + width * 0.12} ${y + height * 0.92}
+        L ${x + width * 0.38} ${y + height * 0.5}
+        Z`
   }
+
+  return paths[letter] ? filledPath(paths[letter], color) : ''
 }
 
 function drawRank(label: string, x: number, y: number, width: number, height: number, color: string) {
   const chars = label.slice(0, 2).split('')
-  const gap = chars.length > 1 ? width * 0.08 : 0
+  const gap = chars.length > 1 ? width * 0.06 : 0
   const glyphWidth = chars.length > 1 ? (width - gap) / 2 : width
 
   return chars.map((char, index) => {
     const glyphX = x + index * (glyphWidth + gap)
 
     return /\d/.test(char)
-      ? drawSevenSegmentDigit(char, glyphX, y, glyphWidth, height, color)
+      ? drawDigit(char, glyphX, y, glyphWidth, height, color)
       : drawLetter(char.toUpperCase(), glyphX, y, glyphWidth, height, color)
   }).join('')
 }
@@ -212,48 +407,201 @@ function drawSuit(card: RenderCard, cx: number, cy: number, size: number, color:
     ].join('')
   }
 
-  if (card.suit === 'trumps') {
-    return `<polygon ${fill} points="${cx},${cy - half} ${cx + quarter},${cy - quarter} ${cx + half},${cy} ${cx + quarter},${cy + quarter} ${cx},${cy + half} ${cx - quarter},${cy + quarter} ${cx - half},${cy} ${cx - quarter},${cy - quarter}"/>`
-  }
-
-  return `<circle ${fill} cx="${cx}" cy="${cy}" r="${quarter}"/>`
+  // Trumps / Excuse: no suit pip (avoids looking like diamonds).
+  return ''
 }
 
-function drawIndex(card: RenderCard, x: number, y: number, rotate: boolean) {
+/** Clean index typography for trump numbers (avoids odd custom glyph paths). */
+function drawTrumpRank(label: string, x: number, y: number, width: number, height: number, color: string) {
+  const fontSize = label.length > 2
+    ? height * 0.62
+    : label.length > 1
+      ? height * 0.72
+      : height * 0.78
+
+  return `
+    <text
+      x="${x + width / 2}"
+      y="${y + height * 0.78}"
+      text-anchor="middle"
+      font-family="Georgia, 'Times New Roman', Times, serif"
+      font-size="${fontSize}"
+      font-weight="700"
+      fill="${color}"
+    >${label}</text>
+  `
+}
+
+function drawIndex(card: RenderCard, layout: CardLayout, x: number, y: number, rotate: boolean) {
   const color = getCardColor(card)
   const rankLabel = getRankLabel(card)
-  const transform = rotate ? ` transform="rotate(180 ${x + 62} ${y + 92})"` : ''
+  const { indexWidth, indexHeight } = layout
+  const isTrumpIndex = card.suit === 'trumps'
+  const centerX = x + indexWidth / 2
+  const transform = rotate
+    ? ` transform="rotate(180 ${centerX} ${y + indexHeight / 2})"`
+    : ''
+
+  if (isTrumpIndex) {
+    return `
+      <g${transform}>
+        ${drawTrumpRank(rankLabel, x, y + indexHeight * 0.12, indexWidth, indexHeight * 0.7, color)}
+      </g>
+    `
+  }
+
+  const rankHeight = indexHeight * 0.48
+  const suitSize = indexWidth * 0.72
+  const rankWidth = indexWidth * 0.9
 
   return `
     <g${transform}>
-      <rect x="${x}" y="${y}" width="124" height="184" rx="26" fill="rgba(255,255,255,0.92)" stroke="rgba(17,24,39,0.22)" stroke-width="3"/>
-      ${drawRank(rankLabel, x + 26, y + 22, 72, 70, color)}
-      ${drawSuit(card, x + 62, y + 132, 62, color)}
+      ${drawRank(rankLabel, x + indexWidth * 0.05, y, rankWidth, rankHeight, color)}
+      ${drawSuit(card, centerX, y + indexHeight * 0.72, suitSize, color)}
     </g>
   `
 }
 
-function buildOverlay(card: RenderCard, width: number, height: number) {
-  const indexInset = 36
-  const indexWidth = 124
-  const indexHeight = 184
+function buildSceneFrameOverlay(card: RenderCard, layout: CardLayout) {
+  const {
+    width,
+    height,
+    scene,
+    frameGap,
+    frameOuter,
+    frameInner
+  } = layout
+  const color = getCardColor(card)
+  const accentStroke = getIndexStrokeColor(card)
+  const frameX = scene.x
+  const frameY = scene.y
+  const frameW = scene.width
+  const frameH = scene.height
+  const outerRx = Math.max(2, scene.radius)
+  const innerRx = Math.max(2, scene.radius - frameGap - frameOuter)
 
   return Buffer.from(`
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-      ${drawIndex(card, indexInset, indexInset, false)}
-      ${drawIndex(card, width - indexInset - indexWidth, height - indexInset - indexHeight, true)}
+      <defs>
+        <filter id="sceneShadow" x="-10%" y="-8%" width="120%" height="120%">
+          <feDropShadow dx="0" dy="5" stdDeviation="10" flood-color="${color}" flood-opacity="0.12"/>
+        </filter>
+      </defs>
+
+      <rect
+        x="${frameX + 1}"
+        y="${frameY + 2}"
+        width="${frameW - 2}"
+        height="${frameH - 2}"
+        rx="${outerRx}"
+        fill="${color}"
+        opacity="0.04"
+        filter="url(#sceneShadow)"
+      />
+
+      <rect
+        x="${frameX}"
+        y="${frameY}"
+        width="${frameW}"
+        height="${frameH}"
+        rx="${outerRx}"
+        fill="none"
+        stroke="${color}"
+        stroke-opacity="0.62"
+        stroke-width="${frameOuter}"
+      />
+
+      <rect
+        x="${frameX + frameGap + frameOuter}"
+        y="${frameY + frameGap + frameOuter}"
+        width="${frameW - (frameGap + frameOuter) * 2}"
+        height="${frameH - (frameGap + frameOuter) * 2}"
+        rx="${innerRx}"
+        fill="none"
+        stroke="${accentStroke}"
+        stroke-width="${frameInner}"
+      />
     </svg>
   `)
 }
 
+function buildChromeOverlay(card: RenderCard, layout: CardLayout) {
+  const {
+    width,
+    height,
+    cardRadius,
+    indexInset,
+    indexWidth,
+    indexHeight,
+    outerStroke
+  } = layout
+  const color = getCardColor(card)
+  const outerInset = Math.round(width * 0.012)
+
+  return Buffer.from(`
+    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="paperGrain">
+          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/>
+          <feColorMatrix type="matrix" values="0 0 0 0 0.9  0 0 0 0 0.88  0 0 0 0 0.84  0 0 0 0.04 0"/>
+        </filter>
+      </defs>
+
+      <rect
+        x="${outerInset}"
+        y="${outerInset}"
+        width="${width - outerInset * 2}"
+        height="${height - outerInset * 2}"
+        rx="${Math.max(2, cardRadius - outerInset)}"
+        fill="none"
+        stroke="${color}"
+        stroke-opacity="0.22"
+        stroke-width="${outerStroke}"
+      />
+
+      <rect width="${width}" height="${height}" filter="url(#paperGrain)" opacity="1"/>
+
+      ${drawIndex(card, layout, indexInset, indexInset, false)}
+      ${drawIndex(card, layout, width - indexInset - indexWidth, height - indexInset - indexHeight, true)}
+    </svg>
+  `)
+}
+
+async function cropSceneSource(source: Buffer) {
+  const image = sharp(source)
+  const metadata = await image.metadata()
+  const width = metadata.width || 0
+  const height = metadata.height || 0
+
+  if (!width || !height) {
+    return source
+  }
+
+  const cropX = Math.round(width * SCENE_EDGE_CROP)
+  const cropY = Math.round(height * SCENE_EDGE_CROP)
+  const cropWidth = Math.max(1, width - cropX * 2)
+  const cropHeight = Math.max(1, height - cropY * 2)
+
+  return image
+    .extract({
+      left: cropX,
+      top: cropY,
+      width: cropWidth,
+      height: cropHeight
+    })
+    .png()
+    .toBuffer()
+}
+
 async function buildSceneImage(source: Buffer, width: number, height: number, radius: number) {
+  const cropped = await cropSceneSource(source)
   const mask = Buffer.from(`
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
       <rect x="0" y="0" width="${width}" height="${height}" rx="${radius}" fill="#ffffff"/>
     </svg>
   `)
 
-  return sharp(source)
+  return sharp(cropped)
     .resize(width, height, { fit: 'cover', position: 'attention' })
     .composite([{ input: mask, blend: 'dest-in' }])
     .png()
@@ -266,14 +614,20 @@ async function removeChromaGreen(source: Buffer) {
     .raw()
     .toBuffer({ resolveWithObject: true })
 
+  const width = info.width
+  const height = info.height
+  const alpha = new Float32Array(width * height)
+
   for (let index = 0; index < data.length; index += 4) {
+    const pixel = index / 4
     const red = data[index] || 0
     const green = data[index + 1] || 0
     const blue = data[index + 2] || 0
-    const alpha = data[index + 3] || 0
+    const sourceAlpha = (data[index + 3] || 0) / 255
     const strongestNonGreen = Math.max(red, blue)
     const weakestNonGreen = Math.min(red, blue)
     const greenDominance = green - strongestNonGreen
+    let nextAlpha = sourceAlpha
 
     if (green > chromaGreenMinimum && greenDominance > chromaDominanceMinimum) {
       const greenStrength = clamp((green - chromaGreenMinimum) / chromaGreenRange)
@@ -284,7 +638,7 @@ async function removeChromaGreen(source: Buffer) {
         dominanceStrength * purityStrength * chromaPurityWeight
       )
 
-      data[index + 3] = Math.round(alpha * (1 - removal))
+      nextAlpha = sourceAlpha * (1 - removal)
     }
 
     if (greenDominance > greenSpillDominanceMinimum) {
@@ -295,12 +649,55 @@ async function removeChromaGreen(source: Buffer) {
 
       data[index + 1] = Math.round(green + (neutralGreen - green) * spillReduction)
     }
+
+    alpha[pixel] = nextAlpha
+  }
+
+  // Soft erode then dilate on alpha to trim green fringe while keeping silhouette.
+  const eroded = new Float32Array(alpha.length)
+  const cleaned = new Float32Array(alpha.length)
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      let minAlpha = 1
+
+      for (let oy = -1; oy <= 1; oy += 1) {
+        for (let ox = -1; ox <= 1; ox += 1) {
+          const nx = Math.min(width - 1, Math.max(0, x + ox))
+          const ny = Math.min(height - 1, Math.max(0, y + oy))
+          minAlpha = Math.min(minAlpha, alpha[ny * width + nx] || 0)
+        }
+      }
+
+      eroded[y * width + x] = minAlpha
+    }
+  }
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      let maxAlpha = 0
+
+      for (let oy = -1; oy <= 1; oy += 1) {
+        for (let ox = -1; ox <= 1; ox += 1) {
+          const nx = Math.min(width - 1, Math.max(0, x + ox))
+          const ny = Math.min(height - 1, Math.max(0, y + oy))
+          maxAlpha = Math.max(maxAlpha, eroded[ny * width + nx] || 0)
+        }
+      }
+
+      cleaned[y * width + x] = maxAlpha
+    }
+  }
+
+  for (let index = 0; index < data.length; index += 4) {
+    const pixel = index / 4
+    data[index + 3] = Math.round((cleaned[pixel] || 0) * 255)
   }
 
   return sharp(data, {
     raw: {
-      width: info.width,
-      height: info.height,
+      width,
+      height,
       channels: 4
     }
   })
@@ -320,34 +717,50 @@ async function buildForegroundImage(source: Buffer, width: number, height: numbe
     .toBuffer()
 }
 
+async function applyCardCornerMask(image: Buffer, width: number, height: number, radius: number) {
+  const mask = Buffer.from(`
+    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="0" width="${width}" height="${height}" rx="${radius}" fill="#ffffff"/>
+    </svg>
+  `)
+
+  return sharp(image)
+    .composite([{ input: mask, blend: 'dest-in' }])
+    .png()
+    .toBuffer()
+}
+
 export async function renderCardImage(source: Buffer, card: RenderCard, foreground?: Buffer) {
-  const dimensions = card.aspectRatio === '9:16' ? tarotCard : pokerCard
-  const scene = getSceneFrame(dimensions.width, dimensions.height)
+  const layout = getCardLayout(card.aspectRatio)
+  const { width, height, cardRadius, scene } = layout
   const sceneImage = await buildSceneImage(source, scene.width, scene.height, scene.radius)
   const foregroundImage = foreground
-    ? await buildForegroundImage(foreground, dimensions.width, dimensions.height)
+    ? await buildForegroundImage(foreground, width, height)
     : null
   const layers = [
-    { input: sceneImage, top: scene.y, left: scene.x }
+    { input: sceneImage, top: scene.y, left: scene.x },
+    // Frame sits under the subject so limbs/hair can overlap the border.
+    { input: buildSceneFrameOverlay(card, layout), top: 0, left: 0 }
   ]
 
   if (foregroundImage) {
     layers.push({ input: foregroundImage, top: 0, left: 0 })
   }
 
-  layers.push({ input: buildOverlay(card, dimensions.width, dimensions.height), top: 0, left: 0 })
+  // Indices and outer stroke stay above so corners remain readable.
+  layers.push({ input: buildChromeOverlay(card, layout), top: 0, left: 0 })
 
-  const base = await sharp({
+  const flat = await sharp({
     create: {
-      width: dimensions.width,
-      height: dimensions.height,
+      width,
+      height,
       channels: 4,
-      background: '#ffffff'
+      background: { r: 250, g: 248, b: 244, alpha: 1 }
     }
   })
     .composite(layers)
     .png()
     .toBuffer()
 
-  return base
+  return applyCardCornerMask(flat, width, height, cardRadius)
 }

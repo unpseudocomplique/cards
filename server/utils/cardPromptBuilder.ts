@@ -1,6 +1,7 @@
 import type { DeckStyleSettings } from '~~/server/database/schema'
 import type { CardPromptRole, CardPromptSuit } from '~~/shared/utils/cardPromptPresets'
 import { cardPromptRoleValues, cardPromptSuitValues, mergeRolePrompts, mergeSuitPrompts } from '~~/shared/utils/cardPromptPresets'
+import { getTarotArcana, getTarotArcanaPromptHint } from '~~/shared/utils/tarotArcana'
 
 type PromptCard = {
   label: string
@@ -19,71 +20,173 @@ function isPromptSuit(suit?: string): suit is CardPromptSuit {
   return cardPromptSuitValues.includes(suit as CardPromptSuit)
 }
 
+function joinParts(parts: Array<string | null | undefined>) {
+  return parts.filter(Boolean).join(' ')
+}
+
+function buildStructuredPrompt(options: {
+  subject: string
+  context: Array<string | null | undefined>
+  style: Array<string | null | undefined>
+  constraints?: Array<string | null | undefined>
+}) {
+  return joinParts([
+    options.subject,
+    joinParts(options.context),
+    `Style: ${joinParts(options.style)}.`,
+    options.constraints?.length ? joinParts(options.constraints) : null
+  ])
+}
+
+function getRoleContext(card: PromptCard, settings: DeckStyleSettings) {
+  const role = isPromptRole(card.role) ? card.role : null
+
+  if (!role) {
+    return null
+  }
+
+  return mergeRolePrompts(settings.rolePrompts)[role]
+}
+
+function getSuitContext(card: PromptCard, settings: DeckStyleSettings) {
+  const suit = isPromptSuit(card.suit) ? card.suit : null
+
+  if (!suit) {
+    return null
+  }
+
+  return mergeSuitPrompts(settings.suitPrompts)[suit]
+}
+
+/** Always resolve Marseille arcana meaning from role/rank, even for older decks. */
+function getArcanaContext(card: PromptCard) {
+  const arcana = getTarotArcana(card.role, card.rank)
+
+  if (!arcana) {
+    return card.promptHint || null
+  }
+
+  const fromCatalog = getTarotArcanaPromptHint(arcana)
+
+  // Prefer live arcana text; keep a custom promptHint only if it adds something else.
+  if (card.promptHint && card.promptHint !== fromCatalog && !card.promptHint.includes(arcana.name)) {
+    return joinParts([fromCatalog, card.promptHint])
+  }
+
+  return fromCatalog
+}
+
+function getCardDisplayName(card: PromptCard) {
+  const arcana = getTarotArcana(card.role, card.rank)
+
+  if (!arcana) {
+    return card.label
+  }
+
+  if (arcana.key === 'excuse') {
+    return `${arcana.name} (Excuse)`
+  }
+
+  return `${arcana.roman} ${arcana.name} (Atout ${arcana.number})`
+}
+
+function getExpressionDirection(card: PromptCard) {
+  const arcana = getTarotArcana(card.role, card.rank)
+
+  if (arcana) {
+    return `Facial expression must strictly match ${arcana.name}: ${arcana.expression} Do not default to a friendly smile unless the arcana requires joy.`
+  }
+
+  return 'Flattering natural expression matching the card role.'
+}
+
+const sharedArtConstraints = [
+  'No text, no letters, no numbers, no card index, no suit pips.',
+  'No painted frame, no gold or black border, no ornamental edge, no white margin, no passe-partout.',
+  'Full-bleed image to the edges.'
+]
+
+/**
+ * Legacy single-pass prompt (subject / context / style).
+ * Kept for compatibility if a one-shot generation path is reintroduced.
+ */
 export function buildCardImagePrompt(card: PromptCard, settings: DeckStyleSettings, cardPrompt?: string | null) {
-  const rolePrompts = mergeRolePrompts(settings.rolePrompts)
-  const suitPrompts = mergeSuitPrompts(settings.suitPrompts)
-  const role = isPromptRole(card.role) ? card.role : null
-  const suit = isPromptSuit(card.suit) ? card.suit : null
-  const styleParts = [
-    `Style global uniforme du deck: ${settings.visualStyle}.`,
-    card.promptHint,
-    role ? `Style uniforme du carré ${role}: ${rolePrompts[role]}.` : null,
-    suit ? `Style uniforme de la couleur ${suit}: ${suitPrompts[suit]}.` : null,
-    cardPrompt ? `Instructions spécifiques pour cette carte: ${cardPrompt}.` : null
-  ].filter(Boolean).join(' ')
+  const displayName = getCardDisplayName(card)
 
-  return [
-    `Transforme la personne de la photo de référence en illustration pleine page pour une carte ${card.label}.`,
-    styleParts,
-    'Génère une illustration complète sans passe-partout blanc, sans fenêtre de carte, sans contour de carte et sans marge artificielle: le renderer placera ensuite l image dans une fenêtre uniforme.',
-    'Le personnage doit être centré, lisible en buste ou trois-quarts, au premier plan, avec le décor derrière lui sur toute l image.',
-    'Le décor peut varier selon la carte, mais il doit remplir naturellement l arrière-plan de l illustration et rester plus doux que le personnage.',
-    'La composition doit rester sobre: un personnage principal, décor simple, peu d accessoires, aucune surcharge décorative.',
-    'N ajoute jamais de bordure de carte, jamais de cartouche, jamais d index et jamais de numéro de carte dans l illustration: le blanc autour du visuel et les indices seront ajoutés ensuite par le renderer final.',
-    cardPrompt ? `Instructions spécifiques pour cette carte: ${cardPrompt}.` : null,
-    'Conserve une ressemblance claire avec la personne, en gardant une expression naturelle et flatteuse.',
-    'Ne génère aucun texte, aucun chiffre, aucune lettre, aucun index de carte, aucun pictogramme de coeur, carreau, trèfle ou pique dans l image.',
-    'Les seuls éléments qui identifieront la carte seront ajoutés après génération par le renderer; ne les dessine pas dans l illustration.',
-    'Image finale nette, cohérente avec un jeu de cartes premium, mais lisible au premier regard.'
-  ].filter(Boolean).join(' ')
+  return buildStructuredPrompt({
+    subject: `A premium full-bleed playing-card illustration of the person from the reference photos as ${displayName}, clear likeness, centered bust or three-quarter portrait in the foreground.`,
+    context: [
+      getArcanaContext(card),
+      getExpressionDirection(card),
+      getRoleContext(card, settings),
+      getSuitContext(card, settings),
+      cardPrompt,
+      'Soft background behind the figure, simple decor, few accessories, readable at a glance.'
+    ],
+    style: [
+      settings.visualStyle,
+      'cohesive premium card art, soft lighting, high detail on the face, quieter background'
+    ],
+    constraints: sharedArtConstraints
+  })
 }
 
+/** Text-to-image only: empty scenic backdrop for the card window. */
 export function buildCardScenePrompt(card: PromptCard, settings: DeckStyleSettings, cardPrompt?: string | null) {
-  const rolePrompts = mergeRolePrompts(settings.rolePrompts)
-  const suitPrompts = mergeSuitPrompts(settings.suitPrompts)
-  const role = isPromptRole(card.role) ? card.role : null
-  const suit = isPromptSuit(card.suit) ? card.suit : null
+  const displayName = getCardDisplayName(card)
+  const arcana = getTarotArcana(card.role, card.rank)
 
-  return [
-    `Crée uniquement le décor illustré pour une carte ${card.label}, sans personnage principal et sans animal au premier plan.`,
-    `Style global uniforme du deck: ${settings.visualStyle}.`,
-    role ? `Ambiance du carré ${role}: ${rolePrompts[role]}.` : null,
-    suit ? `Ambiance de couleur ${suit}: ${suitPrompts[suit]}.` : null,
-    cardPrompt ? `Influence spécifique de la carte: ${cardPrompt}.` : null,
-    'Le décor peut varier selon la carte, mais il doit remplir toute l image, rester doux, lisible et cohérent avec une illustration premium.',
-    'Aucun texte, aucun chiffre, aucune lettre, aucun symbole de carte, aucun cadre et aucun liseré.',
-    'Image de décor pleine page, sans marge blanche, prête à être recadrée dans une fenêtre fixe.'
-  ].filter(Boolean).join(' ')
+  return buildStructuredPrompt({
+    subject: arcana
+      ? `An empty illustrated environment for the major-arcana playing card ${displayName}, atmosphere only, no people, no faces, no animals in the foreground.`
+      : `An empty illustrated environment for the playing card ${displayName}, atmosphere only, no people, no faces, no animals in the foreground.`,
+    context: [
+      getArcanaContext(card),
+      arcana ? `Evoke the symbolism and mood of ${arcana.name} through setting, light, and props only (${arcana.meaning}).` : null,
+      getRoleContext(card, settings),
+      getSuitContext(card, settings),
+      cardPrompt,
+      'Soft depth, calm readable shapes, decor filling the whole frame, ready to sit behind a character cutout.'
+    ],
+    style: [
+      settings.visualStyle,
+      'premium digital illustration, gentle lighting, painterly background, edge-to-edge composition'
+    ],
+    constraints: sharedArtConstraints
+  })
 }
 
+/** Image edit: likeness on pure chroma green for cutout. */
 export function buildCardForegroundPrompt(card: PromptCard, settings: DeckStyleSettings, cardPrompt?: string | null) {
-  const rolePrompts = mergeRolePrompts(settings.rolePrompts)
-  const suitPrompts = mergeSuitPrompts(settings.suitPrompts)
-  const role = isPromptRole(card.role) ? card.role : null
-  const suit = isPromptSuit(card.suit) ? card.suit : null
+  const displayName = getCardDisplayName(card)
+  const arcana = getTarotArcana(card.role, card.rank)
 
-  return [
-    `Transforme la personne et les compagnons visibles de la photo de référence en personnage illustré pour une carte ${card.label}.`,
-    `Style global uniforme du deck: ${settings.visualStyle}.`,
-    card.promptHint,
-    role ? `Style uniforme du carré ${role}: ${rolePrompts[role]}.` : null,
-    suit ? `Style uniforme de la couleur ${suit}: ${suitPrompts[suit]}.` : null,
-    cardPrompt ? `Instructions spécifiques pour cette carte: ${cardPrompt}.` : null,
-    'Le personnage doit être entier ou en trois-quarts, au premier plan, avec une silhouette lisible qui pourra dépasser de la fenêtre de décor.',
-    'Fond obligatoire: vert chroma key pur, uniforme, plat, couleur #00ff00, sans texture, sans décor, sans ombre portée verte.',
-    'La silhouette doit rester propre, sans reflet vert, sans halo vert et sans contamination verte sur les cheveux, la peau ou les vêtements.',
-    'Ne mets aucun décor derrière le personnage, uniquement le fond vert pur pour permettre un détourage automatique.',
-    'Aucun texte, aucun chiffre, aucune lettre, aucun symbole de carte, aucun cadre et aucun liseré.',
-    'Conserve une ressemblance claire avec la personne, expression naturelle et flatteuse, rendu net et premium.'
-  ].filter(Boolean).join(' ')
+  return buildStructuredPrompt({
+    subject: arcana
+      ? `Transform the person from the reference photos into an illustrated embodiment of ${displayName}, keep a clear likeness consistent with all references, three-quarter or full figure with a readable silhouette.`
+      : `Transform the person from the reference photos into an illustrated character for the playing card ${displayName}, keep a clear likeness consistent with all references, three-quarter or full figure with a readable silhouette.`,
+    context: [
+      getArcanaContext(card),
+      getExpressionDirection(card),
+      arcana
+        ? `Costume, pose, and one symbolic prop must express ${arcana.name} (${arcana.meaning}). The mood of the portrait is as important as the costume.`
+        : null,
+      getRoleContext(card, settings),
+      getSuitContext(card, settings),
+      cardPrompt,
+      'Use every provided reference photo to lock identity: face shape, age, hair, glasses, and distinctive features.',
+      arcana
+        ? 'Character in the foreground only, minimal props, theatrical Marseille-tarot presence without clutter. This is a major arcana, not a suit card.'
+        : 'Character in the foreground only, costume and pose matching the card role, minimal props.'
+    ],
+    style: [
+      settings.visualStyle,
+      'premium digital illustration, clean edges, studio cutout look'
+    ],
+    constraints: [
+      'Mandatory background: flat pure chroma-key green #00FF00, uniform, no texture, no scenery, no green cast shadow.',
+      'Sharp silhouette against the green, no green halo, fringe, glow, or outline, and no green contamination on hair, skin, or clothes.',
+      'No text, no letters, no numbers, no card index, no suit pips, no frame, no border.'
+    ]
+  })
 }

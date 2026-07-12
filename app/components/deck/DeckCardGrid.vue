@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { CardRolePromptKey, CardSuitPromptKey, DeckCard, DeckPhoto } from '~/types/deck'
+import type { CardRolePromptKey, CardSuitPromptKey, DeckCard, DeckPerson } from '~/types/deck'
 
 type RoleFilterValue = 'all' | 'face' | CardRolePromptKey
 type SuitFilterValue = 'all' | CardSuitPromptKey
@@ -8,18 +8,19 @@ type AssignmentResponse = {
   assignedCount: number
 }
 
-type PhotoSelectItem = {
+type PersonSelectItem = {
   value: string
   label: string
   description: string
   imageUrl: string | null
+  photoCount: number
   generatedCount: number
 }
 
 const props = defineProps<{
   deckId: string
   cards: DeckCard[]
-  photos: DeckPhoto[]
+  persons: DeckPerson[]
 }>()
 
 defineEmits<{
@@ -34,12 +35,13 @@ const regeneratingCardIds = shallowRef(new Set<string>())
 const cardOverrides = shallowRef(new Map<string, DeckCard>())
 
 const faceRoles: CardRolePromptKey[] = ['jack', 'knight', 'queen', 'king']
-const noPhotoValue = '__no_photo__'
-const emptyPhotoSelectItem: PhotoSelectItem = {
-  value: noPhotoValue,
-  label: 'Aucune photo',
-  description: 'Aucune image source affectée',
+const noPersonValue = '__no_person__'
+const emptyPersonSelectItem: PersonSelectItem = {
+  value: noPersonValue,
+  label: 'Aucune personne',
+  description: 'Aucune référence affectée',
   imageUrl: null,
+  photoCount: 0,
   generatedCount: 0
 }
 
@@ -75,6 +77,14 @@ const roleFilterOptions: Array<{ value: RoleFilterValue, label: string }> = [
   { value: 'number', label: 'Numérales' }
 ]
 
+const statusLabels: Record<DeckCard['status'], string> = {
+  pending: 'À faire',
+  queued: 'En file',
+  generating: 'En cours',
+  ready: 'Prête',
+  failed: 'À corriger'
+}
+
 const statusColor = computed(() => ({
   pending: 'neutral',
   queued: 'info',
@@ -86,16 +96,16 @@ const statusColor = computed(() => ({
 const displayedCards = computed(() => props.cards.map(card => cardOverrides.value.get(card.id) || card))
 const readyCount = computed(() => displayedCards.value.filter(card => card.status === 'ready').length)
 const filteredReadyCount = computed(() => visibleCards.value.filter(card => card.status === 'ready').length)
-const photoById = computed(() => new Map(props.photos.map(photo => [photo.id, photo])))
-const generatedCountByPhotoId = computed(() => {
+const personById = computed(() => new Map(props.persons.map(person => [person.id, person])))
+const generatedCountByPersonId = computed(() => {
   const counts = new Map<string, number>()
 
   for (const card of displayedCards.value) {
-    if (!card.sourcePhotoId || card.status !== 'ready' || !card.finalImageUrl) {
+    if (!card.sourcePersonId || card.status !== 'ready' || !card.finalImageUrl) {
       continue
     }
 
-    counts.set(card.sourcePhotoId, (counts.get(card.sourcePhotoId) || 0) + 1)
+    counts.set(card.sourcePersonId, (counts.get(card.sourcePersonId) || 0) + 1)
   }
 
   return counts
@@ -121,16 +131,17 @@ const visibleCards = computed(() => displayedCards.value.filter((card) => {
   return matchesSuit && matchesRole
 }))
 
-const photoSelectItems = computed<PhotoSelectItem[]>(() => [
-  emptyPhotoSelectItem,
-  ...props.photos.map((photo) => {
-    const generatedCount = generatedCountByPhotoId.value.get(photo.id) || 0
+const personSelectItems = computed<PersonSelectItem[]>(() => [
+  emptyPersonSelectItem,
+  ...props.persons.map((person) => {
+    const generatedCount = generatedCountByPersonId.value.get(person.id) || 0
 
     return {
-      value: photo.id,
-      label: photo.label,
-      description: getGeneratedCountLabel(generatedCount),
-      imageUrl: photo.url,
+      value: person.id,
+      label: person.label,
+      description: `${person.photos.length} photo(s) · ${getGeneratedCountLabel(generatedCount)}`,
+      imageUrl: person.photos[0]?.url || null,
+      photoCount: person.photos.length,
       generatedCount
     }
   })
@@ -140,12 +151,12 @@ watch(() => props.cards, () => {
   cardOverrides.value = new Map()
 })
 
-function getCardPhoto(card: DeckCard) {
-  if (!card.sourcePhotoId) {
+function getCardPerson(card: DeckCard) {
+  if (!card.sourcePersonId) {
     return null
   }
 
-  return photoById.value.get(card.sourcePhotoId) || null
+  return personById.value.get(card.sourcePersonId) || null
 }
 
 function getRoleLabel(card: DeckCard) {
@@ -166,16 +177,16 @@ function getGeneratedCountLabel(count: number) {
   return count === 1 ? '1 visuel généré dans ce deck' : `${count} visuels générés dans ce deck`
 }
 
-function getPhotoSelectItem(value: unknown) {
-  const photoId = typeof value === 'string' ? value : noPhotoValue
+function getPersonSelectItem(value: unknown) {
+  const personId = typeof value === 'string' ? value : noPersonValue
 
-  return photoSelectItems.value.find(item => item.value === photoId) || emptyPhotoSelectItem
+  return personSelectItems.value.find(item => item.value === personId) || emptyPersonSelectItem
 }
 
-function getPhotoSelectTriggerLabel(value: unknown) {
-  const item = getPhotoSelectItem(value)
+function getPersonSelectTriggerLabel(value: unknown) {
+  const item = getPersonSelectItem(value)
 
-  return item.value !== noPhotoValue ? `${item.label} · ${item.description}` : item.label
+  return item.value !== noPersonValue ? `${item.label} · ${item.description}` : item.label
 }
 
 function addCardLoadingState(state: typeof assigningCardIds, cardId: string) {
@@ -207,7 +218,7 @@ function updateCardOverride(card: DeckCard) {
   cardOverrides.value = nextCards
 }
 
-async function assignCard(card: DeckCard, photoId: string) {
+async function assignCard(card: DeckCard, personId: string) {
   addCardLoadingState(assigningCardIds, card.id)
 
   try {
@@ -216,19 +227,20 @@ async function assignCard(card: DeckCard, photoId: string) {
       body: {
         scope: 'card',
         cardId: card.id,
-        photoId: photoId || null
+        personId: personId || null
       }
     })
 
     toast.add({
-      title: photoId ? 'Photo affectée' : 'Photo retirée',
+      title: personId ? 'Personne affectée' : 'Personne retirée',
       description: `${response.assignedCount} carte mise à jour.`,
       color: 'success',
       icon: 'i-lucide-check'
     })
     updateCardOverride({
       ...card,
-      sourcePhotoId: photoId || null
+      sourcePersonId: personId || null,
+      sourcePhotoId: personId ? (personById.value.get(personId)?.photos[0]?.id || null) : null
     })
   } catch (error) {
     toast.add({
@@ -243,10 +255,10 @@ async function assignCard(card: DeckCard, photoId: string) {
 }
 
 async function regenerateCard(card: DeckCard) {
-  if (!card.sourcePhotoId) {
+  if (!card.sourcePersonId) {
     toast.add({
-      title: 'Photo manquante',
-      description: 'Affectez une photo à cette carte avant de régénérer son visuel.',
+      title: 'Personne manquante',
+      description: 'Affectez une personne à cette carte avant de régénérer son visuel.',
       color: 'warning',
       icon: 'i-lucide-image-off'
     })
@@ -279,23 +291,24 @@ async function regenerateCard(card: DeckCard) {
   }
 }
 
-function handleCardPhotoUpdate(card: DeckCard, photoId: unknown) {
-  void assignCard(card, typeof photoId === 'string' && photoId !== noPhotoValue ? photoId : '')
+function handleCardPersonUpdate(card: DeckCard, personId: unknown) {
+  void assignCard(card, typeof personId === 'string' && personId !== noPersonValue ? personId : '')
 }
 </script>
 
 <template>
   <div class="space-y-4">
     <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-      <div>
+      <div class="min-w-0">
         <p class="font-medium text-highlighted">
           Visuels des cartes
         </p>
         <p class="text-sm text-muted">
-          {{ filteredReadyCount }} / {{ visibleCards.length }} prêtes sur la sélection · {{ readyCount }} / {{ cards.length }} au total
+          <span class="sm:hidden">{{ filteredReadyCount }}/{{ visibleCards.length }} prêtes</span>
+          <span class="hidden sm:inline">{{ filteredReadyCount }} / {{ visibleCards.length }} prêtes sur la sélection · {{ readyCount }} / {{ cards.length }} au total</span>
         </p>
       </div>
-      <div class="grid gap-2 sm:grid-cols-2 lg:min-w-lg">
+      <div class="grid w-full gap-2 sm:grid-cols-2 lg:w-auto lg:min-w-lg">
         <UFormField label="Couleur">
           <USelect
             v-model="selectedSuitFilter"
@@ -318,22 +331,22 @@ function handleCardPhotoUpdate(card: DeckCard, photoId: unknown) {
       </div>
     </div>
 
-    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       <article
         v-for="card in visibleCards"
         :key="card.id"
-        class="overflow-hidden rounded-lg border border-default bg-default"
+        class="overflow-hidden rounded-xl border border-default bg-default"
       >
-        <div class="aspect-3/4 bg-muted">
+        <div class="aspect-3/4 bg-muted/70 p-2 sm:p-2.5">
           <NuxtImg
             v-if="card.finalImageUrl"
             :src="card.finalImageUrl"
             :alt="card.metadata.label"
-            class="size-full object-cover"
+            class="size-full rounded-[7%] object-contain shadow-sm shadow-neutral-950/10"
           />
           <div
             v-else
-            class="flex size-full flex-col items-center justify-center gap-2 p-3 text-center"
+            class="flex size-full flex-col items-center justify-center gap-2 rounded-[7%] border border-dashed border-default bg-default/70 p-3 text-center"
           >
             <UIcon
               name="i-lucide-image"
@@ -342,7 +355,7 @@ function handleCardPhotoUpdate(card: DeckCard, photoId: unknown) {
             <span class="text-xs text-muted">En attente</span>
           </div>
         </div>
-        <div class="space-y-2 p-3">
+        <div class="space-y-2 p-3 pt-1">
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
               <p class="truncate text-sm font-medium leading-snug text-highlighted">
@@ -355,38 +368,41 @@ function handleCardPhotoUpdate(card: DeckCard, photoId: unknown) {
             <span class="shrink-0 text-sm font-bold text-muted">{{ card.metadata.shortLabel }}</span>
           </div>
 
-          <div class="flex flex-wrap items-center gap-2">
+          <div class="flex min-w-0 flex-wrap items-center gap-1.5">
             <UBadge
               :color="statusColor[card.status]"
               variant="subtle"
+              size="sm"
             >
-              {{ card.status }}
+              {{ statusLabels[card.status] }}
             </UBadge>
             <UBadge
               color="neutral"
               variant="outline"
+              size="sm"
+              class="max-w-full truncate"
             >
-              {{ getCardPhoto(card)?.label || 'Sans photo' }}
+              {{ getCardPerson(card)?.label || 'Sans personne' }}
             </UBadge>
           </div>
 
           <div class="space-y-2 pt-1">
             <USelect
-              :model-value="card.sourcePhotoId || noPhotoValue"
-              :items="photoSelectItems"
+              :model-value="card.sourcePersonId || noPersonValue"
+              :items="personSelectItems"
               value-key="value"
               label-key="label"
               description-key="description"
-              class="w-full"
-              :disabled="!photos.length || isAssigningCard(card) || isRegeneratingCard(card)"
-              :ui="{ content: 'min-w-72', itemWrapper: 'min-w-0' }"
-              @update:model-value="handleCardPhotoUpdate(card, $event)"
+              class="w-full min-w-0"
+              :disabled="!persons.length || isAssigningCard(card) || isRegeneratingCard(card)"
+              :ui="{ content: 'w-(--reka-select-trigger-width) max-w-[min(20rem,calc(100vw-2rem))]', itemWrapper: 'min-w-0' }"
+              @update:model-value="handleCardPersonUpdate(card, $event)"
             >
               <template #leading="{ modelValue }">
                 <NuxtImg
-                  v-if="getPhotoSelectItem(modelValue).imageUrl"
-                  :src="getPhotoSelectItem(modelValue).imageUrl!"
-                  :alt="getPhotoSelectItem(modelValue).label"
+                  v-if="getPersonSelectItem(modelValue).imageUrl"
+                  :src="getPersonSelectItem(modelValue).imageUrl!"
+                  :alt="getPersonSelectItem(modelValue).label"
                   class="size-5 rounded object-cover"
                 />
                 <UIcon
@@ -398,7 +414,7 @@ function handleCardPhotoUpdate(card: DeckCard, photoId: unknown) {
 
               <template #default="{ modelValue }">
                 <span class="truncate">
-                  {{ getPhotoSelectTriggerLabel(modelValue) }}
+                  {{ getPersonSelectTriggerLabel(modelValue) }}
                 </span>
               </template>
 
@@ -432,11 +448,11 @@ function handleCardPhotoUpdate(card: DeckCard, photoId: unknown) {
 
               <template #item-trailing="{ item }">
                 <UBadge
-                  v-if="item.value !== noPhotoValue"
+                  v-if="item.value !== noPersonValue"
                   color="neutral"
                   variant="subtle"
                 >
-                  {{ item.generatedCount }}
+                  {{ item.photoCount }}
                 </UBadge>
               </template>
             </USelect>

@@ -80,10 +80,23 @@ export const decks = pgTable('decks', {
   index('decks_deleted_at_idx').on(table.deletedAt)
 ])
 
+export const deckPersons = pgTable('deck_persons', {
+  id: id(),
+  deckId: text('deck_id').notNull().references(() => decks.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  label: text('label').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull()
+}, table => [
+  index('deck_persons_deck_id_idx').on(table.deckId),
+  index('deck_persons_user_id_idx').on(table.userId)
+])
+
 export const deckPhotos = pgTable('deck_photos', {
   id: id(),
   deckId: text('deck_id').notNull().references(() => decks.id, { onDelete: 'cascade' }),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  personId: text('person_id').references(() => deckPersons.id, { onDelete: 'cascade' }),
   label: text('label').notNull(),
   originalFilename: text('original_filename'),
   mimeType: text('mime_type').notNull(),
@@ -93,7 +106,8 @@ export const deckPhotos = pgTable('deck_photos', {
   createdAt: timestamp('created_at').defaultNow().notNull()
 }, table => [
   index('deck_photos_deck_id_idx').on(table.deckId),
-  index('deck_photos_user_id_idx').on(table.userId)
+  index('deck_photos_user_id_idx').on(table.userId),
+  index('deck_photos_person_id_idx').on(table.personId)
 ])
 
 export const deckCards = pgTable('deck_cards', {
@@ -101,6 +115,7 @@ export const deckCards = pgTable('deck_cards', {
   deckId: text('deck_id').notNull().references(() => decks.id, { onDelete: 'cascade' }),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   sourcePhotoId: text('source_photo_id').references(() => deckPhotos.id, { onDelete: 'set null' }),
+  sourcePersonId: text('source_person_id').references(() => deckPersons.id, { onDelete: 'set null' }),
   cardCode: text('card_code').notNull(),
   status: cardStatusEnum('status').default('pending').notNull(),
   metadata: jsonb('metadata').$type<DeckCardMetadata>().notNull(),
@@ -117,7 +132,8 @@ export const deckCards = pgTable('deck_cards', {
   unique().on(table.deckId, table.cardCode),
   index('deck_cards_deck_id_idx').on(table.deckId),
   index('deck_cards_user_id_idx').on(table.userId),
-  index('deck_cards_status_idx').on(table.status)
+  index('deck_cards_status_idx').on(table.status),
+  index('deck_cards_source_person_id_idx').on(table.sourcePersonId)
 ])
 
 export const generationJobs = pgTable('generation_jobs', {

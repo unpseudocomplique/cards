@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { DeckCard, DeckPhoto } from '~/types/deck'
+import type { DeckCard, DeckPerson } from '~/types/deck'
 
 type RoleValue = 'number' | 'ace' | 'jack' | 'knight' | 'queen' | 'king' | 'trump' | 'excuse'
 
@@ -10,7 +10,7 @@ type AssignmentResponse = {
 const props = defineProps<{
   deckId: string
   cards: DeckCard[]
-  photos: DeckPhoto[]
+  persons: DeckPerson[]
 }>()
 
 const emit = defineEmits<{
@@ -19,7 +19,7 @@ const emit = defineEmits<{
 
 const toast = useToast()
 const selectedRole = shallowRef<RoleValue>('queen')
-const selectedRolePhotoId = shallowRef('')
+const selectedRolePersonId = shallowRef('')
 const selectedCardRole = shallowRef<'all' | RoleValue>('all')
 const isAssigningRole = shallowRef(false)
 const assigningCardId = shallowRef('')
@@ -44,7 +44,7 @@ const cardRoleFilterOptions = computed(() => [
   ...roleOptions
 ])
 
-const photoById = computed(() => new Map(props.photos.map(photo => [photo.id, photo])))
+const personById = computed(() => new Map(props.persons.map(person => [person.id, person])))
 const visibleCards = computed(() => {
   if (selectedCardRole.value === 'all') {
     return props.cards
@@ -53,19 +53,19 @@ const visibleCards = computed(() => {
   return props.cards.filter(card => card.metadata.role === selectedCardRole.value)
 })
 
-function getCardPhoto(card: DeckCard) {
-  if (!card.sourcePhotoId) {
+function getCardPerson(card: DeckCard) {
+  if (!card.sourcePersonId) {
     return null
   }
 
-  return photoById.value.get(card.sourcePhotoId) || null
+  return personById.value.get(card.sourcePersonId) || null
 }
 
 async function assignRole(clear = false) {
-  if (!clear && !selectedRolePhotoId.value) {
+  if (!clear && !selectedRolePersonId.value) {
     toast.add({
-      title: 'Photo manquante',
-      description: 'Choisissez une photo à appliquer au groupe.',
+      title: 'Personne manquante',
+      description: 'Choisissez une personne à appliquer au groupe.',
       color: 'warning',
       icon: 'i-lucide-alert-triangle'
     })
@@ -80,12 +80,12 @@ async function assignRole(clear = false) {
       body: {
         scope: 'role',
         role: selectedRole.value,
-        photoId: clear ? null : selectedRolePhotoId.value
+        personId: clear ? null : selectedRolePersonId.value
       }
     })
 
     toast.add({
-      title: clear ? 'Affectations supprimées' : 'Photo affectée',
+      title: clear ? 'Affectations supprimées' : 'Personne affectée',
       description: `${response.assignedCount} carte(s) mises à jour.`,
       color: 'success',
       icon: 'i-lucide-check'
@@ -103,7 +103,7 @@ async function assignRole(clear = false) {
   }
 }
 
-async function assignCard(card: DeckCard, photoId: string) {
+async function assignCard(card: DeckCard, personId: string) {
   assigningCardId.value = card.id
 
   try {
@@ -112,7 +112,7 @@ async function assignCard(card: DeckCard, photoId: string) {
       body: {
         scope: 'card',
         cardId: card.id,
-        photoId: photoId || null
+        personId: personId || null
       }
     })
 
@@ -129,7 +129,7 @@ async function assignCard(card: DeckCard, photoId: string) {
   }
 }
 
-function handleCardPhotoChange(card: DeckCard, event: Event) {
+function handleCardPersonChange(card: DeckCard, event: Event) {
   const target = event.target as HTMLSelectElement | null
 
   void assignCard(card, target?.value || '')
@@ -137,38 +137,39 @@ function handleCardPhotoChange(card: DeckCard, event: Event) {
 </script>
 
 <template>
-  <section class="space-y-5 rounded-lg border border-default bg-default p-4">
+  <section class="space-y-5 rounded-xl border border-default bg-default p-4">
     <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-      <div>
+      <div class="min-w-0">
         <h2 class="font-semibold text-highlighted">
-          Affecter les photos
+          Qui apparaît sur les cartes ?
         </h2>
         <p class="mt-1 text-sm text-muted">
-          Appliquez une photo à un groupe de personnages ou choisissez carte par carte.
+          Choisissez une personne pour un groupe (ex. toutes les dames), ou carte par carte.
         </p>
       </div>
       <UBadge
         color="neutral"
         variant="subtle"
+        class="self-start"
       >
-        {{ photos.length }} photo(s)
+        {{ persons.length }} personne(s)
       </UBadge>
     </div>
 
     <UAlert
-      v-if="!photos.length"
+      v-if="!persons.length"
       color="neutral"
       variant="subtle"
       icon="i-lucide-upload"
-      title="Importez d'abord une photo"
-      description="Les contrôles d'affectation seront disponibles dès qu'une photo sera ajoutée au deck."
+      title="Ajoutez d’abord des photos"
+      description="Importez au moins une personne pour pouvoir l’associer aux cartes."
     />
 
     <div
       v-else
       class="space-y-5"
     >
-      <div class="grid gap-3 lg:grid-cols-[1fr_1fr_auto_auto] lg:items-end">
+      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto_auto] lg:items-end">
         <UFormField label="Groupe">
           <select
             v-model="selectedRole"
@@ -184,25 +185,26 @@ function handleCardPhotoChange(card: DeckCard, event: Event) {
           </select>
         </UFormField>
 
-        <UFormField label="Photo">
+        <UFormField label="Personne">
           <select
-            v-model="selectedRolePhotoId"
+            v-model="selectedRolePersonId"
             class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:ring-2 focus:ring-primary"
           >
             <option value="">
-              Choisir une photo
+              Choisir une personne
             </option>
             <option
-              v-for="photo in photos"
-              :key="photo.id"
-              :value="photo.id"
+              v-for="person in persons"
+              :key="person.id"
+              :value="person.id"
             >
-              {{ photo.label }}
+              {{ person.label }} ({{ person.photos.length }})
             </option>
           </select>
         </UFormField>
 
         <UButton
+          class="w-full justify-center"
           icon="i-lucide-check"
           :loading="isAssigningRole"
           @click="assignRole(false)"
@@ -213,6 +215,7 @@ function handleCardPhotoChange(card: DeckCard, event: Event) {
         <UButton
           color="neutral"
           variant="subtle"
+          class="w-full justify-center"
           icon="i-lucide-x"
           :loading="isAssigningRole"
           @click="assignRole(true)"
@@ -223,7 +226,7 @@ function handleCardPhotoChange(card: DeckCard, event: Event) {
 
       <div class="space-y-3">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
+          <div class="min-w-0">
             <p class="font-medium text-highlighted">
               Carte par carte
             </p>
@@ -233,7 +236,7 @@ function handleCardPhotoChange(card: DeckCard, event: Event) {
           </div>
           <select
             v-model="selectedCardRole"
-            class="h-10 rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:ring-2 focus:ring-primary"
+            class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:ring-2 focus:ring-primary sm:w-auto sm:min-w-48"
           >
             <option
               v-for="role in cardRoleFilterOptions"
@@ -249,7 +252,7 @@ function handleCardPhotoChange(card: DeckCard, event: Event) {
           <div
             v-for="card in visibleCards"
             :key="card.id"
-            class="grid gap-3 p-3 sm:grid-cols-[minmax(0,1fr)_11rem_minmax(12rem,16rem)] sm:items-center"
+            class="grid gap-3 p-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.1fr)] md:items-center"
           >
             <div class="min-w-0">
               <p class="truncate text-sm font-medium text-highlighted">
@@ -260,40 +263,40 @@ function handleCardPhotoChange(card: DeckCard, event: Event) {
               </p>
             </div>
 
-            <div class="flex items-center gap-2 text-xs text-muted">
+            <div class="flex min-w-0 items-center gap-2 text-xs text-muted">
               <NuxtImg
-                v-if="getCardPhoto(card)"
-                :src="getCardPhoto(card)!.url"
-                :alt="getCardPhoto(card)!.label"
-                class="size-9 rounded object-cover"
+                v-if="getCardPerson(card)?.photos[0]"
+                :src="getCardPerson(card)!.photos[0]!.url"
+                :alt="getCardPerson(card)!.label"
+                class="size-9 shrink-0 rounded object-cover"
               />
               <span class="truncate">
-                {{ getCardPhoto(card)?.label || 'Aucune photo' }}
+                {{ getCardPerson(card) ? `${getCardPerson(card)!.label} · ${getCardPerson(card)!.photos.length} photo(s)` : 'Aucune personne' }}
               </span>
             </div>
 
             <div class="flex items-center gap-2">
               <select
-                :value="card.sourcePhotoId || ''"
+                :value="card.sourcePersonId || ''"
                 class="h-10 min-w-0 flex-1 rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:ring-2 focus:ring-primary"
                 :disabled="assigningCardId === card.id"
-                @change="handleCardPhotoChange(card, $event)"
+                @change="handleCardPersonChange(card, $event)"
               >
                 <option value="">
                   Aucune
                 </option>
                 <option
-                  v-for="photo in photos"
-                  :key="photo.id"
-                  :value="photo.id"
+                  v-for="person in persons"
+                  :key="person.id"
+                  :value="person.id"
                 >
-                  {{ photo.label }}
+                  {{ person.label }} ({{ person.photos.length }})
                 </option>
               </select>
               <UIcon
                 v-if="assigningCardId === card.id"
                 name="i-lucide-loader-2"
-                class="size-4 animate-spin text-muted"
+                class="size-4 shrink-0 animate-spin text-muted"
               />
             </div>
           </div>

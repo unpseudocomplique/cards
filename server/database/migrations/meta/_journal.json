@@ -15,6 +15,13 @@
       "when": 1779119905229,
       "tag": "0001_curved_flatman",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784139000000,
+      "tag": "0002_deck_persons",
+      "breakpoints": true
     }
   ]
 }

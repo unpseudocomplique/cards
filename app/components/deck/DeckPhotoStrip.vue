@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { DeckPhoto } from '~/types/deck'
+import type { DeckPerson } from '~/types/deck'
 
 const props = defineProps<{
   deckId: string
-  photos: DeckPhoto[]
+  persons: DeckPerson[]
 }>()
 
 const emit = defineEmits<{
@@ -11,49 +11,51 @@ const emit = defineEmits<{
 }>()
 
 const toast = useToast()
-const editingPhotoId = shallowRef('')
+const editingPersonId = shallowRef('')
 const aliasDraft = shallowRef('')
-const savingPhotoId = shallowRef('')
+const savingPersonId = shallowRef('')
 
-function startRenaming(photo: DeckPhoto) {
-  editingPhotoId.value = photo.id
-  aliasDraft.value = photo.label
+const totalPhotos = computed(() => props.persons.reduce((total, person) => total + person.photos.length, 0))
+
+function startRenaming(person: DeckPerson) {
+  editingPersonId.value = person.id
+  aliasDraft.value = person.label
 }
 
 function cancelRenaming() {
-  editingPhotoId.value = ''
+  editingPersonId.value = ''
   aliasDraft.value = ''
 }
 
-async function renamePhoto(photo: DeckPhoto) {
+async function renamePerson(person: DeckPerson) {
   const label = aliasDraft.value.trim()
 
   if (!label) {
     toast.add({
-      title: 'Alias requis',
-      description: 'Donnez un nom à cette photo pour la retrouver facilement.',
+      title: 'Nom requis',
+      description: 'Donnez un nom à cette personne.',
       color: 'warning',
       icon: 'i-lucide-alert-triangle'
     })
     return
   }
 
-  if (label === photo.label) {
+  if (label === person.label) {
     cancelRenaming()
     return
   }
 
-  savingPhotoId.value = photo.id
+  savingPersonId.value = person.id
 
   try {
-    await $fetch(`/api/decks/${props.deckId}/photos/${photo.id}`, {
+    await $fetch(`/api/decks/${props.deckId}/persons/${person.id}`, {
       method: 'PATCH',
       body: { label }
     })
 
     toast.add({
-      title: 'Alias renommé',
-      description: 'La photo a été mise à jour.',
+      title: 'Personne renommée',
+      description: 'Le nom a été mis à jour.',
       color: 'success',
       icon: 'i-lucide-check'
     })
@@ -67,94 +69,102 @@ async function renamePhoto(photo: DeckPhoto) {
       icon: 'i-lucide-alert-circle'
     })
   } finally {
-    savingPhotoId.value = ''
+    savingPersonId.value = ''
   }
 }
 </script>
 
 <template>
   <div class="space-y-3">
-    <div class="flex items-center justify-between gap-3">
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
       <p class="font-medium text-highlighted">
-        Photos importées
+        Personnes
       </p>
       <UBadge
         color="neutral"
         variant="subtle"
+        class="self-start"
       >
-        {{ props.photos.length }}
+        {{ persons.length }} personne(s) · {{ totalPhotos }} photo(s)
       </UBadge>
     </div>
 
     <div
-      v-if="photos.length"
-      class="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6"
+      v-if="persons.length"
+      class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
     >
-      <figure
-        v-for="photo in photos"
-        :key="photo.id"
-        class="overflow-hidden rounded-lg border border-default bg-default"
+      <article
+        v-for="person in persons"
+        :key="person.id"
+        class="min-w-0 rounded-xl border border-default bg-default p-3"
       >
-        <NuxtImg
-          :src="photo.url"
-          :alt="photo.label"
-          class="aspect-square w-full object-cover"
-        />
-        <figcaption class="space-y-2 p-2">
-          <form
-            v-if="editingPhotoId === photo.id"
-            class="space-y-2"
-            @submit.prevent="renamePhoto(photo)"
-          >
-            <input
-              v-model="aliasDraft"
-              class="h-9 w-full rounded-md border border-default bg-default px-2 text-sm text-highlighted outline-none focus:ring-2 focus:ring-primary"
-              maxlength="80"
-              aria-label="Alias de la photo"
-            >
-            <div class="flex gap-1">
-              <UButton
-                type="submit"
-                size="xs"
-                icon="i-lucide-check"
-                :loading="savingPhotoId === photo.id"
-              >
-                Sauver
-              </UButton>
-              <UButton
-                type="button"
-                size="xs"
-                color="neutral"
-                variant="ghost"
-                icon="i-lucide-x"
-                :disabled="savingPhotoId === photo.id"
-                @click="cancelRenaming"
-              >
-                Annuler
-              </UButton>
-            </div>
-          </form>
+        <div class="-mx-1 mb-3 flex gap-1.5 overflow-x-auto px-1 pb-1 touch-pan-x">
+          <NuxtImg
+            v-for="photo in person.photos"
+            :key="photo.id"
+            :src="photo.url"
+            :alt="`${person.label} — ${photo.label}`"
+            class="size-14 shrink-0 rounded-md object-cover"
+          />
+        </div>
 
-          <div
-            v-else
-            class="flex items-center justify-between gap-2"
+        <form
+          v-if="editingPersonId === person.id"
+          class="space-y-2"
+          @submit.prevent="renamePerson(person)"
+        >
+          <input
+            v-model="aliasDraft"
+            class="h-9 w-full rounded-md border border-default bg-default px-2 text-sm text-highlighted outline-none focus:ring-2 focus:ring-primary"
+            maxlength="80"
+            aria-label="Nom de la personne"
           >
-            <span class="min-w-0 flex-1 truncate text-xs text-muted">
-              {{ photo.label }}
-            </span>
+          <div class="flex gap-1">
             <UButton
-              :aria-label="`Renommer ${photo.label}`"
-              :title="`Renommer ${photo.label}`"
+              type="submit"
+              size="xs"
+              icon="i-lucide-check"
+              :loading="savingPersonId === person.id"
+            >
+              Sauver
+            </UButton>
+            <UButton
+              type="button"
               size="xs"
               color="neutral"
               variant="ghost"
-              icon="i-lucide-pencil"
-              square
-              @click="startRenaming(photo)"
-            />
+              icon="i-lucide-x"
+              :disabled="savingPersonId === person.id"
+              @click="cancelRenaming"
+            >
+              Annuler
+            </UButton>
           </div>
-        </figcaption>
-      </figure>
+        </form>
+
+        <div
+          v-else
+          class="flex items-center justify-between gap-2"
+        >
+          <div class="min-w-0">
+            <p class="truncate text-sm font-medium text-highlighted">
+              {{ person.label }}
+            </p>
+            <p class="text-xs text-muted">
+              {{ person.photos.length }} photo{{ person.photos.length > 1 ? 's' : '' }} de référence
+            </p>
+          </div>
+          <UButton
+            :aria-label="`Renommer ${person.label}`"
+            size="xs"
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide-pencil"
+            square
+            @click="startRenaming(person)"
+          />
+        </div>
+      </article>
     </div>
 
     <UAlert
@@ -162,8 +172,8 @@ async function renamePhoto(photo: DeckPhoto) {
       color="neutral"
       variant="subtle"
       icon="i-lucide-images"
-      title="Aucune photo"
-      description="Ajoutez plusieurs visages pour obtenir des figures et atouts plus variés."
+      title="Aucune personne"
+      description="Importez plusieurs photos d'une même personne pour affiner la ressemblance."
     />
   </div>
 </template>

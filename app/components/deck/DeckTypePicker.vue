@@ -19,7 +19,7 @@ const options: Array<{ value: DeckType, label: string, description: string, card
   {
     value: 'tarot78',
     label: 'Tarot complet',
-    description: 'Tarot 56 cartes avec Atouts 1 à 21 et Excuse.',
+    description: 'Tarot 56 cartes plus les arcanes majeurs 1–21 (Le Bateleur au Monde) et l\'Excuse (Le Mat).',
     cards: 78
   }
 ]
@@ -31,20 +31,21 @@ const options: Array<{ value: DeckType, label: string, description: string, card
       v-for="option in options"
       :key="option.value"
       type="button"
-      class="rounded-lg border p-4 text-left transition hover:bg-muted/60"
+      class="rounded-xl border p-4 text-left transition hover:bg-muted/60"
       :class="model === option.value ? 'border-primary bg-primary/10' : 'border-default bg-default'"
       @click="model = option.value"
     >
-      <span class="flex items-center justify-between gap-3">
-        <span class="font-semibold text-highlighted">{{ option.label }}</span>
+      <span class="flex items-start justify-between gap-3">
+        <span class="min-w-0 font-semibold text-highlighted">{{ option.label }}</span>
         <UBadge
           color="neutral"
           variant="subtle"
+          class="shrink-0"
         >
           {{ option.cards }}
         </UBadge>
       </span>
-      <span class="mt-2 block text-sm text-muted">{{ option.description }}</span>
+      <span class="mt-2 block text-sm text-pretty text-muted">{{ option.description }}</span>
     </button>
   </div>
 </template>

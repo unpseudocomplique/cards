@@ -9,14 +9,16 @@ const { loggedIn, user } = useUserSession()
 </script>
 
 <template>
-  <div class="fixed top-2 sm:top-4 mx-auto left-1/2 transform -translate-x-1/2 z-10 w-[calc(100%-1rem)] max-w-3xl">
+  <div class="fixed top-2 left-1/2 z-10 w-[calc(100%-1rem)] max-w-3xl -translate-x-1/2 transform sm:top-4">
     <UNavigationMenu
       :items="links"
       variant="link"
       color="neutral"
-      class="bg-muted/80 backdrop-blur-sm rounded-full px-2 sm:px-4 border border-muted/50 shadow-lg shadow-neutral-950/5 justify-center"
+      class="justify-center overflow-x-auto rounded-full border border-muted/50 bg-muted/80 px-2 shadow-lg shadow-neutral-950/5 backdrop-blur-sm sm:px-4"
       :ui="{
-        link: 'px-2 py-1',
+        root: 'min-w-0',
+        list: 'flex-nowrap',
+        link: 'shrink-0 px-2 py-1 text-sm',
         linkLeadingIcon: 'hidden'
       }"
     >

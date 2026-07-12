@@ -1,7 +1,7 @@
 import { and, eq, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { requireOwnedDeck } from '~~/server/utils/deckAccess'
-import { db, deckCards, deckPhotos } from '~~/server/utils/db'
+import { db, deckCards, deckPersons, deckPhotos } from '~~/server/utils/db'
 
 const cardRoleSchema = z.enum(['number', 'ace', 'jack', 'knight', 'queen', 'king', 'trump', 'excuse'])
 
@@ -9,12 +9,12 @@ const assignmentSchema = z.discriminatedUnion('scope', [
   z.object({
     scope: z.literal('card'),
     cardId: z.string().min(1),
-    photoId: z.string().min(1).nullable()
+    personId: z.string().min(1).nullable()
   }),
   z.object({
     scope: z.literal('role'),
     role: cardRoleSchema,
-    photoId: z.string().min(1).nullable()
+    personId: z.string().min(1).nullable()
   })
 ])
 
@@ -39,21 +39,37 @@ export default defineEventHandler(async (event) => {
   }
 
   const input = result.data
+  let primaryPhotoId: string | null = null
 
-  if (input.photoId) {
-    const [photo] = await db
-      .select({ id: deckPhotos.id })
-      .from(deckPhotos)
+  if (input.personId) {
+    const [person] = await db
+      .select({ id: deckPersons.id })
+      .from(deckPersons)
       .where(and(
-        eq(deckPhotos.id, input.photoId),
-        eq(deckPhotos.deckId, deck.id),
-        eq(deckPhotos.userId, session.user.id)
+        eq(deckPersons.id, input.personId),
+        eq(deckPersons.deckId, deck.id),
+        eq(deckPersons.userId, session.user.id)
       ))
       .limit(1)
 
-    if (!photo) {
-      throw createError({ status: 404, message: 'Photo introuvable' })
+    if (!person) {
+      throw createError({ status: 404, message: 'Personne introuvable' })
     }
+
+    const [primaryPhoto] = await db
+      .select({ id: deckPhotos.id })
+      .from(deckPhotos)
+      .where(and(
+        eq(deckPhotos.personId, person.id),
+        eq(deckPhotos.deckId, deck.id)
+      ))
+      .limit(1)
+
+    if (!primaryPhoto) {
+      throw createError({ status: 400, message: 'Cette personne n\'a aucune photo' })
+    }
+
+    primaryPhotoId = primaryPhoto.id
   }
 
   const cards = await db
@@ -72,14 +88,15 @@ export default defineEventHandler(async (event) => {
   await db
     .update(deckCards)
     .set({
-      sourcePhotoId: input.photoId,
+      sourcePersonId: input.personId,
+      sourcePhotoId: primaryPhotoId,
       updatedAt: new Date()
     })
     .where(and(eq(deckCards.deckId, deck.id), inArray(deckCards.id, targetIds)))
 
   return {
     assignedCount: targetIds.length,
-    photoId: input.photoId,
+    personId: input.personId,
     scope: input.scope
   }
 })

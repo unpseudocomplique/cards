@@ -18,6 +18,7 @@ export type DeckCard = {
   id: string
   cardCode: string
   sourcePhotoId: string | null
+  sourcePersonId: string | null
   status: 'pending' | 'queued' | 'generating' | 'ready' | 'failed'
   metadata: {
     label: string
@@ -37,11 +38,19 @@ export type DeckCard = {
 
 export type DeckPhoto = {
   id: string
+  personId: string | null
   label: string
   url: string
   originalFilename: string | null
   size: number
   createdAt: string
+}
+
+export type DeckPerson = {
+  id: string
+  label: string
+  createdAt: string
+  photos: DeckPhoto[]
 }
 
 export type DeckDetails = {
@@ -55,5 +64,6 @@ export type DeckDetails = {
     }
   }
   cards: DeckCard[]
+  persons: DeckPerson[]
   photos: DeckPhoto[]
 }

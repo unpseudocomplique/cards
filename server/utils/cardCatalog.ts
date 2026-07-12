@@ -1,3 +1,9 @@
+import {
+  getTarotArcana,
+  getTarotArcanaLabel,
+  getTarotArcanaPromptHint
+} from '~~/shared/utils/tarotArcana'
+
 export type DeckType = 'classic52' | 'tarot56' | 'tarot78'
 export type CardSuit = 'hearts' | 'diamonds' | 'clubs' | 'spades' | 'trumps'
 export type CardRole = 'number' | 'ace' | 'jack' | 'knight' | 'queen' | 'king' | 'trump' | 'excuse'
@@ -43,15 +49,13 @@ const tarotRanks: Array<{ rank: string, label: string, shortLabel: string, role:
   { rank: 'K', label: 'Roi', shortLabel: 'R', role: 'king' }
 ]
 
-const rolePromptHints: Record<CardRole, string> = {
+const rolePromptHints: Record<Exclude<CardRole, 'trump' | 'excuse'>, string> = {
   number: 'portrait décoratif intégré dans une carte numérale élégante',
   ace: 'figure centrale noble et symbolique pour un as',
   jack: 'valet de cour expressif, costume raffiné, posture dynamique',
   knight: 'cavalier de tarot, allure héroïque, monture suggérée, tenue cérémonielle',
   queen: 'dame royale, présence élégante, bijoux et textile riche',
-  king: 'roi majestueux, posture souveraine, couronne et manteau stylisés',
-  trump: 'arcane majeur de tarot, composition verticale symbolique et théâtrale',
-  excuse: 'l Excuse de tarot, personnage libre et poétique, atmosphère de voyage'
+  king: 'roi majestueux, posture souveraine, couronne et manteau stylisés'
 }
 
 function buildSuitCards(ranks: typeof classicRanks, startOrder: number): CardDefinition[] {
@@ -64,26 +68,29 @@ function buildSuitCards(ranks: typeof classicRanks, startOrder: number): CardDef
     shortLabel: `${rank.shortLabel}${suit.symbol}`,
     sortOrder: startOrder + suitIndex * ranks.length + rankIndex,
     aspectRatio: '3:4',
-    promptHint: rolePromptHints[rank.role]
+    promptHint: rolePromptHints[rank.role as Exclude<CardRole, 'trump' | 'excuse'>]
   })))
 }
 
 function buildTrumpCards(startOrder: number): CardDefinition[] {
   const trumps = Array.from({ length: 21 }, (_, index) => {
     const number = index + 1
+    const arcana = getTarotArcana('trump', String(number))!
 
     return {
       cardCode: `trump-${number}`,
       suit: 'trumps' as const,
       rank: String(number),
       role: 'trump' as const,
-      label: `Atout ${number}`,
+      label: getTarotArcanaLabel(arcana),
       shortLabel: String(number),
       sortOrder: startOrder + index,
       aspectRatio: '9:16' as const,
-      promptHint: rolePromptHints.trump
+      promptHint: getTarotArcanaPromptHint(arcana)
     }
   })
+
+  const excuse = getTarotArcana('excuse')!
 
   return [
     ...trumps,
@@ -91,11 +98,11 @@ function buildTrumpCards(startOrder: number): CardDefinition[] {
       cardCode: 'excuse',
       suit: 'trumps',
       role: 'excuse',
-      label: 'Excuse',
+      label: getTarotArcanaLabel(excuse),
       shortLabel: 'EX',
       sortOrder: startOrder + 21,
       aspectRatio: '9:16',
-      promptHint: rolePromptHints.excuse
+      promptHint: getTarotArcanaPromptHint(excuse)
     }
   ]
 }

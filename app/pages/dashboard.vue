@@ -18,6 +18,14 @@ const { data: decks, pending, refresh } = await useAsyncData(
   }
 )
 
+const statusLabels: Record<string, string> = {
+  draft: 'En préparation',
+  queued: 'En file',
+  generating: 'Génération',
+  ready: 'Terminé',
+  failed: 'À reprendre'
+}
+
 const statusColor = computed(() => ({
   draft: 'neutral',
   queued: 'info',
@@ -33,9 +41,13 @@ const statusColor = computed(() => ({
       title="Mes decks"
       description="Retrouvez vos jeux sauvegardés et poursuivez leur génération."
       :links="[{ label: 'Nouveau deck', icon: 'i-lucide-plus', to: '/decks/new' }]"
+      :ui="{
+        container: 'gap-4 py-6 sm:py-8',
+        links: 'flex-wrap'
+      }"
     />
 
-    <UPageSection :ui="{ container: 'pt-0' }">
+    <UPageSection :ui="{ container: 'pt-0 pb-8' }">
       <div
         v-if="pending"
         class="grid gap-3 sm:grid-cols-2"
@@ -43,7 +55,7 @@ const statusColor = computed(() => ({
         <USkeleton
           v-for="item in 4"
           :key="item"
-          class="h-36 rounded-lg"
+          class="h-36 rounded-xl"
         />
       </div>
 
@@ -55,11 +67,11 @@ const statusColor = computed(() => ({
           v-for="deck in decks"
           :key="deck.id"
           :to="`/decks/${deck.id}`"
-          class="rounded-lg border border-default bg-default p-4 transition hover:bg-muted/60"
+          class="min-w-0 rounded-xl border border-default bg-default p-4 transition hover:bg-muted/60"
         >
           <div class="flex items-start justify-between gap-3">
-            <div>
-              <h2 class="font-semibold text-highlighted">
+            <div class="min-w-0">
+              <h2 class="truncate font-semibold text-highlighted">
                 {{ deck.title }}
               </h2>
               <p class="mt-1 line-clamp-2 text-sm text-muted">
@@ -69,11 +81,12 @@ const statusColor = computed(() => ({
             <UBadge
               :color="statusColor[deck.status]"
               variant="subtle"
+              class="shrink-0"
             >
-              {{ deck.status }}
+              {{ statusLabels[deck.status] || deck.status }}
             </UBadge>
           </div>
-          <div class="mt-4 flex items-center justify-between text-sm text-muted">
+          <div class="mt-4 flex items-center justify-between gap-3 text-sm text-muted">
             <span>{{ deck.cardCount }} cartes</span>
             <span>{{ deck.readyCardCount }} prêtes</span>
           </div>
@@ -91,7 +104,7 @@ const statusColor = computed(() => ({
       />
 
       <UButton
-        class="mt-6"
+        class="mt-6 w-full justify-center sm:w-auto"
         color="neutral"
         variant="ghost"
         icon="i-lucide-refresh-cw"

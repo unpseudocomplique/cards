@@ -1,4 +1,6 @@
+import { and, count, eq } from 'drizzle-orm'
 import { requireOwnedDeck } from '~~/server/utils/deckAccess'
+import { findOrCreateDeckPerson, MAX_PERSON_REFERENCE_PHOTOS } from '~~/server/utils/deckPersons'
 import { db, deckPhotos } from '~~/server/utils/db'
 import { generateFileKey, uploadFile } from '~~/server/utils/s3'
 
@@ -22,6 +24,8 @@ export default defineEventHandler(async (event) => {
 
   const file = formData.find(field => field.name === 'file')
   const label = formData.find(field => field.name === 'label')?.data.toString().trim()
+  const personId = formData.find(field => field.name === 'personId')?.data.toString().trim() || null
+  const personLabel = formData.find(field => field.name === 'personLabel')?.data.toString().trim()
 
   if (!file?.data || !file.type) {
     throw createError({ status: 400, message: 'Aucun fichier fourni' })
@@ -36,6 +40,26 @@ export default defineEventHandler(async (event) => {
   }
 
   const filename = file.filename || 'photo.jpg'
+  const fallbackLabel = label || filename.replace(/\.[^/.]+$/, '') || 'Personne'
+  const person = await findOrCreateDeckPerson({
+    deckId: deck.id,
+    userId: session.user.id,
+    personId,
+    label: personLabel || fallbackLabel
+  })
+
+  const [photoCount] = await db
+    .select({ value: count() })
+    .from(deckPhotos)
+    .where(and(eq(deckPhotos.personId, person.id), eq(deckPhotos.deckId, deck.id)))
+
+  if ((photoCount?.value || 0) >= MAX_PERSON_REFERENCE_PHOTOS) {
+    throw createError({
+      status: 400,
+      message: `Cette personne a déjà ${MAX_PERSON_REFERENCE_PHOTOS} photos de référence (maximum).`
+    })
+  }
+
   const storageKey = generateFileKey(`users/${session.user.id}/decks/${deck.id}/photos`, filename)
   const url = await uploadFile(Buffer.from(file.data), storageKey, file.type)
 
@@ -44,7 +68,8 @@ export default defineEventHandler(async (event) => {
     .values({
       deckId: deck.id,
       userId: session.user.id,
-      label: label || filename.replace(/\.[^/.]+$/, ''),
+      personId: person.id,
+      label: fallbackLabel,
       originalFilename: filename,
       mimeType: file.type,
       size: file.data.length,
@@ -53,5 +78,11 @@ export default defineEventHandler(async (event) => {
     })
     .returning()
 
-  return photo
+  return {
+    ...photo,
+    person: {
+      id: person.id,
+      label: person.label
+    }
+  }
 })

@@ -25,6 +25,28 @@ const readyPercent = computed(() => {
   return Math.round((data.value.deck.readyCardCount / data.value.deck.cardCount) * 100)
 })
 
+const deckTypeLabels: Record<string, string> = {
+  classic52: 'Jeu classique (52 cartes)',
+  tarot56: 'Tarot enseignes (56 cartes)',
+  tarot78: 'Tarot complet (78 cartes)'
+}
+
+const deckStatusLabels: Record<string, string> = {
+  draft: 'En préparation',
+  queued: 'En file',
+  generating: 'Génération en cours',
+  ready: 'Terminé',
+  failed: 'À reprendre'
+}
+
+const deckStatusColors = {
+  draft: 'neutral',
+  queued: 'info',
+  generating: 'warning',
+  ready: 'success',
+  failed: 'error'
+} as const
+
 useSeoMeta({
   title: () => data.value?.deck.title || 'Deck'
 })
@@ -74,41 +96,47 @@ async function deleteDeck() {
   <UPage>
     <UPageHeader
       :title="data?.deck.title || 'Deck'"
-      :description="data?.deck.description || 'Importez les photos, préparez la génération et suivez les cartes.'"
+      :description="data?.deck.description || 'Ajoutez vos photos, assignez les personnes, puis créez les visuels.'"
       :links="[
         { label: 'Retour', icon: 'i-lucide-arrow-left', to: '/dashboard', color: 'neutral', variant: 'subtle' }
       ]"
+      :ui="{
+        root: 'border-b border-default',
+        container: 'gap-4 py-6 sm:py-8',
+        links: 'flex-wrap'
+      }"
     />
 
-    <UPageSection :ui="{ container: 'pt-0' }">
+    <UPageSection :ui="{ container: 'pt-0 pb-8' }">
       <div
         v-if="pending"
         class="space-y-4"
       >
-        <USkeleton class="h-28 rounded-lg" />
-        <USkeleton class="h-64 rounded-lg" />
+        <USkeleton class="h-28 rounded-xl" />
+        <USkeleton class="h-64 rounded-xl" />
       </div>
 
       <div
         v-else-if="data"
-        class="space-y-8"
+        class="space-y-6 sm:space-y-8"
       >
-        <div class="grid gap-3 md:grid-cols-[1fr_18rem]">
-          <div class="rounded-lg border border-default bg-default p-4">
+        <div class="grid gap-3 sm:grid-cols-[1fr_14rem] md:grid-cols-[1fr_18rem]">
+          <div class="rounded-xl border border-default bg-default p-4">
             <div class="flex items-center justify-between gap-3">
-              <div>
+              <div class="min-w-0">
                 <p class="text-sm text-muted">
-                  Progression
+                  Cartes prêtes
                 </p>
                 <p class="text-2xl font-bold text-highlighted">
                   {{ data.deck.readyCardCount }} / {{ data.deck.cardCount }}
                 </p>
               </div>
               <UBadge
-                color="neutral"
+                :color="deckStatusColors[data.deck.status]"
                 variant="subtle"
+                class="shrink-0"
               >
-                {{ data.deck.status }}
+                {{ deckStatusLabels[data.deck.status] || data.deck.status }}
               </UBadge>
             </div>
             <UProgress
@@ -117,34 +145,35 @@ async function deleteDeck() {
             />
           </div>
 
-          <div class="rounded-lg border border-default bg-default p-4">
+          <div class="rounded-xl border border-default bg-default p-4">
             <p class="text-sm text-muted">
-              Type
+              Format
             </p>
             <p class="mt-1 font-semibold text-highlighted">
-              {{ data.deck.type }}
+              {{ deckTypeLabels[data.deck.type] || data.deck.type }}
             </p>
             <p class="mt-3 text-sm text-muted">
-              {{ data.deck.settings.allowPhotoReuse ? 'Réutilisation des photos autorisée' : 'Chaque photo ne doit être utilisée qu une fois' }}
+              {{ data.deck.settings.allowPhotoReuse ? 'Une personne peut illustrer plusieurs cartes' : 'Chaque personne n’illustre qu’une carte' }}
             </p>
           </div>
         </div>
 
         <DeckPhotoUploader
           :deck-id="data.deck.id"
+          :persons="data.persons"
           @uploaded="handlePhotoUploaded"
         />
 
         <DeckPhotoStrip
           :deck-id="data.deck.id"
-          :photos="data.photos"
+          :persons="data.persons"
           @renamed="refresh()"
         />
 
         <DeckPhotoAssigner
           :deck-id="data.deck.id"
           :cards="data.cards"
-          :photos="data.photos"
+          :persons="data.persons"
           @assigned="refresh()"
         />
 
@@ -157,10 +186,11 @@ async function deleteDeck() {
           @updated="refresh()"
         />
 
-        <div class="flex flex-wrap items-center gap-2">
+        <div class="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">
           <UButton
             color="neutral"
             variant="subtle"
+            class="w-full justify-center sm:w-auto"
             icon="i-lucide-refresh-cw"
             @click="refresh()"
           >
@@ -169,6 +199,7 @@ async function deleteDeck() {
           <UButton
             color="error"
             variant="subtle"
+            class="w-full justify-center sm:w-auto"
             icon="i-lucide-trash-2"
             :loading="isDeletingDeck"
             @click="deleteDeck"
@@ -180,7 +211,7 @@ async function deleteDeck() {
         <DeckCardGrid
           :deck-id="data.deck.id"
           :cards="data.cards"
-          :photos="data.photos"
+          :persons="data.persons"
           @updated="refresh()"
         />
       </div>

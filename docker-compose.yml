@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cards-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: quizwar
+      POSTGRES_PASSWORD: quizwar
+      POSTGRES_DB: cards
+    volumes:
+      - cards_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quizwar -d cards"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  cards_postgres_data:

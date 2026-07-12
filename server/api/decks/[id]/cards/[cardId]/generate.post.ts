@@ -1,11 +1,12 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { generateImage } from 'ai'
-import { and, count, eq } from 'drizzle-orm'
+import { and, asc, count, eq } from 'drizzle-orm'
 import { aiImageModel } from '~~/server/utils/ai'
 import { buildCardForegroundPrompt, buildCardScenePrompt } from '~~/server/utils/cardPromptBuilder'
 import { renderCardImage } from '~~/server/utils/cardRenderer'
 import { requireOwnedDeck } from '~~/server/utils/deckAccess'
+import { MAX_PERSON_REFERENCE_PHOTOS } from '~~/server/utils/deckPersons'
 import { db, deckCards, deckPhotos, decks } from '~~/server/utils/db'
 import { assertCanGenerate } from '~~/server/utils/generationAccess'
 import { generateFileKey, uploadFile } from '~~/server/utils/s3'
@@ -66,10 +67,9 @@ export default defineEventHandler(async (event) => {
   }
 
   const deck = await requireOwnedDeck(deckId, session.user.id)
-  const [row] = await db
-    .select({ card: deckCards, photo: deckPhotos })
+  const [card] = await db
+    .select()
     .from(deckCards)
-    .leftJoin(deckPhotos, eq(deckCards.sourcePhotoId, deckPhotos.id))
     .where(and(
       eq(deckCards.id, cardId),
       eq(deckCards.deckId, deck.id),
@@ -77,12 +77,28 @@ export default defineEventHandler(async (event) => {
     ))
     .limit(1)
 
-  if (!row?.card) {
+  if (!card) {
     throw createError({ status: 404, message: 'Carte introuvable' })
   }
 
-  if (!row.photo) {
-    throw createError({ status: 400, message: 'Affectez une photo à cette carte avant le test' })
+  const personId = card.sourcePersonId
+
+  if (!personId) {
+    throw createError({ status: 400, message: 'Affectez une personne à cette carte avant le test' })
+  }
+
+  const referencePhotos = await db
+    .select()
+    .from(deckPhotos)
+    .where(and(
+      eq(deckPhotos.personId, personId),
+      eq(deckPhotos.deckId, deck.id)
+    ))
+    .orderBy(asc(deckPhotos.createdAt))
+    .limit(MAX_PERSON_REFERENCE_PHOTOS)
+
+  if (!referencePhotos.length) {
+    throw createError({ status: 400, message: 'Cette personne n\'a aucune photo de référence' })
   }
 
   await db.transaction(async (tx) => {
@@ -94,31 +110,59 @@ export default defineEventHandler(async (event) => {
     await tx
       .update(deckCards)
       .set({ status: 'generating', errorMessage: null, updatedAt: new Date() })
-      .where(eq(deckCards.id, row.card.id))
+      .where(eq(deckCards.id, card.id))
   })
 
   try {
-    const sourceBuffer = await readPhotoBuffer(row.photo.url)
-    const scenePrompt = buildCardScenePrompt(row.card.metadata, deck.settings, row.card.prompt)
-    const foregroundPrompt = buildCardForegroundPrompt(row.card.metadata, deck.settings, row.card.prompt)
+    const referenceBuffers = await Promise.all(
+      referencePhotos.map(photo => readPhotoBuffer(photo.url))
+    )
+    const scenePrompt = buildCardScenePrompt(card.metadata, deck.settings, card.prompt)
+    const foregroundPrompt = buildCardForegroundPrompt(card.metadata, deck.settings, card.prompt)
+    const imageProviderOptions = {
+      google: {
+        responseModalities: ['TEXT', 'IMAGE'] as Array<'TEXT' | 'IMAGE'>
+      }
+    }
+
+    async function generateWithRetry(
+      label: string,
+      input: Parameters<typeof generateImage>[0]
+    ) {
+      let lastError: unknown
+
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        try {
+          const result = await generateImage(input)
+
+          if (result.image?.uint8Array?.byteLength) {
+            return result
+          }
+
+          lastError = new Error(`Aucune image générée (${label}, tentative ${attempt})`)
+        } catch (error) {
+          lastError = error
+        }
+      }
+
+      throw lastError instanceof Error ? lastError : new Error(`Génération impossible (${label})`)
+    }
+
     const [sceneResult, foregroundResult] = await Promise.all([
-      generateImage({
+      generateWithRetry('décor', {
         model: aiImageModel,
-        prompt: {
-          text: scenePrompt,
-          images: [sourceBuffer]
-        },
-        aspectRatio: row.card.metadata.aspectRatio,
-        n: 1
+        prompt: scenePrompt,
+        aspectRatio: card.metadata.aspectRatio,
+        providerOptions: imageProviderOptions
       }),
-      generateImage({
+      generateWithRetry('personnage', {
         model: aiImageModel,
         prompt: {
           text: foregroundPrompt,
-          images: [sourceBuffer]
+          images: referenceBuffers
         },
-        aspectRatio: row.card.metadata.aspectRatio,
-        n: 1
+        aspectRatio: card.metadata.aspectRatio,
+        providerOptions: imageProviderOptions
       })
     ])
     const image = sceneResult.image
@@ -131,14 +175,14 @@ export default defineEventHandler(async (event) => {
     const rawBuffer = Buffer.from(image.uint8Array)
     const rawMediaType = image.mediaType || 'image/png'
     const rawExtension = mediaTypeToExtension(rawMediaType)
-    const prefix = `users/${session.user.id}/decks/${deck.id}/cards/${row.card.id}`
+    const prefix = `users/${session.user.id}/decks/${deck.id}/cards/${card.id}`
     const rawImageKey = generateFileKey(prefix, `raw.${rawExtension}`)
     const rawImageUrl = await uploadFile(rawBuffer, rawImageKey, rawMediaType)
-    const finalBuffer = await renderCardImage(rawBuffer, row.card.metadata, Buffer.from(foregroundImage.uint8Array))
+    const finalBuffer = await renderCardImage(rawBuffer, card.metadata, Buffer.from(foregroundImage.uint8Array))
     const finalImageKey = generateFileKey(prefix, 'final.png')
     const finalImageUrl = await uploadFile(finalBuffer, finalImageKey, 'image/png')
 
-    const [card] = await db
+    const [updatedCard] = await db
       .update(deckCards)
       .set({
         status: 'ready',
@@ -149,12 +193,12 @@ export default defineEventHandler(async (event) => {
         errorMessage: null,
         updatedAt: new Date()
       })
-      .where(eq(deckCards.id, row.card.id))
+      .where(eq(deckCards.id, card.id))
       .returning()
 
     await updateDeckProgress(deck.id)
 
-    return card
+    return updatedCard
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Génération impossible'
 
@@ -162,7 +206,7 @@ export default defineEventHandler(async (event) => {
       await tx
         .update(deckCards)
         .set({ status: 'failed', errorMessage: message, updatedAt: new Date() })
-        .where(eq(deckCards.id, row.card.id))
+        .where(eq(deckCards.id, card.id))
 
       await tx
         .update(decks)

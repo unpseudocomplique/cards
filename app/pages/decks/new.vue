@@ -53,9 +53,12 @@ async function createDeck() {
     <UPageHeader
       title="Nouveau deck"
       description="Choisissez le format du jeu, puis vous pourrez importer les photos et générer les cartes."
+      :ui="{
+        container: 'gap-4 py-6 sm:py-8'
+      }"
     />
 
-    <UPageSection :ui="{ container: 'max-w-3xl pt-0' }">
+    <UPageSection :ui="{ container: 'max-w-3xl pt-0 pb-8' }">
       <form
         class="space-y-6"
         @submit.prevent="createDeck"
@@ -97,11 +100,17 @@ async function createDeck() {
           v-model="form.allowPhotoReuse"
           label="Autoriser la réutilisation d'une même photo sur plusieurs cartes"
           description="Utile si vous n'avez pas assez de photos pour toutes les cartes."
+          :ui="{
+            root: 'items-start',
+            label: 'text-pretty',
+            description: 'text-pretty'
+          }"
         />
 
-        <div class="flex justify-end">
+        <div class="flex justify-stretch sm:justify-end">
           <UButton
             type="submit"
+            class="w-full justify-center sm:w-auto"
             icon="i-lucide-arrow-right"
             :loading="isSubmitting"
           >
