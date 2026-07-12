@@ -204,6 +204,15 @@ async function deleteDeck() {
           @deck-settings-updated="handleDeckSettingsUpdated"
         />
 
+        <DeckPrintPanel
+          :deck-id="data.deck.id"
+          :deck-type="data.deck.type"
+          :settings="data.deck.settings"
+          :ready-card-count="data.deck.readyCardCount"
+          :card-count="data.deck.cardCount"
+          @deck-settings-updated="handleDeckSettingsUpdated"
+        />
+
         <div class="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">
           <UButton
             color="neutral"

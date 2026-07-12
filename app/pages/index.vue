@@ -55,7 +55,7 @@ useSeoMeta({
               Exports
             </p>
             <p class="mt-1 text-sm text-muted">
-              Images individuelles, ZIP et PDF imprimable sont prévus dans le flux.
+              Pack impression 300 DPI avec fond perdu, masques de dorure et dos de carte.
             </p>
           </div>
         </div>

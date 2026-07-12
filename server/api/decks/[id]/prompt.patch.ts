@@ -26,8 +26,9 @@ const suitPromptsSchema = z.object({
 const updateDeckPromptSchema = z.object({
   visualStyle: promptTextSchema.optional(),
   rolePrompts: rolePromptsSchema.optional(),
-  suitPrompts: suitPromptsSchema.optional()
-}).refine(input => input.visualStyle || input.rolePrompts || input.suitPrompts, {
+  suitPrompts: suitPromptsSchema.optional(),
+  cardBackPrompt: z.string().trim().max(1600).nullable().optional()
+}).refine(input => input.visualStyle || input.rolePrompts || input.suitPrompts || input.cardBackPrompt !== undefined, {
   message: 'Aucun prompt à sauvegarder'
 })
 
@@ -62,7 +63,10 @@ export default defineEventHandler(async (event) => {
           : mergeRolePrompts(deck.settings.rolePrompts),
         suitPrompts: result.data.suitPrompts
           ? mergeSuitPrompts({ ...deck.settings.suitPrompts, ...result.data.suitPrompts })
-          : mergeSuitPrompts(deck.settings.suitPrompts)
+          : mergeSuitPrompts(deck.settings.suitPrompts),
+        cardBackPrompt: result.data.cardBackPrompt === undefined
+          ? deck.settings.cardBackPrompt
+          : (result.data.cardBackPrompt || undefined)
       },
       updatedAt: new Date()
     })

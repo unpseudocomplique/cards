@@ -75,6 +75,25 @@ Puis lancer le conteneur avec les variables runtime:
 docker run --rm -p 3000:3000 --env-file .env.production cards
 ```
 
+## Impression & dorure
+
+Specs canoniques : [`shared/utils/printSpec.ts`](shared/utils/printSpec.ts) et [`docs/print-pipeline.md`](docs/print-pipeline.md).  
+Règle agent : [`.cursor/rules/print-pipeline.mdc`](.cursor/rules/print-pipeline.mdc).
+
+| Élément | Valeur |
+|---------|--------|
+| DPI | 300 |
+| Fond perdu | 3 mm |
+| Poker / enseignes | 63,5 × 88,9 mm |
+| Atouts 9:16 | 70 × 124,4 mm |
+| Dorure | Masques noir/blanc générés **dans l’app** (pas d’Illustrator) |
+| Dos | Génération IA + cadre or + masque foil |
+| Export | `POST /api/decks/:id/exports/print` → ZIP `faces` / `foil` / `back` / `print-spec.json` |
+
+UI : panneau **Impression & dorure** sur la page d’un deck.
+
+**Ne pas changer ces specs à la légère** : elles sont alignées avec le renderer, l’export et la doc imprimeur.
+
 ---
 
 # Nuxt Portfolio Template

@@ -61,6 +61,10 @@ export type DeckDetails = {
       rolePrompts?: Partial<Record<CardRolePromptKey, string>>
       suitPrompts?: Partial<Record<CardSuitPromptKey, string>>
       cardBackPrompt?: string
+      cardBackImageUrl?: string | null
+      cardBackImageKey?: string | null
+      cardBackFoilUrl?: string | null
+      cardBackFoilKey?: string | null
     }
   }
   cards: DeckCard[]

@@ -1,0 +1,67 @@
+---
+description: Print pipeline, foil dorure, and card-back rules for personalized decks. Do not regress print specs or move foil work to third-party apps.
+globs: server/utils/cardRenderer.ts,server/utils/printExport.ts,shared/utils/printSpec.ts,server/api/decks/**/exports/**,server/api/decks/**/back/**,app/components/deck/DeckPrintPanel.vue
+alwaysApply: false
+---
+
+# Print pipeline & dorure (do not regress)
+
+## Canonical specs
+
+Source of truth: `shared/utils/printSpec.ts`
+
+- **DPI:** 300
+- **Bleed:** 3 mm every side
+- **Poker / enseignes (3:4):** trim 63.5 × 88.9 mm
+- **Atouts (9:16):** trim 70 × 124.4 mm
+- **Screen preview:** 900×1200 (3:4) or 900×1600 (9:16) — fast UI only, not press
+
+Do **not** change these constants without updating `README.md` (section Impression) and `docs/print-pipeline.md`.
+
+## Dorure entirely in-app
+
+Hot-foil stamps are generated **inside** the app. Never require Illustrator / InDesign for foil masks.
+
+| Output | Role |
+|--------|------|
+| Screen chrome | Metallic gold gradient on **face** frames only (trumps, kings, queens) |
+| Face `*-foil.png` | Surgical gold from costume/jewelry ∪ chrome **frames only** (never R / suit pips) |
+| `card-back-foil.png` | **Surgical** gold extracted from the back artwork (filigree, moons…) |
+
+Renderer entry points:
+
+- `extractGoldFoilMask()` — `server/utils/foilMask.ts`
+- `renderSurgicalCardFoilMask()` — faces (costume + chrome)
+- `renderCardBackFoilMaskFromArt()` — back artwork gold only
+- Preview gold frames: `getChromeFill()` / `FOIL_GOLD` in `cardRenderer.ts` (**faces only**)
+
+**Card backs must NOT get geometric SVG rectangles overlaid** — they cut ornate motifs.
+
+## Card back
+
+- Prompt: `buildCardBackPrompt()` + `settings.cardBackPrompt` (full-bleed, no mockup frame)
+- Generate: `POST /api/decks/:id/back/generate`
+- Stores in `deck.settings`: `cardBackImageUrl`, `cardBackFoilUrl` (+ keys)
+- `renderCardBackImage()` = art only (corner radius on screen). No scene frame overlay.
+
+## Print export ZIP
+
+`POST /api/decks/:id/exports/print` → `buildPrintExportZip()`
+
+```
+print/faces/{cardCode}.png
+print/foil/{cardCode}-foil.png
+print/back/card-back.png          (if generated)
+print/back/card-back-foil.png
+print/print-spec.json
+```
+
+Faces are upscaled to the print canvas (trim + bleed). Prefer keeping this structure.
+
+## Hard rules
+
+1. AI prompts must forbid painted frames / numbers / pips — chrome and foil stay in Sharp/SVG.
+2. Do not drop bleed from print canvases.
+3. Do not replace foil PNGs with “gold paint baked into the face only”.
+4. Liberation Serif Bold remains the index face (opentype → SVG paths); Sharp cannot rely on `<text>`.
+5. Font loading via `assets:fonts` Nitro storage + filesystem fallbacks (`indexFont.ts`).

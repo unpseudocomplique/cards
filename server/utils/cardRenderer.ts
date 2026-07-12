@@ -1,5 +1,7 @@
 import sharp from 'sharp'
 import { ensureIndexFont, getIndexFont } from '~~/server/utils/indexFont'
+import type { RenderProfile } from '~~/shared/utils/printSpec'
+import { getCanvasPx } from '~~/shared/utils/printSpec'
 
 type RenderCard = {
   label: string
@@ -21,6 +23,11 @@ type SceneFrame = {
 type CardLayout = {
   width: number
   height: number
+  bleed: number
+  contentX: number
+  contentY: number
+  contentWidth: number
+  contentHeight: number
   cardRadius: number
   scene: SceneFrame
   indexInset: number
@@ -32,11 +39,17 @@ type CardLayout = {
   frameInner: number
 }
 
-const pokerCard = { width: 900, height: 1200 }
-const tarotCard = { width: 900, height: 1600 }
-
 /** Crop AI-painted edge frames before fitting the scene window. */
 const SCENE_EDGE_CROP = 0.04
+
+/** Metallic gold for on-screen dorure (preview). Foil mask is separate for press. */
+const FOIL_GOLD = {
+  mid: '#c5a035',
+  light: '#f0d78c',
+  dark: '#8a6a1a'
+} as const
+
+const FOIL_MASK_BLACK = '#000000'
 
 // Thresholds use 0-255 channel values. Tuned aggressively against antialiased green fringes.
 const chromaGreenMinimum = 72
@@ -58,37 +71,52 @@ function clamp(value: number) {
   return Math.min(1, Math.max(0, value))
 }
 
-function getCardLayout(aspectRatio: RenderCard['aspectRatio']): CardLayout {
-  const dimensions = aspectRatio === '9:16' ? tarotCard : pokerCard
+function getCardLayout(
+  aspectRatio: RenderCard['aspectRatio'],
+  profile: RenderProfile = 'screen'
+): CardLayout {
+  const canvas = getCanvasPx(aspectRatio, profile)
+  const bleed = canvas.bleed
+  const contentWidth = canvas.width - bleed * 2
+  const contentHeight = canvas.height - bleed * 2
   const isTarot = aspectRatio === '9:16'
-  // Equal optical inset from top and left edges.
-  const indexInset = Math.round(dimensions.width * 0.036)
-  const indexGap = Math.round(dimensions.width * 0.014)
-  const indexWidth = Math.round(dimensions.width * (isTarot ? 0.078 : 0.072))
-  const indexHeight = Math.round(dimensions.height * (isTarot ? 0.078 : 0.09))
+  // Layout proportions are relative to the trim/content box (not including bleed).
+  const indexInset = Math.round(contentWidth * 0.036)
+  const indexGap = Math.round(contentWidth * 0.014)
+  const indexWidth = Math.round(contentWidth * (isTarot ? 0.078 : 0.072))
+  const indexHeight = Math.round(contentHeight * (isTarot ? 0.078 : 0.09))
   const marginX = indexInset + indexWidth + indexGap
   const marginY = indexInset + indexHeight + indexGap
 
   return {
-    width: dimensions.width,
-    height: dimensions.height,
-    // Classic playing-card corners (~2.5–3% of width), not soft-toy round.
-    cardRadius: Math.round(dimensions.width * 0.028),
+    width: canvas.width,
+    height: canvas.height,
+    bleed,
+    contentX: bleed,
+    contentY: bleed,
+    contentWidth,
+    contentHeight,
+    // Classic playing-card corners (~2.5–3% of content width).
+    cardRadius: Math.round(contentWidth * 0.028),
     scene: {
-      x: marginX,
-      y: marginY,
-      width: dimensions.width - marginX * 2,
-      height: dimensions.height - marginY * 2,
-      radius: Math.round(dimensions.width * 0.014)
+      x: bleed + marginX,
+      y: bleed + marginY,
+      width: contentWidth - marginX * 2,
+      height: contentHeight - marginY * 2,
+      radius: Math.round(contentWidth * 0.014)
     },
-    indexInset,
+    indexInset: bleed + indexInset,
     indexWidth,
     indexHeight,
-    outerStroke: Math.max(2, Math.round(dimensions.width * 0.004)),
-    frameGap: Math.max(3, Math.round(dimensions.width * 0.005)),
-    frameOuter: Math.max(3, Math.round(dimensions.width * 0.0055)),
-    frameInner: Math.max(2, Math.round(dimensions.width * 0.0035))
+    outerStroke: Math.max(2, Math.round(contentWidth * 0.004)),
+    frameGap: Math.max(3, Math.round(contentWidth * 0.005)),
+    frameOuter: Math.max(3, Math.round(contentWidth * 0.0055)),
+    frameInner: Math.max(2, Math.round(contentWidth * 0.0035))
   }
+}
+
+function usesFoilChrome(card: RenderCard) {
+  return card.suit === 'trumps' || card.role === 'king' || card.role === 'queen'
 }
 
 function getCardColor(card: RenderCard) {
@@ -97,19 +125,34 @@ function getCardColor(card: RenderCard) {
   }
 
   if (card.suit === 'trumps') {
-    return '#8a6a1a'
+    return FOIL_GOLD.mid
   }
 
   return '#1c1917'
 }
 
+function getFoilGradientDefs() {
+  return `
+    <linearGradient id="foilGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="${FOIL_GOLD.light}"/>
+      <stop offset="45%" stop-color="${FOIL_GOLD.mid}"/>
+      <stop offset="100%" stop-color="${FOIL_GOLD.dark}"/>
+    </linearGradient>
+  `
+}
+
+/** Frames / outer strokes use metallic gold for luxury cards; indices keep suit ink. */
+function getChromeFill(card: RenderCard) {
+  return usesFoilChrome(card) ? 'url(#foilGold)' : getCardColor(card)
+}
+
 function getIndexStrokeColor(card: RenderCard) {
-  if (card.suit === 'hearts' || card.suit === 'diamonds') {
-    return 'rgba(180, 35, 24, 0.18)'
+  if (usesFoilChrome(card)) {
+    return 'rgba(197, 160, 53, 0.28)'
   }
 
-  if (card.suit === 'trumps') {
-    return 'rgba(138, 106, 26, 0.22)'
+  if (card.suit === 'hearts' || card.suit === 'diamonds') {
+    return 'rgba(180, 35, 24, 0.18)'
   }
 
   return 'rgba(28, 25, 23, 0.16)'
@@ -191,8 +234,9 @@ function drawSuit(card: RenderCard, cx: number, cy: number, size: number, color:
   return ''
 }
 
-function drawIndex(card: RenderCard, layout: CardLayout, x: number, y: number, rotate: boolean) {
-  const color = getCardColor(card)
+function drawIndex(card: RenderCard, layout: CardLayout, x: number, y: number, rotate: boolean, fill?: string) {
+  // Ink color for indices (red/black/gold). Foil mask passes black via `fill`.
+  const color = fill || getCardColor(card)
   const rankLabel = getRankLabel(card)
   const { indexWidth, indexHeight } = layout
   const isTrumpIndex = card.suit === 'trumps'
@@ -239,6 +283,7 @@ function buildSceneFrameOverlay(card: RenderCard, layout: CardLayout) {
     frameInner
   } = layout
   const color = getCardColor(card)
+  const stroke = getChromeFill(card)
   const accentStroke = getIndexStrokeColor(card)
   const frameX = scene.x
   const frameY = scene.y
@@ -250,6 +295,7 @@ function buildSceneFrameOverlay(card: RenderCard, layout: CardLayout) {
   return Buffer.from(`
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
       <defs>
+        ${getFoilGradientDefs()}
         <filter id="sceneShadow" x="-10%" y="-8%" width="120%" height="120%">
           <feDropShadow dx="0" dy="5" stdDeviation="10" flood-color="${color}" flood-opacity="0.12"/>
         </filter>
@@ -273,8 +319,8 @@ function buildSceneFrameOverlay(card: RenderCard, layout: CardLayout) {
         height="${frameH}"
         rx="${outerRx}"
         fill="none"
-        stroke="${color}"
-        stroke-opacity="0.62"
+        stroke="${stroke}"
+        stroke-opacity="0.88"
         stroke-width="${frameOuter}"
       />
 
@@ -296,18 +342,25 @@ function buildChromeOverlay(card: RenderCard, layout: CardLayout) {
   const {
     width,
     height,
+    contentX,
+    contentY,
+    contentWidth,
+    contentHeight,
     cardRadius,
     indexInset,
     indexWidth,
     indexHeight,
     outerStroke
   } = layout
-  const color = getCardColor(card)
-  const outerInset = Math.round(width * 0.012)
+  const stroke = getChromeFill(card)
+  const outerInset = Math.round(contentWidth * 0.012)
+  const bottomIndexX = contentX + contentWidth - (indexInset - contentX) - indexWidth
+  const bottomIndexY = contentY + contentHeight - (indexInset - contentY) - indexHeight
 
   return Buffer.from(`
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
       <defs>
+        ${getFoilGradientDefs()}
         <filter id="paperGrain">
           <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/>
           <feColorMatrix type="matrix" values="0 0 0 0 0.9  0 0 0 0 0.88  0 0 0 0 0.84  0 0 0 0.04 0"/>
@@ -315,21 +368,83 @@ function buildChromeOverlay(card: RenderCard, layout: CardLayout) {
       </defs>
 
       <rect
-        x="${outerInset}"
-        y="${outerInset}"
-        width="${width - outerInset * 2}"
-        height="${height - outerInset * 2}"
+        x="${contentX + outerInset}"
+        y="${contentY + outerInset}"
+        width="${contentWidth - outerInset * 2}"
+        height="${contentHeight - outerInset * 2}"
         rx="${Math.max(2, cardRadius - outerInset)}"
         fill="none"
-        stroke="${color}"
-        stroke-opacity="0.22"
+        stroke="${stroke}"
+        stroke-opacity="0.35"
         stroke-width="${outerStroke}"
       />
 
       <rect width="${width}" height="${height}" filter="url(#paperGrain)" opacity="1"/>
 
       ${drawIndex(card, layout, indexInset, indexInset, false)}
-      ${drawIndex(card, layout, width - indexInset - indexWidth, height - indexInset - indexHeight, true)}
+      ${drawIndex(card, layout, bottomIndexX, bottomIndexY, true)}
+    </svg>
+  `)
+}
+
+/** Hot-foil stamp mask: black = foil, white = no foil. Generated in-app for the printer. */
+function buildFoilMaskOverlay(card: RenderCard, layout: CardLayout) {
+  const {
+    width,
+    height,
+    contentX,
+    contentY,
+    contentWidth,
+    contentHeight,
+    cardRadius,
+    scene,
+    frameGap,
+    frameOuter,
+    frameInner,
+    outerStroke
+  } = layout
+  const outerInset = Math.round(contentWidth * 0.012)
+  const outerRx = Math.max(2, scene.radius)
+  const innerRx = Math.max(2, scene.radius - frameGap - frameOuter)
+  const foil = FOIL_MASK_BLACK
+
+  // Frames only — never indices or suit pips (those stay red/black ink).
+  return Buffer.from(`
+    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+      <rect width="${width}" height="${height}" fill="#ffffff"/>
+
+      <rect
+        x="${contentX + outerInset}"
+        y="${contentY + outerInset}"
+        width="${contentWidth - outerInset * 2}"
+        height="${contentHeight - outerInset * 2}"
+        rx="${Math.max(2, cardRadius - outerInset)}"
+        fill="none"
+        stroke="${foil}"
+        stroke-width="${outerStroke}"
+      />
+
+      <rect
+        x="${scene.x}"
+        y="${scene.y}"
+        width="${scene.width}"
+        height="${scene.height}"
+        rx="${outerRx}"
+        fill="none"
+        stroke="${foil}"
+        stroke-width="${frameOuter}"
+      />
+
+      <rect
+        x="${scene.x + frameGap + frameOuter}"
+        y="${scene.y + frameGap + frameOuter}"
+        width="${scene.width - (frameGap + frameOuter) * 2}"
+        height="${scene.height - (frameGap + frameOuter) * 2}"
+        rx="${innerRx}"
+        fill="none"
+        stroke="${foil}"
+        stroke-width="${Math.max(1, frameInner)}"
+      />
     </svg>
   `)
 }
@@ -563,13 +678,18 @@ async function applyCardCornerMask(image: Buffer, width: number, height: number,
  * 2) character cutout (transparent, drawn above the frame)
  * then overlay indices and outer chrome.
  */
-export async function renderCardImage(source: Buffer, card: RenderCard, foreground?: Buffer) {
+export async function renderCardImage(
+  source: Buffer,
+  card: RenderCard,
+  foreground?: Buffer,
+  profile: RenderProfile = 'screen'
+) {
   await ensureIndexFont()
-  const layout = getCardLayout(card.aspectRatio)
-  const { width, height, cardRadius, scene } = layout
+  const layout = getCardLayout(card.aspectRatio, profile)
+  const { width, height, bleed, contentWidth, contentHeight, cardRadius, scene } = layout
   const sceneImage = await buildSceneImage(source, scene.width, scene.height, scene.radius)
   const foregroundImage = foreground
-    ? await buildForegroundImage(foreground, width, height)
+    ? await buildForegroundImage(foreground, contentWidth, contentHeight)
     : null
   const layers = [
     { input: sceneImage, top: scene.y, left: scene.x },
@@ -577,7 +697,7 @@ export async function renderCardImage(source: Buffer, card: RenderCard, foregrou
   ]
 
   if (foregroundImage) {
-    layers.push({ input: foregroundImage, top: 0, left: 0 })
+    layers.push({ input: foregroundImage, top: bleed, left: bleed })
   }
 
   layers.push({ input: buildChromeOverlay(card, layout), top: 0, left: 0 })
@@ -594,5 +714,130 @@ export async function renderCardImage(source: Buffer, card: RenderCard, foregrou
     .png()
     .toBuffer()
 
+  // Print keeps square bleed edges for the press; screen gets rounded corners.
+  if (profile === 'print') {
+    return flat
+  }
+
   return applyCardCornerMask(flat, width, height, cardRadius)
+}
+
+/** Black-on-white foil stamp plate for hot-foil printing (generated in-app). */
+export async function renderCardFoilMask(card: RenderCard, profile: RenderProfile = 'print') {
+  await ensureIndexFont()
+  const layout = getCardLayout(card.aspectRatio, profile)
+
+  return sharp(buildFoilMaskOverlay(card, layout))
+    .png()
+    .toBuffer()
+}
+
+/**
+ * Surgical face foil: painted gold in the artwork (costume trim, jewelry…)
+ * optionally unioned with geometric chrome foil (frames only — never suit pips / indices).
+ */
+export async function renderSurgicalCardFoilMask(options: {
+  card: RenderCard
+  faceImage: Buffer
+  profile?: RenderProfile
+  includeChrome?: boolean
+}) {
+  const { clearIndexCornersFromFoilMask, extractGoldFoilMask, foilOptionsCostume, unionFoilMasks } = await import('~~/server/utils/foilMask')
+  const profile = options.profile || 'print'
+  const layout = getCardLayout(options.card.aspectRatio, profile)
+  let surgical = await extractGoldFoilMask(options.faceImage, foilOptionsCostume)
+  surgical = await sharp(surgical)
+    .resize(layout.width, layout.height, { fit: 'fill' })
+    .png()
+    .toBuffer()
+  // Keep R / suit pips as ink: wipe foil noise from index corners.
+  surgical = await clearIndexCornersFromFoilMask(surgical, layout)
+
+  if (options.includeChrome === false) {
+    return surgical
+  }
+
+  const chrome = await renderCardFoilMask(options.card, profile)
+  return unionFoilMasks(surgical, chrome)
+}
+
+type CardBackOptions = {
+  aspectRatio: RenderCard['aspectRatio']
+  profile?: RenderProfile
+  withFoilChrome?: boolean
+}
+
+/** Full-bleed card back — no overlaid geometric chrome (it cuts ornate motifs). */
+export async function renderCardBackImage(source: Buffer, options: CardBackOptions) {
+  const profile = options.profile || 'screen'
+  const layout = getCardLayout(options.aspectRatio, profile)
+  const { width, height, bleed, contentWidth, contentHeight, cardRadius } = layout
+  const art = await sharp(source)
+    .resize(contentWidth, contentHeight, { fit: 'cover', position: 'attention' })
+    .png()
+    .toBuffer()
+
+  const flat = await sharp({
+    create: {
+      width,
+      height,
+      channels: 4,
+      background: { r: 250, g: 248, b: 244, alpha: 1 }
+    }
+  })
+    .composite([{ input: art, top: bleed, left: bleed }])
+    .png()
+    .toBuffer()
+
+  if (profile === 'print') {
+    return flat
+  }
+
+  return applyCardCornerMask(flat, width, height, cardRadius)
+}
+
+/**
+ * Foil mask for the card back: surgical extraction of painted gold in the artwork.
+ * Falls back to empty (all white) if no gold is detected.
+ */
+export async function renderCardBackFoilMaskFromArt(art: Buffer) {
+  const { extractGoldFoilMask, foilOptionsOrnament } = await import('~~/server/utils/foilMask')
+  return extractGoldFoilMask(art, foilOptionsOrnament)
+}
+
+/** @deprecated Prefer renderCardBackFoilMaskFromArt — geometric frames cut motifs. */
+export async function renderCardBackFoilMask(aspectRatio: RenderCard['aspectRatio'], profile: RenderProfile = 'print') {
+  const layout = getCardLayout(aspectRatio, profile)
+  const svg = Buffer.from(`
+    <svg width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}" xmlns="http://www.w3.org/2000/svg">
+      <rect width="${layout.width}" height="${layout.height}" fill="#ffffff"/>
+    </svg>
+  `)
+
+  return sharp(svg).png().toBuffer()
+}
+
+/**
+ * Upscale a screen-resolution final PNG to the print canvas (trim + bleed).
+ * Prefer re-compositing from scene+foreground when available; this is the fallback.
+ */
+export async function upscaleToPrintCanvas(source: Buffer, aspectRatio: RenderCard['aspectRatio']) {
+  const layout = getCardLayout(aspectRatio, 'print')
+  const { width, height, bleed, contentWidth, contentHeight } = layout
+  const resized = await sharp(source)
+    .resize(contentWidth, contentHeight, { fit: 'fill', kernel: sharp.kernel.lanczos3 })
+    .png()
+    .toBuffer()
+
+  return sharp({
+    create: {
+      width,
+      height,
+      channels: 4,
+      background: { r: 250, g: 248, b: 244, alpha: 1 }
+    }
+  })
+    .composite([{ input: resized, top: bleed, left: bleed }])
+    .png()
+    .toBuffer()
 }

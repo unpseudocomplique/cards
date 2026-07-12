@@ -165,6 +165,31 @@ export function buildCardScenePrompt(card: PromptCard, settings: DeckStyleSettin
   })
 }
 
+/** Shared card back: full-bleed ornate pattern. Chrome frames are NOT overlaid (they cut motifs). */
+export function buildCardBackPrompt(settings: DeckStyleSettings, cardBackPrompt?: string | null) {
+  return buildStructuredPrompt({
+    subject: 'A full-bleed ornate playing-card back design, perfectly centered, symmetrical, edge-to-edge, no people, no faces, no animals, no letters, no numbers.',
+    context: [
+      settings.cardBackPrompt || cardBackPrompt,
+      'Luxury European card-back motif integrated to the edges: sacred geometry, filigree, fleurs-de-lis, or heraldic ornament.',
+      'Gold metallic accents must be part of the artwork itself (filigree, centers, corner ornaments), not a separate outer rectangle.',
+      'Balanced composition that works upside-down and right-side-up.'
+    ],
+    style: [
+      settings.visualStyle,
+      ...premiumIllustrationStyle,
+      'rich but readable pattern, print-ready, cohesive with the deck faces'
+    ],
+    constraints: [
+      ...sharedArtConstraints,
+      'No portraits, no photos, no logos, no QR codes.',
+      'No extra passe-partout, no thin rectangular guide line, no mockup frame, no isolated card on a gray background.',
+      'Do not draw a simple straight gold rectangle over the ornament — ornamentation must meet or form the border organically.',
+      'Symmetry preferred. Pattern fills the entire image to the edges.'
+    ]
+  })
+}
+
 /** Image edit: likeness on pure chroma green for cutout. */
 export function buildCardForegroundPrompt(card: PromptCard, settings: DeckStyleSettings, cardPrompt?: string | null) {
   const displayName = getCardDisplayName(card)
@@ -186,7 +211,8 @@ export function buildCardForegroundPrompt(card: PromptCard, settings: DeckStyleS
       'Use every provided reference photo to lock identity: face shape, age, hair, glasses, and distinctive features.',
       arcana
         ? 'Character in the foreground only, minimal props, theatrical Marseille-tarot presence without clutter. This is a major arcana, not a suit card.'
-        : 'Character in the foreground only, costume and pose matching the card role, minimal props.'
+        : 'Character in the foreground only, costume and pose matching the card role, minimal props.',
+      'Where the costume includes metallic gold trim, embroidery, jewelry, or filigree, paint it as polished gold so it can become a hot-foil stamp later — crisp gold accents on fabric, not muddy yellow.'
     ],
     style: [
       settings.visualStyle,

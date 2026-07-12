@@ -26,6 +26,10 @@ export type DeckStyleSettings = {
   rolePrompts?: Partial<Record<'number' | 'ace' | 'jack' | 'knight' | 'queen' | 'king' | 'trump' | 'excuse', string>>
   suitPrompts?: Partial<Record<'hearts' | 'diamonds' | 'clubs' | 'spades' | 'trumps', string>>
   cardBackPrompt?: string
+  cardBackImageUrl?: string | null
+  cardBackImageKey?: string | null
+  cardBackFoilUrl?: string | null
+  cardBackFoilKey?: string | null
 }
 
 export type DeckCardMetadata = {
