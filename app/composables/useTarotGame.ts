@@ -92,6 +92,26 @@ export function useTarotGame(code: Ref<string> | string) {
     sendIntent({ type: 'join', name: name ?? displayName() })
   }
 
+  function applyPrivateView(view: PrivateGameView) {
+    privateState.value = view
+    const { seat: _seat, hand: _hand, legalMoves: _legalMoves, ...publicView } = view
+    publicState.value = publicView
+    syncAwarenessLocalState(view.seat)
+    error.value = null
+  }
+
+  async function refreshPublic() {
+    const gameCode = codeRef.value
+    if (!gameCode) {
+      return
+    }
+    try {
+      publicState.value = await $fetch<PublicGameView>(`/api/game/${gameCode}`)
+    } catch {
+      // Keep last known public snapshot.
+    }
+  }
+
   function handleWsMessage(event: MessageEvent) {
     let message: ServerMessage
     try {
@@ -102,19 +122,20 @@ export function useTarotGame(code: Ref<string> | string) {
 
     switch (message.type) {
       case 'private':
-        privateState.value = message.private ?? null
-        if (privateState.value) {
-          syncAwarenessLocalState(privateState.value.seat)
+        if (message.private) {
+          applyPrivateView(message.private)
         }
-        error.value = null
         break
       case 'error':
-        if (message.error === 'NOT_SEATED') {
+        // Host is already seated at create; guests get NOT_SEATED before join.
+        if (message.error === 'NOT_SEATED' || message.reason === 'Already seated at this table') {
           break
         }
         error.value = message.reason ?? message.error
         break
       case 'applied':
+        // Fallback when Yjs public sync is unavailable or lagged.
+        void refreshPublic()
         break
     }
   }

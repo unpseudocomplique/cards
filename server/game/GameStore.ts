@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { apply, chooseBotIntent, createEmptyGame } from '~~/shared/tarot'
+import { apply, chooseBotIntent, createEmptyGame, toPrivateView } from '~~/shared/tarot'
 import type { Actor, ApplyResult, GameState, Intent } from '~~/shared/tarot'
 import type { PeerHandle, Room } from './types'
 
@@ -110,10 +110,12 @@ class GameStore {
 
     const result = apply(room.state, intent, actor)
     if (!result.ok) {
+      console.warn(`[tarot] ${code} intent ${intent.type} rejected: ${result.error} — ${result.reason}`)
       return result
     }
 
     room.state = result.state
+    console.log(`[tarot] ${code} intent ${intent.type} ok → phase=${result.state.phase} v=${result.state.version}`)
     this.afterStateUpdate(code, actor.userId)
     this.scheduleIfBotTurn(code)
     return result
@@ -252,12 +254,17 @@ class GameStore {
       return
     }
 
-    const payload = { type: 'applied' as const, publicVersion: room.state.version }
+    // Actor already gets a private snapshot from the WS handler; push private to others
+    // so the lobby/table updates even when Yjs is down.
     for (const [userId, peer] of room.peers) {
       if (excludeUserId && userId === excludeUserId) {
         continue
       }
-      peer.send(payload)
+      peer.send({ type: 'applied' as const, publicVersion: room.state.version })
+      const seat = findSeatByUserId(room.state, userId)
+      if (seat !== null) {
+        peer.send({ type: 'private' as const, private: toPrivateView(room.state, seat) })
+      }
     }
   }
 }

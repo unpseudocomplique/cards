@@ -27,18 +27,31 @@ const {
 
 const joined = shallowRef(false)
 
-function tryJoin() {
-  if (connected.value && !joined.value) {
-    join()
-    joined.value = true
+const alreadySeated = computed(() => {
+  const userId = user.value?.id
+  if (!userId || !publicState.value) {
+    return false
   }
-}
-
-onMounted(() => {
-  tryJoin()
+  return publicState.value.seats.some(seat => seat.userId === userId)
 })
 
-watch(connected, () => {
+function tryJoin() {
+  if (!connected.value || joined.value) {
+    return
+  }
+  // Host is seated at table create; only guests need join.
+  if (alreadySeated.value || privateState.value) {
+    joined.value = true
+    return
+  }
+  if (!publicState.value) {
+    return
+  }
+  join()
+  joined.value = true
+}
+
+watch([connected, publicState, privateState], () => {
   tryJoin()
 })
 
