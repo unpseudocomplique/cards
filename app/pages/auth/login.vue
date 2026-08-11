@@ -169,6 +169,7 @@ async function loginWithEmail() {
 
         <UButton
           to="/auth/google"
+          external
           block
           size="lg"
           color="neutral"
