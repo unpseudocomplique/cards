@@ -30,6 +30,7 @@ export function createEmptyGame(config: GameConfig): GameState {
     endMode: config.endMode,
     endValue: config.endValue,
     code: config.code,
+    deckId: config.deckId,
     version: 0,
     dealerSeat: 0,
     currentSeat: 0,

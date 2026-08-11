@@ -35,6 +35,7 @@ export type GameConfig = {
   endMode: EndMode
   endValue: number
   code?: string
+  deckId: string
 }
 
 export type GameState = {
@@ -43,6 +44,7 @@ export type GameState = {
   endMode: EndMode
   endValue: number
   code?: string
+  deckId: string
   version: number
   dealerSeat: number
   currentSeat: number
@@ -131,6 +133,7 @@ export type PublicGameView = {
   endMode: EndMode
   endValue: number
   code?: string
+  deckId: string
   dealerSeat: number
   currentSeat: number
   seats: PublicSeatInfo[]

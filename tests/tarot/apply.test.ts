@@ -37,6 +37,7 @@ describe('createEmptyGame + lobby flow', () => {
       playerCount: 4,
       endMode: 'threshold',
       endValue: 1000,
+    deckId: 'deck-test',
     })
 
     state = addBots(state, 3)
@@ -64,6 +65,7 @@ describe('all-pass redeal', () => {
         playerCount: 4,
         endMode: 'threshold',
         endValue: 1000,
+    deckId: 'deck-test',
       }),
       3,
     )
@@ -105,6 +107,7 @@ describe('playCard legality', () => {
         playerCount: 4,
         endMode: 'threshold',
         endValue: 1000,
+    deckId: 'deck-test',
       }),
       phase: 'Trick',
       version: 1,
@@ -194,6 +197,7 @@ describe('publicView secrecy', () => {
         playerCount: 4,
         endMode: 'threshold',
         endValue: 1000,
+    deckId: 'deck-test',
       }),
       phase: 'Trick',
       version: 2,
@@ -222,6 +226,17 @@ describe('publicView secrecy', () => {
     expect(privateView.hand).toEqual(state.hands[0])
     expect(privateView.legalMoves.length).toBe(0)
   })
+
+  it('exposes deckId in public view', () => {
+    const state = createEmptyGame({
+      hostUserId: HOST,
+      playerCount: 4,
+      endMode: 'deals',
+      endValue: 1,
+      deckId: 'deck-abc',
+    })
+    expect(toPublicView(state).deckId).toBe('deck-abc')
+  })
 })
 
 describe('match end', () => {
@@ -231,6 +246,7 @@ describe('match end', () => {
       playerCount: 4,
       endMode: 'threshold',
       endValue: 1000,
+    deckId: 'deck-test',
     })
 
     return {
@@ -343,6 +359,7 @@ describe('bidState wiring smoke', () => {
       playerCount: 4,
       endMode: 'threshold',
       endValue: 1000,
+    deckId: 'deck-test',
     })
     const state: GameState = {
       ...base,

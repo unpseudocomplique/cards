@@ -27,6 +27,7 @@ function biddingState(hand: CardId[], overrides: Partial<GameState> = {}): GameS
     playerCount: 4,
     endMode: 'threshold',
     endValue: 1000,
+    deckId: 'deck-test',
   })
   return {
     ...base,
@@ -62,6 +63,7 @@ function playState(overrides: Partial<GameState> = {}): GameState {
     playerCount: 4,
     endMode: 'threshold',
     endValue: 1000,
+    deckId: 'deck-test',
   })
   return {
     ...base,
@@ -268,6 +270,7 @@ describe('chooseBotIntent guardrails', () => {
       playerCount: 4,
       endMode: 'threshold',
       endValue: 1000,
+    deckId: 'deck-test',
     })
     expect(() => chooseBotIntent(state, 0)).toThrow(/phase/i)
   })

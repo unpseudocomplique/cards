@@ -53,6 +53,7 @@ class GameStore {
     playerCount: 3 | 4 | 5
     endMode: 'threshold' | 'deals'
     endValue: number
+    deckId: string
   }): { code: string } {
     let code = randomCode()
     while (this.rooms.has(code)) {
@@ -65,6 +66,7 @@ class GameStore {
       playerCount: opts.playerCount,
       endMode: opts.endMode,
       endValue: opts.endValue,
+      deckId: opts.deckId,
       code,
     })
 

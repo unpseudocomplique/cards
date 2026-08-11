@@ -22,6 +22,7 @@ describe('DisconnectManager', () => {
       playerCount: 4,
       endMode: 'threshold',
       endValue: 1000,
+    deckId: 'deck-test',
     })
 
     onDisconnect(code, HOST_ID)
@@ -66,6 +67,7 @@ describe('DisconnectManager', () => {
       playerCount: 4,
       endMode: 'threshold',
       endValue: 1000,
+    deckId: 'deck-test',
     })
 
     onDisconnect(code, HOST_ID)

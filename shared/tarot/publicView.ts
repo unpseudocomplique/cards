@@ -60,6 +60,7 @@ export function toPublicView(state: GameState): PublicGameView {
     endMode: state.endMode,
     endValue: state.endValue,
     code: state.code,
+    deckId: state.deckId,
     dealerSeat: state.dealerSeat,
     currentSeat: state.currentSeat,
     seats: publicSeats(state),

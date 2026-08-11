@@ -23,6 +23,7 @@ describe('seat reclaim', () => {
       playerCount: 4,
       endMode: 'threshold',
       endValue: 1000,
+    deckId: 'deck-test',
     })
 
     onDisconnect(code, HOST_ID)
@@ -64,6 +65,7 @@ describe('seat reclaim', () => {
       playerCount: 4,
       endMode: 'threshold',
       endValue: 1000,
+    deckId: 'deck-test',
     })
 
     for (let seat = 1; seat < 4; seat++) {
@@ -101,6 +103,7 @@ describe('seat reclaim', () => {
       playerCount: 4,
       endMode: 'threshold',
       endValue: 1000,
+    deckId: 'deck-test',
     })
 
     for (let seat = 1; seat < 4; seat++) {

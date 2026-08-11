@@ -5,6 +5,7 @@ const createGameSchema = z.object({
   playerCount: z.union([z.literal(3), z.literal(4), z.literal(5)]),
   endMode: z.enum(['threshold', 'deals']).default('threshold'),
   endValue: z.number().int().positive().default(1000),
+  deckId: z.string().min(1),
 })
 
 export default defineEventHandler(async (event) => {
@@ -32,6 +33,7 @@ export default defineEventHandler(async (event) => {
     playerCount: result.data.playerCount,
     endMode: result.data.endMode,
     endValue: result.data.endValue,
+    deckId: result.data.deckId,
   })
 
   return {

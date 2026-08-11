@@ -16,6 +16,7 @@ function baseReady(playerCount: 3 | 4 | 5, overrides: Partial<GameState> = {}): 
     playerCount,
     endMode: 'deals',
     endValue: 10,
+    deckId: 'deck-test',
   })
   const seats = base.seats.map((seat, index) => ({
     ...seat,
