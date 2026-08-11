@@ -1,0 +1,249 @@
+import { randomBytes } from 'node:crypto'
+import { apply, chooseBotIntent, createEmptyGame, toPublicView } from '~~/shared/tarot'
+import type { Actor, ApplyResult, GameState, Intent } from '~~/shared/tarot'
+import type { PeerHandle, Room } from './types'
+
+const CODE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+const DISCONNECT_GRACE_MS = 8_000
+const BOT_DELAY_MIN_MS = 400
+const BOT_DELAY_MAX_MS = 800
+
+function randomCode(): string {
+  const length = 6 + (randomBytes(1)[0]! % 3)
+  const bytes = randomBytes(length)
+  let code = ''
+  for (let i = 0; i < length; i++) {
+    code += CODE_CHARS[bytes[i]! % CODE_CHARS.length]
+  }
+  return code
+}
+
+function randomBotDelayMs(): number {
+  return BOT_DELAY_MIN_MS + Math.floor(Math.random() * (BOT_DELAY_MAX_MS - BOT_DELAY_MIN_MS + 1))
+}
+
+function findSeatByUserId(state: GameState, userId: string): number | null {
+  const seat = state.seats.find(s => s.userId === userId)
+  return seat?.seatId ?? null
+}
+
+class GameStore {
+  private rooms = new Map<string, Room>()
+
+  resetForTests(): void {
+    for (const room of this.rooms.values()) {
+      if (room.botTimer) {
+        clearTimeout(room.botTimer)
+      }
+      for (const timer of room.disconnectTimers.values()) {
+        clearTimeout(timer)
+      }
+    }
+    this.rooms.clear()
+  }
+
+  createTable(opts: {
+    hostUserId: string
+    hostName: string
+    playerCount: 3 | 4 | 5
+    endMode: 'threshold' | 'deals'
+    endValue: number
+  }): { code: string } {
+    let code = randomCode()
+    while (this.rooms.has(code)) {
+      code = randomCode()
+    }
+
+    const state = createEmptyGame({
+      hostUserId: opts.hostUserId,
+      hostName: opts.hostName,
+      playerCount: opts.playerCount,
+      endMode: opts.endMode,
+      endValue: opts.endValue,
+      code,
+    })
+
+    this.rooms.set(code, {
+      state,
+      peers: new Map(),
+      botTimer: null,
+      disconnectTimers: new Map(),
+    })
+
+    return { code }
+  }
+
+  get(code: string): GameState | undefined {
+    return this.rooms.get(code)?.state
+  }
+
+  getRoom(code: string): Room | undefined {
+    return this.rooms.get(code)
+  }
+
+  setPeer(code: string, userId: string, peer: PeerHandle): void {
+    const room = this.rooms.get(code)
+    if (!room) {
+      return
+    }
+    room.peers.set(userId, peer)
+  }
+
+  removePeer(code: string, userId: string): void {
+    const room = this.rooms.get(code)
+    if (!room) {
+      return
+    }
+    room.peers.delete(userId)
+  }
+
+  applyIntent(code: string, intent: Intent, actor: Actor): ApplyResult {
+    const room = this.rooms.get(code)
+    if (!room) {
+      return { ok: false, error: 'UNKNOWN_TABLE', reason: `Table ${code} not found` }
+    }
+
+    const result = apply(room.state, intent, actor)
+    if (!result.ok) {
+      return result
+    }
+
+    room.state = result.state
+    this.notifyPeers(code)
+    this.scheduleIfBotTurn(code)
+    return result
+  }
+
+  onDisconnect(code: string, userId: string): void {
+    const room = this.rooms.get(code)
+    if (!room) {
+      return
+    }
+
+    const seat = findSeatByUserId(room.state, userId)
+    if (seat === null) {
+      return
+    }
+
+    this.clearDisconnectTimer(room, userId)
+
+    const seats = room.state.seats.map((current, index) =>
+      index === seat ? { ...current, connected: false } : current,
+    )
+    room.state = { ...room.state, seats, version: room.state.version + 1 }
+    this.notifyPeers(code)
+
+    const timer = setTimeout(() => {
+      room.disconnectTimers.delete(userId)
+      const currentSeat = findSeatByUserId(room.state, userId)
+      if (currentSeat === null) {
+        return
+      }
+      const seatInfo = room.state.seats[currentSeat]
+      if (!seatInfo || seatInfo.connected) {
+        return
+      }
+
+      const nextSeats = room.state.seats.map((current, index) =>
+        index === currentSeat
+          ? { ...current, controlledBy: 'bot' as const }
+          : current,
+      )
+      room.state = { ...room.state, seats: nextSeats, version: room.state.version + 1 }
+      this.notifyPeers(code)
+      this.scheduleIfBotTurn(code)
+    }, DISCONNECT_GRACE_MS)
+
+    room.disconnectTimers.set(userId, timer)
+  }
+
+  onHello(code: string, userId: string): ApplyResult {
+    const room = this.rooms.get(code)
+    if (!room) {
+      return { ok: false, error: 'UNKNOWN_TABLE', reason: `Table ${code} not found` }
+    }
+
+    const seat = findSeatByUserId(room.state, userId)
+    if (seat === null) {
+      return { ok: false, error: 'UNAUTHORIZED', reason: 'No seat for this user at this table' }
+    }
+
+    this.clearDisconnectTimer(room, userId)
+    this.clearBotTimer(room)
+
+    const seats = room.state.seats.map((current, index) =>
+      index === seat
+        ? { ...current, connected: true, controlledBy: 'human' as const }
+        : current,
+    )
+    const state: GameState = { ...room.state, seats, version: room.state.version + 1 }
+    room.state = state
+    this.notifyPeers(code)
+    return { ok: true, state, events: [] }
+  }
+
+  scheduleIfBotTurn(code: string): void {
+    const room = this.rooms.get(code)
+    if (!room) {
+      return
+    }
+
+    const seat = room.state.currentSeat
+    const seatInfo = room.state.seats[seat]
+    if (!seatInfo?.userId || seatInfo.controlledBy !== 'bot') {
+      return
+    }
+
+    this.clearBotTimer(room)
+
+    room.botTimer = setTimeout(() => {
+      room.botTimer = null
+      const current = this.rooms.get(code)
+      if (!current) {
+        return
+      }
+
+      const activeSeat = current.state.currentSeat
+      const activeSeatInfo = current.state.seats[activeSeat]
+      if (!activeSeatInfo?.userId || activeSeatInfo.controlledBy !== 'bot') {
+        return
+      }
+
+      try {
+        const intent = chooseBotIntent(current.state, activeSeat)
+        this.applyIntent(code, intent, { userId: activeSeatInfo.userId, seat: activeSeat })
+      } catch (error) {
+        console.error(`Bot turn failed for table ${code}:`, error)
+      }
+    }, randomBotDelayMs())
+  }
+
+  private clearBotTimer(room: Room): void {
+    if (room.botTimer) {
+      clearTimeout(room.botTimer)
+      room.botTimer = null
+    }
+  }
+
+  private clearDisconnectTimer(room: Room, userId: string): void {
+    const timer = room.disconnectTimers.get(userId)
+    if (timer) {
+      clearTimeout(timer)
+      room.disconnectTimers.delete(userId)
+    }
+  }
+
+  private notifyPeers(code: string): void {
+    const room = this.rooms.get(code)
+    if (!room) {
+      return
+    }
+
+    const payload = { type: 'public' as const, public: toPublicView(room.state) }
+    for (const peer of room.peers.values()) {
+      peer.send(payload)
+    }
+  }
+}
+
+export const gameStore = new GameStore()
