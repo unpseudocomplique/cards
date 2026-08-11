@@ -37,6 +37,7 @@ export function useTarotGame(code: Ref<string> | string) {
   let publicMapObserver: ((event: Y.YMapEvent<unknown>) => void) | null = null
   let awarenessChangeHandler: (() => void) | null = null
   let disposed = false
+  let generation = 0
 
   function displayName(): string {
     return user.value?.username ?? 'Player'
@@ -118,10 +119,7 @@ export function useTarotGame(code: Ref<string> | string) {
     }
   }
 
-  function teardown() {
-    disposed = true
-    connected.value = false
-
+  function closeConnections() {
     if (publicMapObserver && doc) {
       doc.getMap('public').unobserve(publicMapObserver)
       publicMapObserver = null
@@ -148,12 +146,23 @@ export function useTarotGame(code: Ref<string> | string) {
     }
   }
 
-  async function setup(gameCode: string) {
+  function teardown() {
+    generation++
+    disposed = true
+    connected.value = false
+    awarenessUsers.value = []
+    closeConnections()
+  }
+
+  function isStaleSetup(setupGeneration: number) {
+    return disposed || setupGeneration !== generation
+  }
+
+  async function setup(gameCode: string, setupGeneration: number) {
     if (!import.meta.client || !gameCode) {
       return
     }
 
-    disposed = false
     error.value = null
     privateState.value = null
 
@@ -163,11 +172,15 @@ export function useTarotGame(code: Ref<string> | string) {
       publicState.value = null
     }
 
+    if (isStaleSetup(setupGeneration)) {
+      return
+    }
+
     const wsOrigin = requestURL.origin.replace(/^http/, 'ws')
     ws = new WebSocket(`${wsOrigin}/game/ws?code=${encodeURIComponent(gameCode)}`)
 
     ws.onopen = () => {
-      if (disposed) {
+      if (isStaleSetup(setupGeneration)) {
         return
       }
       connected.value = true
@@ -179,7 +192,15 @@ export function useTarotGame(code: Ref<string> | string) {
       connected.value = false
     }
     ws.onerror = () => {
+      if (isStaleSetup(setupGeneration)) {
+        return
+      }
       error.value = 'WebSocket connection failed'
+    }
+
+    if (isStaleSetup(setupGeneration)) {
+      closeConnections()
+      return
     }
 
     doc = new Y.Doc()
@@ -204,6 +225,11 @@ export function useTarotGame(code: Ref<string> | string) {
       },
     )
 
+    if (isStaleSetup(setupGeneration)) {
+      closeConnections()
+      return
+    }
+
     syncAwarenessLocalState(privateState.value?.seat)
     awarenessChangeHandler = syncAwarenessUsers
     provider.awareness.on('change', awarenessChangeHandler)
@@ -226,13 +252,16 @@ export function useTarotGame(code: Ref<string> | string) {
       if (gameCode === previousCode && ws) {
         return
       }
-      if (ws || provider) {
-        teardown()
+      teardown()
+      if (!gameCode) {
+        publicState.value = null
+        privateState.value = null
+        error.value = null
+        return
       }
+      const setupGeneration = generation
       disposed = false
-      if (gameCode) {
-        void setup(gameCode)
-      }
+      void setup(gameCode, setupGeneration)
     },
     { immediate: true },
   )
