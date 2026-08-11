@@ -15,11 +15,14 @@ const emit = defineEmits<{
 
 const { settings, noteFpsSample, profile } = usePlayQuality()
 const textures = useCardTextures(toRef(props, 'code'), settings)
+const isMobile = useMediaQuery('(max-width: 640px)')
 
 const localSeat = computed(() => props.privateState?.seat ?? 0)
 const fps = shallowRef(0)
 let frames = 0
 let lastTs = 0
+
+const showLoading = computed(() => textures.loading.value && textures.faces.value.size < 4)
 
 const canInteractHand = computed(() => {
   const phase = props.publicState.phase
@@ -33,7 +36,6 @@ const canInteractHand = computed(() => {
     && (props.privateState.legalMoves?.length ?? 0) > 0
 })
 
-
 const faceUrlMap = computed(() => {
   const map = new Map<string, string | null>()
   for (const card of textures.manifest.value?.cards ?? []) {
@@ -43,6 +45,10 @@ const faceUrlMap = computed(() => {
 })
 
 const backUrl = computed(() => textures.manifest.value?.backUrl ?? null)
+
+const cameraPosition = computed<[number, number, number]>(() =>
+  isMobile.value ? [0, 4.1, 5.4] : [0, 3.55, 4.85],
+)
 
 const priorityCodes = computed(() => {
   const codes = new Set<string>()
@@ -86,15 +92,15 @@ onUnmounted(() => {
       <TresCanvas
         clear-color="#0a0f0c"
         class="h-full w-full touch-none"
-        :dpr="settings.dprCap"
+        :dpr="isMobile ? Math.min(settings.dprCap, 1.15) : settings.dprCap"
         :render-mode="'always'"
-        :shadows="settings.shadows"
+        :shadows="!isMobile && settings.shadows"
         @loop="onLoop"
       >
         <TresPerspectiveCamera
-          :position="[0, 3.55, 4.85]"
+          :position="cameraPosition"
           :look-at="[0, 0, 0.05]"
-          :fov="38"
+          :fov="isMobile ? 44 : 38"
         />
 
         <TresHemisphereLight :args="['#e8dcc8', '#102018', 0.55]" />
@@ -102,11 +108,11 @@ onUnmounted(() => {
         <TresDirectionalLight
           :position="[3.2, 7.5, 2.4]"
           :intensity="1.15"
-          :cast-shadow="settings.shadows"
+          :cast-shadow="!isMobile && settings.shadows"
           color="#fff1dd"
         />
         <TresDirectionalLight
-          v-if="settings.lights === 2"
+          v-if="settings.lights === 2 && !isMobile"
           :position="[-4, 3.5, -2.5]"
           :intensity="0.35"
           color="#9eb6ff"
@@ -126,35 +132,26 @@ onUnmounted(() => {
           :player-count="publicState.playerCount"
           :get-back="textures.getBack"
         />
-
-        <PlayTresTrickPile
-          :trick="publicState.trick"
-          :get-face="textures.getFace"
-          :get-back="textures.getBack"
-        />
-
-        <TresGroup
-          v-if="publicState.chienRevealed?.length"
-          :position="[0, 0.04, -1.05]"
-        >
-          <PlayTresCardMesh
-            v-for="(card, index) in publicState.chienRevealed"
-            :key="`chien-${card}`"
-            :card-id="card"
-            :face="textures.getFace(card)"
-            :back="textures.getBack()"
-            face-up
-            :position="[(index - (publicState.chienRevealed.length - 1) / 2) * 0.38, 0, 0]"
-            :rotation="[0, (index - 1) * 0.04, 0]"
-          />
-        </TresGroup>
       </TresCanvas>
     </ClientOnly>
 
-    <!-- DOM hand fan (ExempleCards-inspired) — shows real deck faces -->
+    <!-- Same DeckCard art as the hand -->
+    <PlayTrickOverlay
+      v-if="publicState.trick?.length"
+      :trick="publicState.trick"
+      :face-urls="faceUrlMap"
+      :seats="publicState.seats"
+    />
+
+    <PlayChienOverlay
+      v-if="publicState.chienRevealed?.length"
+      :cards="publicState.chienRevealed"
+      :face-urls="faceUrlMap"
+    />
+
     <div
       v-if="showHand !== false && privateState?.hand?.length"
-      class="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-2 pb-4 sm:pb-5"
+      class="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-1 pb-3 sm:px-2 sm:pb-5"
     >
       <PlayHandArc
         :cards="privateState.hand"

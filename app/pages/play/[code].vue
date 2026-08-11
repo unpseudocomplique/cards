@@ -224,7 +224,7 @@ async function copyInviteLink() {
 
       <div
         class="pointer-events-auto mx-auto mt-auto w-full max-w-3xl space-y-3"
-        :class="showPlayHand ? 'mb-[min(36vh,300px)]' : ''"
+        :class="showPlayHand ? 'mb-[min(30vh,240px)] sm:mb-[min(36vh,300px)]' : ''"
       >
 
         <div
