@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { Texture } from 'three'
-import { isTrump } from '~~/shared/tarot'
 import type { CardId } from '~~/shared/tarot'
 
 const props = withDefaults(defineProps<{
@@ -24,71 +23,59 @@ const emit = defineEmits<{
   select: [cardId: string]
 }>()
 
-const CARD_W = 0.62
-const CARD_H = 0.88
-const CARD_D = 0.018
+/** Slim playing-card proportions (world units). */
+const CARD_W = 0.52
+const CARD_H = 0.78
+const CARD_D = 0.006
 
-const scaleY = computed(() => (isTrump(props.cardId as CardId) ? 1.18 : 1))
-const liftY = computed(() => (props.lifted ? 0.08 : 0))
+const liftY = computed(() => (props.lifted ? 0.05 : 0))
+const faceMap = computed(() => (props.faceUp ? props.face : props.back))
 </script>
 
 <template>
   <TresGroup
     :position="[position[0], position[1] + liftY, position[2]]"
     :rotation="rotation"
-    :scale="[1, scaleY, 1]"
     @click.stop="interactive && emit('select', cardId)"
   >
-    <!-- Card body -->
-    <TresMesh cast-shadow receive-shadow>
+    <!-- Thin body -->
+    <TresMesh
+      cast-shadow
+      receive-shadow
+    >
       <TresBoxGeometry :args="[CARD_W, CARD_D, CARD_H]" />
       <TresMeshStandardMaterial
-        color="#d6d3d1"
-        :roughness="0.85"
+        color="#e7e5e4"
+        :roughness="0.9"
+        :metalness="0"
+      />
+    </TresMesh>
+
+    <!-- Face (up when faceUp) -->
+    <TresMesh
+      :position="[0, CARD_D * 0.55, 0]"
+      :rotation="[-Math.PI / 2, 0, faceUp ? 0 : Math.PI]"
+    >
+      <TresPlaneGeometry :args="[CARD_W * 0.97, CARD_H * 0.97]" />
+      <TresMeshStandardMaterial
+        :map="faceMap"
+        :color="faceMap ? '#ffffff' : '#f5f0e8'"
+        :roughness="0.45"
         :metalness="0.02"
       />
     </TresMesh>
 
-    <!-- Face -->
+    <!-- Opposite side -->
     <TresMesh
-      :position="[0, CARD_D * 0.52, 0]"
-      :rotation="faceUp ? [-Math.PI / 2, 0, 0] : [Math.PI / 2, 0, Math.PI]"
+      :position="[0, -CARD_D * 0.55, 0]"
+      :rotation="[Math.PI / 2, 0, faceUp ? 0 : Math.PI]"
     >
-      <TresPlaneGeometry :args="[CARD_W * 0.96, CARD_H * 0.96]" />
+      <TresPlaneGeometry :args="[CARD_W * 0.97, CARD_H * 0.97]" />
       <TresMeshStandardMaterial
-        :map="faceUp ? face : back"
-        :color="(faceUp ? face : back) ? '#ffffff' : '#f5f0e8'"
-        :roughness="0.55"
-        :metalness="0.02"
-      />
-    </TresMesh>
-
-    <!-- Back -->
-    <TresMesh
-      :position="[0, -CARD_D * 0.52, 0]"
-      :rotation="[Math.PI / 2, 0, 0]"
-    >
-      <TresPlaneGeometry :args="[CARD_W * 0.96, CARD_H * 0.96]" />
-      <TresMeshStandardMaterial
-        :map="back"
-        :color="back ? '#ffffff' : '#4a2033'"
-        :roughness="0.6"
-        :metalness="0.04"
-      />
-    </TresMesh>
-
-    <!-- Legal-move rim -->
-    <TresMesh
-      v-if="interactive"
-      :position="[0, CARD_D * 0.56, 0]"
-      :rotation="[-Math.PI / 2, 0, 0]"
-    >
-      <TresPlaneGeometry :args="[CARD_W * 1.04, CARD_H * 1.04]" />
-      <TresMeshBasicMaterial
-        color="#fbbf24"
-        :transparent="true"
-        :opacity="0.22"
-        :depth-write="false"
+        :map="faceUp ? back : face"
+        :color="(faceUp ? back : face) ? '#ffffff' : '#4a2033'"
+        :roughness="0.5"
+        :metalness="0.03"
       />
     </TresMesh>
   </TresGroup>

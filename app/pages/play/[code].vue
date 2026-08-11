@@ -113,6 +113,15 @@ const canDiscard = computed(() =>
 
 const debugGfx = computed(() => String(route.query.debugGfx ?? '') === '1')
 
+const showPlayHand = computed(() =>
+  !!privateState.value?.hand?.length
+  && !canDiscard.value
+  && !needsKingCall.value
+  && publicState.value?.phase !== 'Scoring'
+  && publicState.value?.phase !== 'MatchOver'
+  && publicState.value?.phase !== 'Dealing',
+)
+
 const selectedDiscard = shallowRef<CardId[]>([])
 
 function toggleDiscard(card: CardId) {
@@ -168,6 +177,7 @@ async function copyInviteLink() {
       :public-state="publicState"
       :private-state="privateState"
       :debug-gfx="debugGfx"
+      :show-hand="showPlayHand"
       @play="sendIntent({ type: 'playCard', card: $event })"
     />
 
@@ -206,7 +216,10 @@ async function copyInviteLink() {
         />
       </div>
 
-      <div class="pointer-events-auto mx-auto w-full max-w-3xl space-y-3">
+      <div
+        class="pointer-events-auto mx-auto w-full max-w-3xl space-y-3"
+        :class="showPlayHand ? 'mb-[min(32vh,260px)]' : ''"
+      >
         <PlayBidPanel
           v-if="publicState.phase === 'Bidding' && isMyTurn"
           class="rounded-2xl border border-white/10 bg-black/55 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md"

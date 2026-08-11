@@ -2,7 +2,7 @@
 import type { Texture } from 'three'
 import type { CardId } from '~~/shared/tarot'
 
-const props = defineProps<{
+defineProps<{
   trick: Array<{ seat: number, card: CardId }>
   getFace: (card: string) => Texture | null
   getBack: () => Texture | null
@@ -13,17 +13,17 @@ function trickPose(index: number, total: number, seat: number): {
   rotation: [number, number, number]
 } {
   const mid = (total - 1) / 2
-  const x = (index - mid) * 0.48
-  const yaw = (seat % 5) * 0.12 - 0.24
+  const x = (index - mid) * 0.42
+  const yaw = ((seat % 5) - 2) * 0.1
   return {
-    position: [x, 0.04 + index * 0.012, (index - mid) * 0.04],
-    rotation: [0, yaw, (index - mid) * 0.04],
+    position: [x, 0.03 + index * 0.008, (index - mid) * 0.03],
+    rotation: [0, yaw, (index - mid) * 0.03],
   }
 }
 </script>
 
 <template>
-  <TresGroup :position="[0, 0.02, 0.05]">
+  <TresGroup :position="[0, 0.02, 0.1]">
     <PlayTresCardMesh
       v-for="(entry, index) in trick"
       :key="`${entry.seat}-${entry.card}`"

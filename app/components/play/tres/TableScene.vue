@@ -6,6 +6,7 @@ const props = defineProps<{
   publicState: PublicGameView
   privateState: PrivateGameView | null
   debugGfx?: boolean
+  showHand?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -20,7 +21,35 @@ const fps = shallowRef(0)
 let frames = 0
 let lastTs = 0
 
-const showLoading = computed(() => textures.loading && textures.faces.size < 8)
+const showLoading = computed(() => textures.loading && textures.faces.size < 4)
+
+const faceUrlMap = computed(() => {
+  const map = new Map<string, string | null>()
+  for (const card of textures.manifest.value?.cards ?? []) {
+    map.set(card.cardCode, card.faceUrl)
+  }
+  return map
+})
+
+const backUrl = computed(() => textures.manifest.value?.backUrl ?? null)
+
+const priorityCodes = computed(() => {
+  const codes = new Set<string>()
+  for (const card of props.privateState?.hand ?? []) {
+    codes.add(card)
+  }
+  for (const entry of props.publicState.trick ?? []) {
+    codes.add(entry.card)
+  }
+  for (const card of props.publicState.chienRevealed ?? []) {
+    codes.add(card)
+  }
+  return [...codes]
+})
+
+watch(priorityCodes, (codes) => {
+  textures.prioritize(codes)
+}, { immediate: true })
 
 function onLoop({ delta }: { delta: number }) {
   const dt = delta * 1000
@@ -52,9 +81,9 @@ onUnmounted(() => {
         @loop="onLoop"
       >
         <TresPerspectiveCamera
-          :position="[0, 3.15, 4.35]"
-          :look-at="[0, 0, 0.35]"
-          :fov="42"
+          :position="[0, 3.35, 4.55]"
+          :look-at="[0, 0, 0.15]"
+          :fov="40"
         />
 
         <TresHemisphereLight :args="['#e8dcc8', '#102018', 0.55]" />
@@ -93,15 +122,6 @@ onUnmounted(() => {
           :get-back="textures.getBack"
         />
 
-        <PlayTresHandFan
-          v-if="privateState?.hand?.length"
-          :cards="privateState.hand"
-          :legal-moves="privateState.legalMoves"
-          :get-face="textures.getFace"
-          :get-back="textures.getBack"
-          @play="emit('play', $event)"
-        />
-
         <TresGroup
           v-if="publicState.chienRevealed?.length"
           :position="[0, 0.04, -1.05]"
@@ -113,23 +133,37 @@ onUnmounted(() => {
             :face="textures.getFace(card)"
             :back="textures.getBack()"
             face-up
-            :position="[(index - (publicState.chienRevealed.length - 1) / 2) * 0.42, 0, 0]"
+            :position="[(index - (publicState.chienRevealed.length - 1) / 2) * 0.38, 0, 0]"
             :rotation="[0, (index - 1) * 0.04, 0]"
           />
         </TresGroup>
       </TresCanvas>
     </ClientOnly>
 
+    <!-- DOM hand fan (ExempleCards-inspired) — shows real deck faces -->
+    <div
+      v-if="showHand !== false && privateState?.hand?.length"
+      class="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-2 pb-2 sm:pb-3"
+    >
+      <PlayHandArc
+        :cards="privateState.hand"
+        :legal-moves="privateState.legalMoves"
+        :face-urls="faceUrlMap"
+        :back-url="backUrl"
+        @play="emit('play', $event)"
+      />
+    </div>
+
     <div
       v-if="debugGfx"
-      class="pointer-events-none absolute left-3 top-3 rounded-md bg-black/60 px-2 py-1 font-mono text-[11px] text-white/90"
+      class="pointer-events-none absolute left-3 top-3 z-30 rounded-md bg-black/60 px-2 py-1 font-mono text-[11px] text-white/90"
     >
       {{ profile }} · {{ fps }} fps · tex {{ textures.faces.size }}
     </div>
 
     <div
       v-if="showLoading"
-      class="pointer-events-none absolute inset-x-0 top-0 h-0.5 overflow-hidden bg-white/5"
+      class="pointer-events-none absolute inset-x-0 top-0 z-30 h-0.5 overflow-hidden bg-white/5"
     >
       <div class="h-full w-1/3 animate-pulse bg-amber-200/70" />
     </div>

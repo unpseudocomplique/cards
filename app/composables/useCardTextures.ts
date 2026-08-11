@@ -47,10 +47,14 @@ export function useCardTextures(code: Ref<string> | string, quality: Ref<PlayQua
   const manifest = shallowRef<DeckTextureManifest | null>(null)
   let disposed = false
   let generation = 0
+  let pendingPriority: string[] = []
+  const loadedCodes = new Set<string>()
 
   function disposeAll() {
     generation++
     disposed = true
+    loadedCodes.clear()
+    pendingPriority = []
     for (const texture of faces.value.values()) {
       texture.dispose()
     }
@@ -91,6 +95,7 @@ export function useCardTextures(code: Ref<string> | string, quality: Ref<PlayQua
       next.get(cardCode)?.dispose()
       next.set(cardCode, texture)
       faces.value = next
+      loadedCodes.add(cardCode)
     } catch {
       if (disposed || gen !== generation) {
         return
@@ -101,7 +106,22 @@ export function useCardTextures(code: Ref<string> | string, quality: Ref<PlayQua
       next.get(cardCode)?.dispose()
       next.set(cardCode, texture)
       faces.value = next
+      loadedCodes.add(cardCode)
     }
+  }
+
+  async function prioritize(codes: string[]) {
+    pendingPriority = codes
+    const data = manifest.value
+    if (!data || disposed) {
+      return
+    }
+    const maxTex = quality.value.maxTex
+    const gen = generation
+    const wanted = data.cards.filter(card => codes.includes(card.cardCode) && !loadedCodes.has(card.cardCode))
+    await loadWithConcurrency(wanted, 6, async (card) => {
+      await loadFace(card.cardCode, card.faceUrl, maxTex, gen)
+    })
   }
 
   async function reload() {
@@ -145,7 +165,13 @@ export function useCardTextures(code: Ref<string> | string, quality: Ref<PlayQua
         loading.value = false
       }
 
-      await loadWithConcurrency(data.cards, 6, async (card) => {
+      const priority = new Set(pendingPriority)
+      const ordered = [
+        ...data.cards.filter(card => priority.has(card.cardCode)),
+        ...data.cards.filter(card => !priority.has(card.cardCode)),
+      ]
+
+      await loadWithConcurrency(ordered, 6, async (card) => {
         await loadFace(card.cardCode, card.faceUrl, maxTex, gen)
       })
     } catch (err) {
@@ -210,6 +236,7 @@ export function useCardTextures(code: Ref<string> | string, quality: Ref<PlayQua
     back,
     getFace,
     getBack,
+    prioritize,
     reload,
     disposeAll,
   }
