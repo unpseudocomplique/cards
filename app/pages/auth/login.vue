@@ -9,11 +9,9 @@ useSeoMeta({
 })
 
 const route = useRoute()
-const config = useRuntimeConfig()
 const { loggedIn } = useUserSession()
 const error = computed(() => route.query.error === 'oauth_failed')
 const redirect = computed(() => typeof route.query.redirect === 'string' ? route.query.redirect : '/dashboard')
-const googleAuthUrl = computed(() => new URL('/auth/google', config.public.siteUrl).toString())
 
 if (loggedIn.value) {
   await navigateTo('/dashboard')
@@ -52,8 +50,7 @@ if (redirect.value) {
         />
 
         <UButton
-          :to="googleAuthUrl"
-          external
+          to="/auth/google"
           block
           size="lg"
           color="neutral"
