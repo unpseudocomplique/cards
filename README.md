@@ -2,6 +2,15 @@
 
 Application Nuxt pour créer des jeux de cartes personnalisés avec photos, affectations par carte/personnage et génération IA.
 
+## Jeu de tarot
+
+Partie multijoueur Tarot français (FFT, 3–5 joueurs) : moteur pur testé, sync publique Yjs, mains privées via WebSocket Nitro.
+
+- **Tests moteur** : `pnpm test`
+- **Sync publique locale** : lancer `npx y-websocket` (port `1234`), puis définir `NUXT_PUBLIC_YJS_WEBSOCKET_URL=ws://localhost:1234` (voir `.env.example`)
+- **Interface de jeu** : [`/play`](http://localhost:3003/play) — connexion Google requise
+- **Spec & plan** : [`docs/superpowers/specs/2026-08-11-tarot-game-engine-design.md`](docs/superpowers/specs/2026-08-11-tarot-game-engine-design.md), [`docs/superpowers/plans/2026-08-11-tarot-game-engine.md`](docs/superpowers/plans/2026-08-11-tarot-game-engine.md)
+
 ## Déploiement production
 
 Le déploiement est prévu sur le même modèle que Quizwar: build Docker multi-stage, serveur Nitro sur le port `3000`, migrations Drizzle lancées au build puis au démarrage du conteneur.
@@ -18,6 +27,7 @@ Dans Coolify ou la plateforme qui construit le `Dockerfile`:
 ```dotenv
 DATABASE_URL=postgresql://quizwar:quizwar@<postgres-host>:5432/cards
 NUXT_PUBLIC_SITE_URL=https://cards.untestcomplique.com
+NUXT_PUBLIC_YJS_WEBSOCKET_URL=wss://<y-websocket-host>:1234
 NUXT_SESSION_PASSWORD=<secret-long-32-chars-minimum>
 NUXT_OAUTH_GOOGLE_CLIENT_ID=<google-client-id-prod>
 NUXT_OAUTH_GOOGLE_CLIENT_SECRET=<google-client-secret-prod>
