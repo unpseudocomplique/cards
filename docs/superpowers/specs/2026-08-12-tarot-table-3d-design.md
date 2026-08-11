@@ -1,7 +1,7 @@
 # Tarot français — table 3D TresJS (cycle 2)
 
 **Date:** 2026-08-12  
-**Status:** Draft for implementation  
+**Status:** Implemented (branch `feat/tarot-table-3d-cycle2`) — 2026-08-12  
 **Depends on:** Cycle 1 moteur + WS + Yjs (`docs/superpowers/specs/2026-08-11-tarot-game-engine-design.md`)  
 **Stack:** Nuxt 4 + TresJS (`@tresjs/nuxt` / Three r17x) + textures S3 + Vitest  
 

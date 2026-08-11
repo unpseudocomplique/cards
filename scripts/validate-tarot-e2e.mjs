@@ -165,12 +165,43 @@ async function main() {
     process.exit(1)
   }
 
-  // 3. Create table
+  // 3. Ensure tarot78 deck for create + textures
+  let deckId
+  try {
+    const decksRes = await req('/api/decks')
+    const decks = await decksRes.json()
+    const existing = Array.isArray(decks) ? decks.find(d => d.type === 'tarot78') : null
+    if (existing?.id) {
+      deckId = existing.id
+      pass('Tarot78 deck ready', deckId)
+    } else {
+      const createDeck = await req('/api/decks', {
+        method: 'POST',
+        body: {
+          title: 'E2E Tarot 78',
+          type: 'tarot78',
+          visualStyle: 'test e2e style illustration',
+        },
+      })
+      const created = await createDeck.json()
+      deckId = created.id
+      if (!deckId) {
+        throw new Error(JSON.stringify(created))
+      }
+      pass('Tarot78 deck created', deckId)
+    }
+  } catch (e) {
+    fail('Tarot78 deck ready', e.message)
+    printSummary()
+    process.exit(1)
+  }
+
+  // 4. Create table
   let code
   try {
     const res = await req('/api/game/create', {
       method: 'POST',
-      body: { playerCount: 4, endMode: 'deals', endValue: 1 },
+      body: { playerCount: 4, endMode: 'deals', endValue: 1, deckId },
     })
     const data = await res.json()
     code = data.code
@@ -182,6 +213,19 @@ async function main() {
     fail('Create table', e.message)
     printSummary()
     process.exit(1)
+  }
+
+  // 4b. Deck texture manifest (cycle 2)
+  try {
+    const res = await req(`/api/game/${code}/deck-textures`)
+    const manifest = await res.json()
+    if (res.ok && Array.isArray(manifest.cards) && manifest.cards.length === 78) {
+      pass('Deck texture manifest', `78 cards, back=${manifest.backUrl ? 'url' : 'null'}`)
+    } else {
+      fail('Deck texture manifest', JSON.stringify(manifest).slice(0, 160))
+    }
+  } catch (e) {
+    fail('Deck texture manifest', e.message)
   }
 
   // 4. Public peek — no hands leaked
@@ -349,7 +393,7 @@ async function main() {
     hostCookie = cookieJar
     const res = await req('/api/game/create', {
       method: 'POST',
-      body: { playerCount: 4, endMode: 'deals', endValue: 1 },
+      body: { playerCount: 4, endMode: 'deals', endValue: 1, deckId },
     })
     const guestCode = (await res.json()).code
     await register('tarot-guest@example.com', password, 'TarotGuest')
@@ -383,7 +427,7 @@ async function main() {
   try {
     const res = await req('/api/game/create', {
       method: 'POST',
-      body: { playerCount: 4, endMode: 'deals', endValue: 1 },
+      body: { playerCount: 4, endMode: 'deals', endValue: 1, deckId },
     })
     const reclaimCode = (await res.json()).code
     const ws1 = await wsConnect(reclaimCode, cookieJar)
@@ -410,7 +454,7 @@ async function main() {
   try {
     const res = await req('/api/game/create', {
       method: 'POST',
-      body: { playerCount: 3, endMode: 'deals', endValue: 1 },
+      body: { playerCount: 3, endMode: 'deals', endValue: 1, deckId },
     })
     const code3 = (await res.json()).code
     const peek = await (await req(`/api/game/${code3}`)).json()
@@ -427,7 +471,7 @@ async function main() {
   try {
     const res = await req('/api/game/create', {
       method: 'POST',
-      body: { playerCount: 5, endMode: 'threshold', endValue: 1000 },
+      body: { playerCount: 5, endMode: 'threshold', endValue: 1000, deckId },
     })
     const code5 = (await res.json()).code
     const peek = await (await req(`/api/game/${code5}`)).json()
@@ -440,12 +484,27 @@ async function main() {
     fail('5-player table create', e.message)
   }
 
-  // 14. Unauthorized create
+  // 14. Create without deckId rejected
+  try {
+    const res = await req('/api/game/create', {
+      method: 'POST',
+      body: { playerCount: 4, endMode: 'deals', endValue: 1 },
+    })
+    if (res.status === 400) {
+      pass('Create without deckId blocked', '400')
+    } else {
+      fail('Create without deckId blocked', String(res.status))
+    }
+  } catch (e) {
+    fail('Create without deckId blocked', e.message)
+  }
+
+  // 15. Unauthorized create
   try {
     const res = await fetch(`${baseUrl}/api/game/create`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ playerCount: 4 }),
+      body: JSON.stringify({ playerCount: 4, deckId }),
     })
     if (res.status === 401) {
       pass('Unauthorized create blocked', '401')
