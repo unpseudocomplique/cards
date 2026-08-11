@@ -8,7 +8,6 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{
-  addBot: []
   removeBot: [seat: number]
 }>()
 </script>

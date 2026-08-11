@@ -191,7 +191,6 @@ async function copyInviteLink() {
             :seats="publicState.seats"
             :host-seat-id="hostSeatId"
             :show-host-controls="isHost"
-            @add-bot="sendIntent({ type: 'addBot' })"
             @remove-bot="sendIntent({ type: 'removeBot', seat: $event })"
           />
 
@@ -298,7 +297,7 @@ async function copyInviteLink() {
         </UCard>
 
         <UCard
-          v-if="privateState?.hand.length"
+          v-if="privateState?.hand.length && !(publicState.phase === 'DogEcarta' && isTaker)"
           class="mb-4"
         >
           <template #header>

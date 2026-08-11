@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Contract, PublicGameView } from '~~/shared/tarot'
+import { tarotPhaseLabel } from '~/utils/tarotPhaseLabel'
 
 const props = defineProps<{
   state: PublicGameView
@@ -47,7 +48,7 @@ const takerName = computed(() => {
         color="neutral"
         variant="subtle"
       >
-        {{ state.phase }}
+        {{ tarotPhaseLabel(state.phase) }}
       </UBadge>
     </div>
 
