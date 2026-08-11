@@ -57,6 +57,43 @@ describe('seat reclaim', () => {
     })
   })
 
+  it('bot acts after grace takeover when hello is not sent', () => {
+    const { code } = gameStore.createTable({
+      hostUserId: HOST_ID,
+      hostName: 'Alice',
+      playerCount: 4,
+      endMode: 'threshold',
+      endValue: 1000,
+    })
+
+    for (let seat = 1; seat < 4; seat++) {
+      gameStore.applyIntent(code, { type: 'addBot' }, { userId: HOST_ID })
+    }
+
+    const started = gameStore.applyIntent(code, { type: 'start' }, { userId: HOST_ID })
+    expect(started.ok).toBe(true)
+    if (!started.ok) {
+      return
+    }
+
+    for (let i = 0; i < 3; i++) {
+      vi.advanceTimersByTime(800)
+    }
+
+    expect(gameStore.get(code)!.currentSeat).toBe(0)
+
+    onDisconnect(code, HOST_ID)
+    const beforeBidCount = gameStore.get(code)!.bidSpoken.length
+
+    vi.advanceTimersByTime(8_000)
+    expect(gameStore.get(code)!.seats[0]?.controlledBy).toBe('bot')
+
+    vi.advanceTimersByTime(800)
+
+    expect(gameStore.get(code)!.bidSpoken.length).toBeGreaterThan(beforeBidCount)
+    expect(gameStore.get(code)!.bidSpoken.some(entry => entry.seat === 0)).toBe(true)
+  })
+
   it('cancels pending bot timer when human reclaims after bot takeover', () => {
     const { code } = gameStore.createTable({
       hostUserId: HOST_ID,
