@@ -110,7 +110,21 @@ const canDiscard = computed(() =>
   && !needsKingCall.value,
 )
 
+const debugGfx = computed(() => String(route.query.debugGfx ?? '') === '1')
+
 const selectedDiscard = shallowRef<CardId[]>([])
+
+function toggleDiscard(card: CardId) {
+  const next = [...selectedDiscard.value]
+  const index = next.indexOf(card)
+  if (index >= 0) {
+    next.splice(index, 1)
+  }
+  else if (next.length < discardSize.value) {
+    next.push(card)
+  }
+  selectedDiscard.value = next
+}
 
 watch(
   () => publicState.value?.phase,
@@ -120,18 +134,6 @@ watch(
     }
   },
 )
-
-function toggleDiscard(card: CardId) {
-  const index = selectedDiscard.value.indexOf(card)
-  if (index >= 0) {
-    selectedDiscard.value = selectedDiscard.value.filter(item => item !== card)
-    return
-  }
-  if (selectedDiscard.value.length >= discardSize.value) {
-    return
-  }
-  selectedDiscard.value = [...selectedDiscard.value, card]
-}
 
 async function copyInviteLink() {
   try {
@@ -264,31 +266,15 @@ async function copyInviteLink() {
           class="mb-4"
         />
 
-        <PlayTrickArea
-          :trick="publicState.trick"
-          :seats="publicState.seats"
-          :current-seat="publicState.currentSeat"
-          class="mb-4"
-        />
-
-        <UCard
-          v-if="publicState.chienRevealed?.length"
-          class="mb-4"
-        >
-          <template #header>
-            <p class="font-semibold text-highlighted">
-              Chien
-            </p>
-          </template>
-          <div class="flex flex-wrap gap-2">
-            <PlayCardFace
-              v-for="card in publicState.chienRevealed"
-              :key="card"
-              :card-id="card"
-              size="sm"
-            />
-          </div>
-        </UCard>
+        <div class="mb-4 h-[min(70vh,720px)] w-full overflow-hidden rounded-xl border border-default bg-slate-950">
+          <PlayTresTableScene
+            :code="code"
+            :public-state="publicState"
+            :private-state="privateState"
+            :debug-gfx="debugGfx"
+            @play="sendIntent({ type: 'playCard', card: $event })"
+          />
+        </div>
 
         <PlayBidPanel
           v-if="publicState.phase === 'Bidding' && isMyTurn"
@@ -339,7 +325,7 @@ async function copyInviteLink() {
 
           <div class="flex flex-wrap justify-center gap-2">
             <button
-              v-for="card in privateState.hand"
+              v-for="card in privateState!.hand"
               :key="`discard-${card}`"
               type="button"
               class="rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
@@ -362,29 +348,6 @@ async function copyInviteLink() {
               Valider l'écart
             </UButton>
           </div>
-        </UCard>
-
-        <UCard
-          v-if="privateState?.hand.length && !canDiscard && !needsKingCall && publicState.phase !== 'Scoring'"
-          class="mb-4"
-        >
-          <template #header>
-            <p class="font-semibold text-highlighted">
-              Votre main
-            </p>
-            <p
-              v-if="privateState.seat === publicState.currentSeat"
-              class="text-sm text-muted"
-            >
-              À vous de jouer
-            </p>
-          </template>
-
-          <PlayHandCards
-            :cards="privateState.hand"
-            :legal-moves="privateState.legalMoves"
-            @play="sendIntent({ type: 'playCard', card: $event })"
-          />
         </UCard>
 
         <UCard
