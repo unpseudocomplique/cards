@@ -20,6 +20,8 @@ const fps = shallowRef(0)
 let frames = 0
 let lastTs = 0
 
+const showLoading = computed(() => textures.loading && textures.faces.size < 8)
+
 function onLoop({ delta }: { delta: number }) {
   const dt = delta * 1000
   frames++
@@ -42,7 +44,7 @@ onUnmounted(() => {
   <div class="relative h-full w-full">
     <ClientOnly>
       <TresCanvas
-        clear-color="#12160f"
+        clear-color="#0a0f0c"
         class="h-full w-full touch-none"
         :dpr="settings.dprCap"
         :render-mode="'always'"
@@ -50,19 +52,30 @@ onUnmounted(() => {
         @loop="onLoop"
       >
         <TresPerspectiveCamera
-          :position="[0, 4.2, 5.2]"
-          :look-at="[0, 0, 0.2]"
+          :position="[0, 3.15, 4.35]"
+          :look-at="[0, 0, 0.35]"
+          :fov="42"
         />
-        <TresAmbientLight :intensity="settings.lights === 2 ? 0.55 : 0.75" />
+
+        <TresHemisphereLight :args="['#e8dcc8', '#102018', 0.55]" />
+        <TresAmbientLight :intensity="settings.lights === 2 ? 0.28 : 0.4" />
         <TresDirectionalLight
-          :position="[2, 6, 3]"
-          :intensity="0.85"
+          :position="[3.2, 7.5, 2.4]"
+          :intensity="1.15"
           :cast-shadow="settings.shadows"
+          color="#fff1dd"
         />
         <TresDirectionalLight
           v-if="settings.lights === 2"
-          :position="[-3, 4, -2]"
+          :position="[-4, 3.5, -2.5]"
           :intensity="0.35"
+          color="#9eb6ff"
+        />
+        <TresPointLight
+          :position="[0, 2.8, 0.4]"
+          :intensity="0.55"
+          color="#ffd7a8"
+          :distance="10"
         />
 
         <PlayTresTableFelt />
@@ -91,7 +104,7 @@ onUnmounted(() => {
 
         <TresGroup
           v-if="publicState.chienRevealed?.length"
-          :position="[0, 0.06, -0.9]"
+          :position="[0, 0.04, -1.05]"
         >
           <PlayTresCardMesh
             v-for="(card, index) in publicState.chienRevealed"
@@ -100,8 +113,8 @@ onUnmounted(() => {
             :face="textures.getFace(card)"
             :back="textures.getBack()"
             face-up
-            :position="[(index - (publicState.chienRevealed.length - 1) / 2) * 0.45, 0, 0]"
-            :rotation="[-Math.PI / 2, 0, 0]"
+            :position="[(index - (publicState.chienRevealed.length - 1) / 2) * 0.42, 0, 0]"
+            :rotation="[0, (index - 1) * 0.04, 0]"
           />
         </TresGroup>
       </TresCanvas>
@@ -109,16 +122,16 @@ onUnmounted(() => {
 
     <div
       v-if="debugGfx"
-      class="pointer-events-none absolute left-2 top-2 rounded bg-black/70 px-2 py-1 font-mono text-xs text-white"
+      class="pointer-events-none absolute left-3 top-3 rounded-md bg-black/60 px-2 py-1 font-mono text-[11px] text-white/90"
     >
       {{ profile }} · {{ fps }} fps · tex {{ textures.faces.size }}
     </div>
 
     <div
-      v-if="textures.loading"
-      class="pointer-events-none absolute inset-x-0 bottom-2 text-center text-xs text-white/80"
+      v-if="showLoading"
+      class="pointer-events-none absolute inset-x-0 top-0 h-0.5 overflow-hidden bg-white/5"
     >
-      Chargement des textures…
+      <div class="h-full w-1/3 animate-pulse bg-amber-200/70" />
     </div>
   </div>
 </template>

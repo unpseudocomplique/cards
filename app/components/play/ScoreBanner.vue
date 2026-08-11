@@ -4,6 +4,7 @@ import { tarotPhaseLabel } from '~/utils/tarotPhaseLabel'
 
 const props = defineProps<{
   state: PublicGameView
+  compact?: boolean
 }>()
 
 const contractLabels: Record<Contract, string> = {
@@ -28,40 +29,57 @@ const takerName = computed(() => {
 </script>
 
 <template>
-  <div class="rounded-xl border border-default bg-muted/40 p-4">
+  <div
+    class="border border-white/10 bg-black/45 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md"
+    :class="compact ? 'rounded-2xl px-3 py-2.5' : 'rounded-xl p-4'"
+  >
     <div class="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <p class="text-sm text-muted">
+      <div class="min-w-0">
+        <p class="text-xs tracking-wide text-white/55">
           Donne {{ state.dealIndex + 1 }}
-          <span v-if="state.endMode === 'threshold'">· Objectif {{ state.endValue }} pts</span>
-          <span v-else>· {{ state.endValue }} donnes</span>
+          <span v-if="state.endMode === 'threshold'"> · {{ state.endValue }} pts</span>
+          <span v-else> · {{ state.endValue }} donnes</span>
+          <span v-if="contractLabel && takerName"> · {{ takerName }} · {{ contractLabel }}</span>
         </p>
+        <div
+          v-if="compact"
+          class="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-sm"
+        >
+          <span
+            v-for="(score, index) in state.scores"
+            :key="index"
+            class="inline-flex items-center gap-1.5"
+          >
+            <span class="max-w-24 truncate text-white/60">{{ state.seats[index]?.name || `J${index + 1}` }}</span>
+            <span class="font-semibold tabular-nums text-amber-50">{{ score }}</span>
+          </span>
+        </div>
         <p
-          v-if="contractLabel && takerName"
-          class="mt-1 font-semibold text-highlighted"
+          v-else-if="contractLabel && takerName"
+          class="mt-1 font-semibold text-amber-50"
         >
           {{ takerName }} · {{ contractLabel }}
         </p>
       </div>
 
-      <UBadge
-        color="neutral"
-        variant="subtle"
-      >
+      <span class="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/80">
         {{ tarotPhaseLabel(state.phase) }}
-      </UBadge>
+      </span>
     </div>
 
-    <div class="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+    <div
+      v-if="!compact"
+      class="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3"
+    >
       <div
         v-for="(score, index) in state.scores"
         :key="index"
-        class="flex items-center justify-between rounded-lg border border-default bg-default px-3 py-2 text-sm"
+        class="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
       >
-        <span class="truncate text-muted">
+        <span class="truncate text-white/60">
           {{ state.seats[index]?.name || `Siège ${index + 1}` }}
         </span>
-        <span class="font-semibold text-highlighted">{{ score }}</span>
+        <span class="font-semibold tabular-nums text-amber-50">{{ score }}</span>
       </div>
     </div>
   </div>

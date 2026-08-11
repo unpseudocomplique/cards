@@ -140,6 +140,11 @@ export function useCardTextures(code: Ref<string> | string, quality: Ref<PlayQua
         back.value = textureFromCanvas(createPlaceholderImageBitmap('back', Math.min(256, maxTex)), 4)
       }
 
+      // Faces stream in; table can render with placeholders immediately.
+      if (gen === generation) {
+        loading.value = false
+      }
+
       await loadWithConcurrency(data.cards, 6, async (card) => {
         await loadFace(card.cardCode, card.faceUrl, maxTex, gen)
       })
@@ -154,11 +159,34 @@ export function useCardTextures(code: Ref<string> | string, quality: Ref<PlayQua
     }
   }
 
+  function ensurePlaceholder(cardCode: string): THREE.Texture {
+    const existing = faces.value.get(cardCode)
+    if (existing) {
+      return existing
+    }
+    const canvas = createPlaceholderImageBitmap(cardCode, Math.min(256, quality.value.maxTex))
+    const texture = textureFromCanvas(canvas, 4)
+    const next = new Map(faces.value)
+    next.set(cardCode, texture)
+    faces.value = next
+    return texture
+  }
+
   function getFace(cardCode: string): THREE.Texture | null {
-    return faces.value.get(cardCode) ?? null
+    return faces.value.get(cardCode) ?? (import.meta.client ? ensurePlaceholder(cardCode) : null)
   }
 
   function getBack(): THREE.Texture | null {
+    if (back.value) {
+      return back.value
+    }
+    if (!import.meta.client) {
+      return null
+    }
+    back.value = textureFromCanvas(
+      createPlaceholderImageBitmap('back', Math.min(256, quality.value.maxTex)),
+      4,
+    )
     return back.value
   }
 
