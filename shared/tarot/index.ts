@@ -1,5 +1,6 @@
 export * from './announces'
 export * from './types'
+export * from './deckTextures'
 export * from './deck'
 export * from './deal'
 export * from './bid'

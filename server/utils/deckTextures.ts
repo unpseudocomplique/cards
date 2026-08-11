@@ -1,15 +1,8 @@
 import { buildTarot78Deck, isTrump } from '~~/shared/tarot'
 import type { CardId } from '~~/shared/tarot'
+import type { DeckTextureManifest } from '~~/shared/tarot/deckTextures'
 
-export type DeckTextureManifest = {
-  deckId: string
-  backUrl: string | null
-  cards: Array<{
-    cardCode: string
-    faceUrl: string | null
-    aspectRatio: '3:4' | '9:16'
-  }>
-}
+export type { DeckTextureManifest } from '~~/shared/tarot/deckTextures'
 
 export function aspectRatioForCard(cardCode: string): '3:4' | '9:16' {
   return isTrump(cardCode as CardId) ? '9:16' : '3:4'
