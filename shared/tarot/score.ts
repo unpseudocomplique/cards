@@ -40,6 +40,7 @@ export type DealScoreInput = {
   takerSeat: number
   partnerSeat?: number
   takerCards: CardId[]
+  /** Reserved for future validation; scoring uses takerCards only. */
   defenseCards: CardId[]
   poigneePrime?: number
   petitAuBoutCamp?: 'attack' | 'defense'
@@ -69,10 +70,7 @@ function defenderSeats(
   return seats
 }
 
-function chelemSigned(
-  chelem: DealScoreInput['chelem'],
-  defenderCount: number,
-): number {
+function chelemPart(chelem: DealScoreInput['chelem']): number {
   switch (chelem) {
     case 'announced_made':
       return 400
@@ -80,8 +78,6 @@ function chelemSigned(
       return 200
     case 'announced_failed':
       return -200
-    case 'defense':
-      return -200 * defenderCount
     default:
       return 0
   }
@@ -106,24 +102,23 @@ export function computeDealScore(input: DealScoreInput): Record<number, number> 
   const success = takerPoints >= required
   const diff = takerPoints - required
 
-  const base = (25 + Math.abs(diff)) * mult
+  const sign = success ? 1 : -1
+  const contractPart = sign * (25 + Math.abs(diff)) * mult
 
-  const poigneeSigned = poigneePrime
+  const poigneePart = poigneePrime
     ? (success ? poigneePrime : -poigneePrime)
     : 0
 
-  let petitSigned = 0
+  let petitPart = 0
   if (petitAuBoutCamp === 'attack') {
-    petitSigned = 10 * mult
+    petitPart = 10 * mult
   } else if (petitAuBoutCamp === 'defense') {
-    petitSigned = -10 * mult
+    petitPart = -10 * mult
   }
 
-  const defenders = defenderSeats(playerCount, takerSeat, partnerSeat)
-  const chelemPrime = chelemSigned(chelem, defenders.length)
+  const S = contractPart + poigneePart + petitPart + chelemPart(chelem)
 
-  const sign = success ? 1 : -1
-  const S = sign * (base + poigneeSigned + petitSigned + chelemPrime)
+  const defenders = defenderSeats(playerCount, takerSeat, partnerSeat)
 
   const deltas: Record<number, number> = {}
   for (let seat = 0; seat < playerCount; seat++) {
@@ -137,10 +132,23 @@ export function computeDealScore(input: DealScoreInput): Record<number, number> 
       deltas[seat] = -S
     }
   } else {
-    const attackGain = defenders.length * S
-    deltas[takerSeat] = attackGain
+    deltas[takerSeat] = defenders.length * S
     for (const seat of defenders) {
       deltas[seat] = -S
+    }
+  }
+
+  if (chelem === 'defense') {
+    const bonus = 200
+    for (const seat of defenders) {
+      deltas[seat] += bonus
+    }
+    if (playerCount === 5 && partnerSeat !== undefined) {
+      const total = bonus * defenders.length
+      deltas[takerSeat] -= (2 * total) / 3
+      deltas[partnerSeat] -= total / 3
+    } else {
+      deltas[takerSeat] -= bonus * defenders.length
     }
   }
 

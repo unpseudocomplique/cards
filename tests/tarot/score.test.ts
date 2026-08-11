@@ -232,8 +232,9 @@ describe('computeDealScore', () => {
       takerCards: cards,
       defenseCards: [],
     })
-    // 3 defenders × 200 = 600 penalty to attack inside S → taker delta −3×600
-    expect(withDefenseChelem[0] - normal[0]).toBe(-3 * 3 * 200)
+    // +200 per defender in settlement → taker −600 (4p)
+    expect(withDefenseChelem[0] - normal[0]).toBe(-3 * 200)
+    expect(withDefenseChelem[1] - normal[1]).toBe(200)
   })
 
   it('5p with partner splits 2:1 attack shares', () => {
@@ -248,5 +249,47 @@ describe('computeDealScore', () => {
     expect(deltas[0]).toBe(-2 * deltas[2])
     expect(deltas[1]).toBe(-deltas[2])
     expect(Object.values(deltas).reduce((a, b) => a + b, 0)).toBe(0)
+  })
+
+  it('announced_failed chelem penalizes taker even when point contract fails', () => {
+    const failCards = [asCard('hearts-2'), asCard('hearts-3')]
+    const without = computeDealScore({
+      playerCount: 4,
+      contract: 'prise',
+      takerSeat: 0,
+      takerCards: failCards,
+      defenseCards: [],
+    })
+    const withFailedChelem = computeDealScore({
+      playerCount: 4,
+      contract: 'prise',
+      takerSeat: 0,
+      takerCards: failCards,
+      defenseCards: [],
+      chelem: 'announced_failed',
+    })
+    expect(withFailedChelem[0]).toBeLessThan(without[0])
+    expect(withFailedChelem[0] - without[0]).toBe(-3 * 200)
+  })
+
+  it('attack petit au bout credits attack even when point contract fails', () => {
+    const failCards = [asCard('hearts-2'), asCard('hearts-3')]
+    const without = computeDealScore({
+      playerCount: 4,
+      contract: 'garde',
+      takerSeat: 0,
+      takerCards: failCards,
+      defenseCards: [],
+    })
+    const withPetit = computeDealScore({
+      playerCount: 4,
+      contract: 'garde',
+      takerSeat: 0,
+      takerCards: failCards,
+      defenseCards: [],
+      petitAuBoutCamp: 'attack',
+    })
+    expect(withPetit[0]).toBeGreaterThan(without[0])
+    expect(withPetit[0] - without[0]).toBe(3 * 10 * 2)
   })
 })
