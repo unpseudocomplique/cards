@@ -17,5 +17,27 @@ services:
       timeout: 5s
       retries: 10
 
+  # Public Yjs sync for /play (compatible with app deps yjs@13 + y-websocket client)
+  yjs:
+    image: node:22-alpine
+    container_name: cards-yjs
+    restart: unless-stopped
+    ports:
+      - "1234:1234"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "1234"
+    command: ["npx", "--yes", "y-websocket@2.0.4"]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"const n=require('net');const s=n.connect(1234,'127.0.0.1',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1));setTimeout(()=>process.exit(1),2000)\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
 volumes:
   cards_postgres_data:

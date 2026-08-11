@@ -7,7 +7,7 @@ Application Nuxt pour créer des jeux de cartes personnalisés avec photos, affe
 Partie multijoueur Tarot français (FFT, 3–5 joueurs) : moteur pur testé, sync publique Yjs, mains privées via WebSocket Nitro, table 3D TresJS.
 
 - **Tests moteur** : `pnpm test`
-- **Sync publique locale** : lancer `npx y-websocket` (port `1234`), puis définir `NUXT_PUBLIC_YJS_WEBSOCKET_URL=ws://localhost:1234` (voir `.env.example`)
+- **Sync publique locale** : `docker compose up -d` démarre aussi **yjs** (`npx y-websocket@2.0.4` sur le port `1234`). Vérifiez `NUXT_PUBLIC_YJS_WEBSOCKET_URL=ws://localhost:1234` (voir `.env.example`).
 - **Interface de jeu** : [`/play`](http://localhost:3003/play) — connexion requise ; créez d’abord un deck **tarot78** (faces S3 optionnelles → placeholders). WebGL requis.
 - **Debug gfx** : `?debugGfx=1` sur `/play/[code]` (profil qualité, fps, textures)
 - **Spec & plan** : cycle 1 [`docs/superpowers/specs/2026-08-11-tarot-game-engine-design.md`](docs/superpowers/specs/2026-08-11-tarot-game-engine-design.md) · cycle 2 3D [`docs/superpowers/specs/2026-08-12-tarot-table-3d-design.md`](docs/superpowers/specs/2026-08-12-tarot-table-3d-design.md)
