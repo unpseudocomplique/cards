@@ -15,7 +15,7 @@ const DEAL_CONFIG: Record<PlayerCount, DealConfig> = {
   5: { handSize: 15, chienSize: 3, packetSize: 3, rounds: 5, chienRounds: [0, 1, 2] },
 }
 
-function fisherYatesShuffle(deck: CardId[], rng: () => number): CardId[] {
+export function shuffleDeck(deck: CardId[], rng: () => number): CardId[] {
   const shuffled = [...deck]
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1))
@@ -77,7 +77,7 @@ function packetDeal(
   return { hands, chien }
 }
 
-function detectPetitSecSeats(hands: CardId[][]): SeatId[] {
+export function detectPetitSecSeats(hands: CardId[][]): SeatId[] {
   const seats: SeatId[] = []
   for (let seat = 0; seat < hands.length; seat++) {
     const hand = hands[seat]!
@@ -92,14 +92,18 @@ function detectPetitSecSeats(hands: CardId[][]): SeatId[] {
   return seats
 }
 
-export function dealHands(playerCount: PlayerCount, rng: () => number): DealResult {
+export function dealFromShuffled(playerCount: PlayerCount, shuffled: CardId[]): DealResult {
   const config = DEAL_CONFIG[playerCount]
-  const deck = fisherYatesShuffle(buildTarot78Deck(), rng)
-  const { hands, chien } = packetDeal(deck, playerCount, config)
+  const { hands, chien } = packetDeal(shuffled, playerCount, config)
 
   return {
     hands,
     chien,
     petitSecSeats: detectPetitSecSeats(hands),
   }
+}
+
+export function dealHands(playerCount: PlayerCount, rng: () => number): DealResult {
+  const shuffled = shuffleDeck(buildTarot78Deck(), rng)
+  return dealFromShuffled(playerCount, shuffled)
 }
