@@ -21,7 +21,18 @@ const fps = shallowRef(0)
 let frames = 0
 let lastTs = 0
 
-const showLoading = computed(() => textures.loading && textures.faces.size < 4)
+const canInteractHand = computed(() => {
+  const phase = props.publicState.phase
+  if (phase !== 'Trick' && phase !== 'ReadyToPlay') {
+    return false
+  }
+  if (!props.privateState) {
+    return false
+  }
+  return props.publicState.currentSeat === props.privateState.seat
+    && (props.privateState.legalMoves?.length ?? 0) > 0
+})
+
 
 const faceUrlMap = computed(() => {
   const map = new Map<string, string | null>()
@@ -81,9 +92,9 @@ onUnmounted(() => {
         @loop="onLoop"
       >
         <TresPerspectiveCamera
-          :position="[0, 3.35, 4.55]"
-          :look-at="[0, 0, 0.15]"
-          :fov="40"
+          :position="[0, 3.55, 4.85]"
+          :look-at="[0, 0, 0.05]"
+          :fov="38"
         />
 
         <TresHemisphereLight :args="['#e8dcc8', '#102018', 0.55]" />
@@ -143,13 +154,14 @@ onUnmounted(() => {
     <!-- DOM hand fan (ExempleCards-inspired) — shows real deck faces -->
     <div
       v-if="showHand !== false && privateState?.hand?.length"
-      class="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-2 pb-2 sm:pb-3"
+      class="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-2 pb-4 sm:pb-5"
     >
       <PlayHandArc
         :cards="privateState.hand"
         :legal-moves="privateState.legalMoves"
         :face-urls="faceUrlMap"
         :back-url="backUrl"
+        :dim-unplayable="canInteractHand"
         @play="emit('play', $event)"
       />
     </div>

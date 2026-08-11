@@ -38,7 +38,7 @@ const takerName = computed(() => {
         <p class="text-xs tracking-wide text-white/55">
           Donne {{ state.dealIndex + 1 }}
           <span v-if="state.endMode === 'threshold'"> · {{ state.endValue }} pts</span>
-          <span v-else> · {{ state.endValue }} donnes</span>
+          <span v-else> · {{ state.endValue }} donne{{ state.endValue > 1 ? 's' : '' }}</span>
           <span v-if="contractLabel && takerName"> · {{ takerName }} · {{ contractLabel }}</span>
         </p>
         <div

@@ -181,7 +181,7 @@ async function copyInviteLink() {
       @play="sendIntent({ type: 'playCard', card: $event })"
     />
 
-    <div class="pointer-events-none absolute inset-0 z-10 flex flex-col justify-between p-3 sm:p-4">
+    <div class="pointer-events-none absolute inset-0 z-10 flex flex-col p-3 sm:p-4">
       <div class="pointer-events-auto mx-auto w-full max-w-5xl space-y-2">
         <div class="flex items-start justify-between gap-3">
           <PlayScoreBanner
@@ -198,6 +198,12 @@ async function copyInviteLink() {
             aria-label="Quitter la table"
           />
         </div>
+
+        <PlayBidPanel
+          v-if="publicState.phase === 'Bidding' && isMyTurn"
+          compact
+          @bid="sendIntent({ type: 'bid', bid: $event })"
+        />
 
         <UAlert
           v-if="error"
@@ -217,14 +223,9 @@ async function copyInviteLink() {
       </div>
 
       <div
-        class="pointer-events-auto mx-auto w-full max-w-3xl space-y-3"
-        :class="showPlayHand ? 'mb-[min(32vh,260px)]' : ''"
+        class="pointer-events-auto mx-auto mt-auto w-full max-w-3xl space-y-3"
+        :class="showPlayHand ? 'mb-[min(36vh,300px)]' : ''"
       >
-        <PlayBidPanel
-          v-if="publicState.phase === 'Bidding' && isMyTurn"
-          class="rounded-2xl border border-white/10 bg-black/55 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md"
-          @bid="sendIntent({ type: 'bid', bid: $event })"
-        />
 
         <div
           v-if="needsKingCall"
