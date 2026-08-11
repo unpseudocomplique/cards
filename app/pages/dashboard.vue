@@ -40,7 +40,10 @@ const statusColor = computed(() => ({
     <UPageHeader
       title="Mes decks"
       description="Retrouvez vos jeux sauvegardés et poursuivez leur génération."
-      :links="[{ label: 'Nouveau deck', icon: 'i-lucide-plus', to: '/decks/new' }]"
+      :links="[
+        { label: 'Jouer au tarot', icon: 'i-lucide-spade', to: '/play' },
+        { label: 'Nouveau deck', icon: 'i-lucide-plus', to: '/decks/new' }
+      ]"
       :ui="{
         container: 'gap-4 py-6 sm:py-8',
         links: 'flex-wrap'
