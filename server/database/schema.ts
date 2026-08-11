@@ -13,6 +13,7 @@ import {
 const id = () => text('id').primaryKey().$defaultFn(() => crypto.randomUUID())
 
 export const userRoleEnum = pgEnum('user_role', ['USER', 'ADMIN'])
+export const authTokenPurposeEnum = pgEnum('auth_token_purpose', ['EMAIL_VERIFICATION', 'PASSWORD_RESET'])
 export const deckTypeEnum = pgEnum('deck_type', ['classic52', 'tarot56', 'tarot78'])
 export const deckStatusEnum = pgEnum('deck_status', ['draft', 'queued', 'generating', 'ready', 'failed'])
 export const cardStatusEnum = pgEnum('card_status', ['pending', 'queued', 'generating', 'ready', 'failed'])
@@ -51,15 +52,32 @@ export const users = pgTable('users', {
   role: userRoleEnum('role').default('USER').notNull(),
   provider: text('provider'),
   providerUserId: text('provider_user_id'),
+  passwordHash: text('password_hash'),
   locale: text('locale').default('fr-FR').notNull(),
   isActive: boolean('is_active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   lastLoginAt: timestamp('last_login_at'),
+  passwordUpdatedAt: timestamp('password_updated_at'),
   emailVerifiedAt: timestamp('email_verified_at')
 }, table => [
   unique().on(table.provider, table.providerUserId),
   index('users_email_idx').on(table.email)
+])
+
+export const authTokens = pgTable('auth_tokens', {
+  id: id(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  purpose: authTokenPurposeEnum('purpose').notNull(),
+  email: text('email').notNull(),
+  tokenHash: text('token_hash').notNull().unique(),
+  expiresAt: timestamp('expires_at').notNull(),
+  usedAt: timestamp('used_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull()
+}, table => [
+  index('auth_tokens_user_id_idx').on(table.userId),
+  index('auth_tokens_purpose_idx').on(table.purpose, table.expiresAt),
+  index('auth_tokens_used_at_idx').on(table.usedAt)
 ])
 
 export const decks = pgTable('decks', {

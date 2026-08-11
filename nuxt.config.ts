@@ -55,6 +55,10 @@ export default defineNuxtConfig({
         secure: process.env.NODE_ENV === 'production'
       }
     },
+    email: {
+      from: process.env.NUXT_EMAIL_FROM || process.env.EMAIL_FROM || '',
+      resendApiKey: process.env.NUXT_EMAIL_RESEND_API_KEY || process.env.EMAIL_RESEND_API_KEY || process.env.RESEND_API_KEY || ''
+    },
     public: {
       siteUrl: process.env.NUXT_PUBLIC_SITE_URL || 'http://localhost:3003',
       googleClientId: process.env.NUXT_OAUTH_GOOGLE_CLIENT_ID || '',
