@@ -30,6 +30,8 @@ export function useTarotGame(code: Ref<string> | string) {
   const connected = ref(false)
   const error = ref<string | null>(null)
   const awarenessUsers = ref<AwarenessUser[]>([])
+  const yjsConnected = ref(false)
+  const publicSyncDegraded = computed(() => connected.value && !yjsConnected.value)
 
   let ws: WebSocket | null = null
   let provider: WebsocketProvider | null = null
@@ -171,6 +173,7 @@ export function useTarotGame(code: Ref<string> | string) {
     generation++
     disposed = true
     connected.value = false
+    yjsConnected.value = false
     awarenessUsers.value = []
     closeConnections()
   }
@@ -246,6 +249,24 @@ export function useTarotGame(code: Ref<string> | string) {
       },
     )
 
+    provider.on('status', (event: { status: string }) => {
+      if (isStaleSetup(setupGeneration)) {
+        return
+      }
+      yjsConnected.value = event.status === 'connected'
+    })
+    provider.on('connection-error', () => {
+      if (!isStaleSetup(setupGeneration)) {
+        yjsConnected.value = false
+      }
+    })
+    // If Yjs never connects within a few seconds, mark degraded.
+    setTimeout(() => {
+      if (!isStaleSetup(setupGeneration) && provider && !provider.wsconnected) {
+        yjsConnected.value = false
+      }
+    }, 3_000)
+
     if (isStaleSetup(setupGeneration)) {
       closeConnections()
       return
@@ -296,6 +317,7 @@ export function useTarotGame(code: Ref<string> | string) {
     privateState,
     connected,
     error,
+    publicSyncDegraded,
     sendIntent,
     join,
     awarenessUsers,

@@ -77,6 +77,8 @@ export function toPublicView(state: GameState): PublicGameView {
     pilesDefenseCount: state.pilesDefense.length,
     poigneeShown: state.poigneeShown,
     chelemAnnounce: state.chelemAnnounce,
+    lastDeltas: state.lastDeltas ? { ...state.lastDeltas } : undefined,
+    matchShouldEnd: state.matchShouldEnd,
   }
 }
 

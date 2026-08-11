@@ -1,6 +1,7 @@
 import { BID_RANK, expectedSeat } from './bid'
 import { isOudler, isTrump } from './deck'
 import { validateEcart } from './ecart'
+import { KING_IDS } from './announces'
 import { toPrivateView } from './publicView'
 import { compareSuitRank, trickLedSuit, trumpValue } from './trick'
 import type { CardId, GameState, Intent, PlayerCount } from './types'
@@ -114,6 +115,15 @@ function pickEcartDiscard(hand: CardId[], size: 6 | 3): CardId[] {
   return discard
 }
 
+function chooseCallKingIntent(state: GameState, seat: number): Intent {
+  if (!state.bid || seat !== state.bid.seat) {
+    throw new Error('chooseBotIntent: only the taker may call a king')
+  }
+  const hand = state.hands[seat] ?? []
+  const preferred = KING_IDS.find(king => !hand.includes(king as CardId)) ?? KING_IDS[0]!
+  return { type: 'callKing', king: preferred as CardId }
+}
+
 function chooseDiscardIntent(state: GameState, seat: number): Intent {
   if (!state.bid || seat !== state.bid.seat) {
     throw new Error('chooseBotIntent: only the taker may discard')
@@ -134,6 +144,22 @@ function choosePlayIntent(state: GameState, seat: number): Intent {
 }
 
 export function chooseBotIntent(state: GameState, seat: number): Intent {
+  if (
+    state.playerCount === 5
+    && state.bid
+    && !state.calledKing
+    && (state.phase === 'DogEcarta' || state.phase === 'ReadyToPlay')
+  ) {
+    if (seat !== state.bid.seat) {
+      throw new Error(`chooseBotIntent: waiting for taker to call a king`)
+    }
+    return chooseCallKingIntent(state, seat)
+  }
+
+  if (state.phase === 'Scoring') {
+    return { type: 'continue' }
+  }
+
   if (state.currentSeat !== seat) {
     throw new Error(`chooseBotIntent: not seat ${seat}'s turn`)
   }

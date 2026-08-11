@@ -4,6 +4,12 @@ import {
   expectedSeat,
   type Contract,
 } from './bid'
+import {
+  countPoigneeTrumps,
+  isKingCard,
+  poigneePrimeForTier,
+  poigneeTiers,
+} from './announces'
 import { dealHands } from './deal'
 import { mergeChienIntoHand, validateEcart } from './ecart'
 import { legalMoves } from './legalMoves'
@@ -141,6 +147,11 @@ function resetDealFields(state: GameState): GameState {
     pilesDefense: [],
     poigneeShown: undefined,
     chelemAnnounce: undefined,
+    attackTricks: 0,
+    defenseTricks: 0,
+    petitAuBoutCamp: undefined,
+    lastDeltas: undefined,
+    matchShouldEnd: undefined,
   }
 }
 
@@ -227,6 +238,25 @@ function allHandsEmpty(state: GameState): boolean {
   return state.hands.every(hand => hand.length === 0)
 }
 
+function resolveChelemOutcome(state: GameState): Parameters<typeof computeDealScore>[0]['chelem'] {
+  const attackChelem = state.defenseTricks === 0 && state.attackTricks > 0
+  const defenseChelem = state.attackTricks === 0 && state.defenseTricks > 0
+
+  if (state.chelemAnnounce === 'announced') {
+    return attackChelem ? 'announced_made' : 'announced_failed'
+  }
+  if (state.chelemAnnounce === 'defense') {
+    return defenseChelem ? 'defense' : undefined
+  }
+  if (attackChelem) {
+    return 'unannounced_made'
+  }
+  if (defenseChelem) {
+    return 'defense'
+  }
+  return undefined
+}
+
 function scoreDeal(state: GameState): { state: GameState, events: GameEvent[] } {
   const takerSeat = state.bid!.seat
   const contract = state.bid!.contract
@@ -237,6 +267,10 @@ function scoreDeal(state: GameState): { state: GameState, events: GameEvent[] } 
     takerCards.push(...state.ecart)
   }
 
+  const poigneePrime = state.poigneeShown
+    ? poigneePrimeForTier(state.playerCount, state.poigneeShown.tier) ?? undefined
+    : undefined
+
   const deltas = computeDealScore({
     playerCount: state.playerCount,
     contract,
@@ -244,7 +278,9 @@ function scoreDeal(state: GameState): { state: GameState, events: GameEvent[] } 
     partnerSeat: state.partnerSeat,
     takerCards,
     defenseCards: state.pilesDefense,
-    chelem: state.chelemAnnounce === 'announced' ? 'announced_made' : undefined,
+    poigneePrime,
+    petitAuBoutCamp: state.petitAuBoutCamp,
+    chelem: resolveChelemOutcome(state),
   })
 
   const scores = state.scores.map((score, seat) => score + (deltas[seat] ?? 0))
@@ -257,17 +293,36 @@ function scoreDeal(state: GameState): { state: GameState, events: GameEvent[] } 
     state.endMode === 'deals'
     && state.dealIndex >= state.endValue
 
-  if (thresholdReached || dealsReached) {
-    events.push({ type: 'matchOver' })
-    return {
-      state: {
+  return {
+    state: {
+      ...state,
+      phase: 'Scoring',
+      scores,
+      lastDeltas: deltas,
+      matchShouldEnd: thresholdReached || dealsReached,
+      currentSeat: state.dealerSeat,
+    },
+    events,
+  }
+}
+
+function handleContinue(state: GameState, actor: Actor): ApplyResult {
+  if (state.phase !== 'Scoring') {
+    return failure('WRONG_PHASE', 'Continue is only valid during Scoring')
+  }
+  if (!isHost(state, actor.userId) && actorSeat(state, actor) === null) {
+    return failure('UNAUTHORIZED', 'Only seated players or the host may continue')
+  }
+
+  if (state.matchShouldEnd) {
+    return success(
+      {
         ...state,
         phase: 'MatchOver',
-        scores,
-        currentSeat: state.dealerSeat,
+        matchShouldEnd: undefined,
       },
-      events,
-    }
+      [{ type: 'matchOver' }],
+    )
   }
 
   const dealerSeat = nextSeat(state, state.dealerSeat)
@@ -276,30 +331,51 @@ function scoreDeal(state: GameState): { state: GameState, events: GameEvent[] } 
       ...state,
       phase: 'Dealing',
       dealerSeat,
-      scores,
+      lastDeltas: undefined,
+      matchShouldEnd: undefined,
     },
     { incrementDealIndex: true },
   )
+  return success(redealt.state, redealt.events)
+}
 
-  return {
-    state: redealt.state,
-    events: [...events, ...redealt.events],
+function resolvePartnerSeat(
+  state: GameState,
+  king: CardId,
+  takerSeat: number,
+): number | undefined {
+  for (let seat = 0; seat < state.playerCount; seat++) {
+    if (state.hands[seat]?.includes(king)) {
+      return seat === takerSeat ? undefined : seat
+    }
   }
+  // King still in dog (garde sans/contre) or unknown → taker alone
+  return undefined
 }
 
 function resolveCompletedTrick(state: GameState): ApplyResult {
   const { winnerSeat } = resolveTrick(state.trick)
   const piles = distributeTrickCards(state, winnerSeat)
   const events: GameEvent[] = [{ type: 'trickWon', seat: winnerSeat }]
+  const attackWon = isAttackSeat(state, winnerSeat)
 
   let next: GameState = {
     ...state,
     ...piles,
     trick: [],
     currentSeat: winnerSeat,
+    attackTricks: state.attackTricks + (attackWon ? 1 : 0),
+    defenseTricks: state.defenseTricks + (attackWon ? 0 : 1),
   }
 
   if (allHandsEmpty(next)) {
+    const petitInLastTrick = state.trick.some(entry => entry.card === 'trump-1')
+    if (petitInLastTrick) {
+      next = {
+        ...next,
+        petitAuBoutCamp: attackWon ? 'attack' : 'defense',
+      }
+    }
     next = { ...next, phase: 'Scoring' }
     const scored = scoreDeal(next)
     return success({ ...next, ...scored.state, version: state.version }, [...events, ...scored.events])
@@ -454,20 +530,52 @@ function handleBid(state: GameState, intent: Extract<Intent, { type: 'bid' }>, a
 }
 
 function handleCallKing(state: GameState, intent: Extract<Intent, { type: 'callKing' }>, actor: Actor): ApplyResult {
-  if (state.phase !== 'Bidding' || state.playerCount !== 5) {
-    return failure('WRONG_PHASE', 'King call is only valid during 5-player bidding')
+  if (state.playerCount !== 5 || !state.bid) {
+    return failure('WRONG_PHASE', 'King call is only valid in 5-player contracts')
   }
-  const seatOrError = requireTurnSeat(state, actor)
-  if (typeof seatOrError !== 'number') {
-    return seatOrError
+  if (state.phase !== 'DogEcarta' && state.phase !== 'ReadyToPlay') {
+    return failure('WRONG_PHASE', 'King call is only valid after the contract is won')
   }
-  void intent
-  return success({ ...state, calledKing: intent.king }, [])
+  if (state.calledKing) {
+    return failure('ILLEGAL_MOVE', 'King already called')
+  }
+  if (!isKingCard(intent.king)) {
+    return failure('ILLEGAL_MOVE', 'Must call a king')
+  }
+
+  const seat = actorSeat(state, actor)
+  if (seat === null) {
+    return failure('UNAUTHORIZED', 'Actor has no seat at this table')
+  }
+  if (seat !== state.bid.seat) {
+    return failure('NOT_YOUR_TURN', 'Only the taker may call a king')
+  }
+
+  const partnerSeat = resolvePartnerSeat(state, intent.king, state.bid.seat)
+  return success(
+    {
+      ...state,
+      calledKing: intent.king,
+      partnerSeat,
+    },
+    [],
+  )
+}
+
+function requireCalledKingIfNeeded(state: GameState): ApplyResult | null {
+  if (state.playerCount === 5 && state.bid && !state.calledKing) {
+    return failure('WRONG_PHASE', 'Taker must call a king before continuing')
+  }
+  return null
 }
 
 function handleDiscard(state: GameState, intent: Extract<Intent, { type: 'discard' }>, actor: Actor): ApplyResult {
   if (state.phase !== 'DogEcarta' || !state.bid) {
     return failure('WRONG_PHASE', 'Discard is only valid during DogEcarta')
+  }
+  const kingError = requireCalledKingIfNeeded(state)
+  if (kingError) {
+    return kingError
   }
   const seatOrError = requireTurnSeat(state, actor)
   if (typeof seatOrError !== 'number') {
@@ -508,14 +616,33 @@ function handleAnnouncePoignee(
   intent: Extract<Intent, { type: 'announcePoignee' }>,
   actor: Actor,
 ): ApplyResult {
-  if (state.phase !== 'ReadyToPlay' && state.phase !== 'Trick') {
-    return failure('WRONG_PHASE', 'Poignée can only be announced before playing')
+  if (state.phase !== 'ReadyToPlay') {
+    return failure('WRONG_PHASE', 'Poignée can only be announced before the first card')
   }
-  const seatOrError = requireTurnSeat(state, actor)
-  if (typeof seatOrError !== 'number') {
-    return seatOrError
+  const kingError = requireCalledKingIfNeeded(state)
+  if (kingError) {
+    return kingError
   }
-  return success({ ...state, poigneeShown: { seat: seatOrError, tier: intent.tier } }, [])
+  if (state.poigneeShown) {
+    return failure('ILLEGAL_MOVE', 'A poignée was already shown')
+  }
+  if (!poigneeTiers(state.playerCount).includes(intent.tier)) {
+    return failure('ILLEGAL_MOVE', `Invalid poignée tier ${intent.tier} for ${state.playerCount} players`)
+  }
+
+  const seat = actorSeat(state, actor)
+  if (seat === null) {
+    return failure('UNAUTHORIZED', 'Actor has no seat at this table')
+  }
+  const hand = state.hands[seat] ?? []
+  const trumpCount = countPoigneeTrumps(hand)
+  if (trumpCount < intent.tier) {
+    return failure(
+      'ILLEGAL_MOVE',
+      `Need ${intent.tier} trumps for this poignée (have ${trumpCount})`,
+    )
+  }
+  return success({ ...state, poigneeShown: { seat, tier: intent.tier } }, [])
 }
 
 function handleAnnounceChelem(
@@ -523,14 +650,30 @@ function handleAnnounceChelem(
   intent: Extract<Intent, { type: 'announceChelem' }>,
   actor: Actor,
 ): ApplyResult {
-  if (state.phase !== 'Bidding' && state.phase !== 'ReadyToPlay') {
+  if (state.phase !== 'ReadyToPlay') {
     return failure('WRONG_PHASE', 'Chelem can only be announced before play')
   }
-  const seatOrError = requireTurnSeat(state, actor)
-  if (typeof seatOrError !== 'number') {
-    return seatOrError
+  const kingError = requireCalledKingIfNeeded(state)
+  if (kingError) {
+    return kingError
   }
-  void seatOrError
+  if (state.chelemAnnounce) {
+    return failure('ILLEGAL_MOVE', 'Chelem already announced')
+  }
+
+  const seat = actorSeat(state, actor)
+  if (seat === null) {
+    return failure('UNAUTHORIZED', 'Actor has no seat at this table')
+  }
+
+  if (intent.kind === 'announced') {
+    if (!state.bid || seat !== state.bid.seat) {
+      return failure('UNAUTHORIZED', 'Only the taker may announce attack chelem')
+    }
+  } else if (isAttackSeat(state, seat)) {
+    return failure('UNAUTHORIZED', 'Only defenders may announce defense chelem')
+  }
+
   return success({ ...state, chelemAnnounce: intent.kind }, [])
 }
 
@@ -540,6 +683,10 @@ function handlePlayCard(state: GameState, intent: Extract<Intent, { type: 'playC
   }
   if (!state.bid) {
     return failure('WRONG_PHASE', 'No contract established')
+  }
+  const kingError = requireCalledKingIfNeeded(state)
+  if (kingError) {
+    return kingError
   }
 
   const seatOrError = requireTurnSeat(state, actor)
@@ -610,6 +757,8 @@ export function apply(state: GameState, intent: Intent, actor: Actor): ApplyResu
       return handleAnnounceChelem(state, intent, actor)
     case 'playCard':
       return handlePlayCard(state, intent, actor)
+    case 'continue':
+      return handleContinue(state, actor)
     case 'leave':
       return handleLeave(state, actor)
     default: {

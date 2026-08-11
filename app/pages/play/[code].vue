@@ -21,6 +21,7 @@ const {
   privateState,
   connected,
   error,
+  publicSyncDegraded,
   sendIntent,
   join,
 } = useTarotGame(code)
@@ -88,10 +89,26 @@ const isTaker = computed(() =>
   && publicState.value?.bid?.seat === privateState.value.seat,
 )
 
+const needsKingCall = computed(() =>
+  publicState.value?.playerCount === 5
+  && isTaker.value
+  && !publicState.value.calledKing
+  && (publicState.value.phase === 'DogEcarta' || publicState.value.phase === 'ReadyToPlay'),
+)
+
+const kingOptions = ['hearts-k', 'diamonds-k', 'clubs-k', 'spades-k'] as const
+
 const discardSize = computed(() => {
   const count = publicState.value?.playerCount ?? 4
   return count === 5 ? 3 : 6
 })
+
+const canDiscard = computed(() =>
+  publicState.value?.phase === 'DogEcarta'
+  && isTaker.value
+  && !!privateState.value
+  && !needsKingCall.value,
+)
 
 const selectedDiscard = shallowRef<CardId[]>([])
 
@@ -153,6 +170,16 @@ async function copyInviteLink() {
         variant="subtle"
         icon="i-lucide-alert-circle"
         :title="error"
+        class="mb-4"
+      />
+
+      <UAlert
+        v-if="publicSyncDegraded"
+        color="warning"
+        variant="subtle"
+        icon="i-lucide-wifi-off"
+        title="Sync publique dégradée"
+        description="Le serveur de synchro Yjs est indisponible. La partie continue via le serveur de jeu."
         class="mb-4"
       />
 
@@ -270,7 +297,35 @@ async function copyInviteLink() {
         />
 
         <UCard
-          v-if="publicState.phase === 'DogEcarta' && isTaker && privateState"
+          v-if="needsKingCall"
+          class="mb-4"
+        >
+          <template #header>
+            <p class="font-semibold text-highlighted">
+              Appel au roi
+            </p>
+            <p class="text-sm text-muted">
+              Choisissez le roi partenaire (5 joueurs).
+            </p>
+          </template>
+          <div class="flex flex-wrap gap-2">
+            <UButton
+              v-for="king in kingOptions"
+              :key="king"
+              color="neutral"
+              variant="soft"
+              @click="sendIntent({ type: 'callKing', king })"
+            >
+              <PlayCardFace
+                :card-id="king"
+                size="sm"
+              />
+            </UButton>
+          </div>
+        </UCard>
+
+        <UCard
+          v-if="canDiscard"
           class="mb-4"
         >
           <template #header>
@@ -310,7 +365,7 @@ async function copyInviteLink() {
         </UCard>
 
         <UCard
-          v-if="privateState?.hand.length && !(publicState.phase === 'DogEcarta' && isTaker)"
+          v-if="privateState?.hand.length && !canDiscard && !needsKingCall && publicState.phase !== 'Scoring'"
           class="mb-4"
         >
           <template #header>
@@ -330,6 +385,49 @@ async function copyInviteLink() {
             :legal-moves="privateState.legalMoves"
             @play="sendIntent({ type: 'playCard', card: $event })"
           />
+        </UCard>
+
+        <UCard
+          v-if="publicState.phase === 'Scoring'"
+          class="mb-4"
+        >
+          <template #header>
+            <p class="font-semibold text-highlighted">
+              Marquage de la donne
+            </p>
+            <p class="text-sm text-muted">
+              {{ publicState.matchShouldEnd ? 'La partie est terminée après cette donne.' : 'Prochaine donne après validation.' }}
+            </p>
+          </template>
+
+          <div
+            v-if="publicState.lastDeltas"
+            class="mb-4 grid gap-2 sm:grid-cols-2"
+          >
+            <div
+              v-for="(delta, seat) in publicState.lastDeltas"
+              :key="seat"
+              class="flex items-center justify-between rounded-lg border border-default px-3 py-2 text-sm"
+            >
+              <span class="text-muted">{{ publicState.seats[Number(seat)]?.name || `Siège ${Number(seat) + 1}` }}</span>
+              <span
+                class="font-semibold"
+                :class="Number(delta) >= 0 ? 'text-success' : 'text-error'"
+              >
+                {{ Number(delta) > 0 ? `+${delta}` : delta }}
+              </span>
+            </div>
+          </div>
+
+          <div class="flex justify-end">
+            <UButton
+              color="primary"
+              icon="i-lucide-arrow-right"
+              @click="sendIntent({ type: 'continue' })"
+            >
+              {{ publicState.matchShouldEnd ? 'Voir le résultat' : 'Donne suivante' }}
+            </UButton>
+          </div>
         </UCard>
 
         <UAlert

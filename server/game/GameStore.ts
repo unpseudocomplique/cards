@@ -195,13 +195,60 @@ class GameStore {
       return
     }
 
-    const seat = room.state.currentSeat
-    const seatInfo = room.state.seats[seat]
-    if (!seatInfo?.userId || seatInfo.controlledBy !== 'bot') {
+    this.clearBotTimer(room)
+
+    const state = room.state
+
+    // Scoring: auto-continue after a short pause so the phase is observable.
+    if (state.phase === 'Scoring') {
+      room.botTimer = setTimeout(() => {
+        room.botTimer = null
+        const current = this.rooms.get(code)
+        if (!current || current.state.phase !== 'Scoring') {
+          return
+        }
+        this.applyIntent(code, { type: 'continue' }, { userId: current.state.hostUserId })
+      }, Math.max(randomBotDelayMs(), 1_000))
       return
     }
 
-    this.clearBotTimer(room)
+    // 5p: taker must call a king before discard/play (may not be currentSeat yet).
+    if (
+      state.playerCount === 5
+      && state.bid
+      && !state.calledKing
+      && (state.phase === 'DogEcarta' || state.phase === 'ReadyToPlay')
+    ) {
+      const takerSeat = state.bid.seat
+      const taker = state.seats[takerSeat]
+      if (!taker?.userId || taker.controlledBy !== 'bot') {
+        return
+      }
+      room.botTimer = setTimeout(() => {
+        room.botTimer = null
+        const current = this.rooms.get(code)
+        if (!current?.state.bid || current.state.calledKing) {
+          return
+        }
+        const seatInfo = current.state.seats[takerSeat]
+        if (!seatInfo?.userId || seatInfo.controlledBy !== 'bot') {
+          return
+        }
+        try {
+          const intent = chooseBotIntent(current.state, takerSeat)
+          this.applyIntent(code, intent, { userId: seatInfo.userId, seat: takerSeat })
+        } catch (error) {
+          console.error(`Bot king call failed for table ${code}:`, error)
+        }
+      }, randomBotDelayMs())
+      return
+    }
+
+    const seat = state.currentSeat
+    const seatInfo = state.seats[seat]
+    if (!seatInfo?.userId || seatInfo.controlledBy !== 'bot') {
+      return
+    }
 
     room.botTimer = setTimeout(() => {
       room.botTimer = null

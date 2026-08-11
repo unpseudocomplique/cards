@@ -248,7 +248,7 @@ describe('match end', () => {
       pilesDefense: [c('hearts-k')],
       dealIndex: 1,
       rngCounter: 1,
-      scores: [2000, 0, 0, 0],
+      scores: [5000, 0, 0, 0],
       seats: base.seats.map((seat, index) => ({
         ...seat,
         userId: `user:${index}`,
@@ -265,18 +265,27 @@ describe('match end', () => {
     }
   }
 
-  it('enters MatchOver when threshold is reached after scoring', () => {
+  it('enters Scoring then MatchOver when threshold is reached', () => {
     const state = lastTrickState()
     const result = apply(state, { type: 'playCard', card: c('hearts-2') }, actorForSeat(state, 3))
     expect(result.ok).toBe(true)
     if (!result.ok) {
       return
     }
-    expect(result.state.phase).toBe('MatchOver')
-    expect(result.events.some(event => event.type === 'matchOver')).toBe(true)
+    expect(result.state.phase).toBe('Scoring')
+    expect(result.state.matchShouldEnd).toBe(true)
+    expect(result.events.some(event => event.type === 'dealScored')).toBe(true)
+
+    const continued = apply(result.state, { type: 'continue' }, { userId: HOST })
+    expect(continued.ok).toBe(true)
+    if (!continued.ok) {
+      return
+    }
+    expect(continued.state.phase).toBe('MatchOver')
+    expect(continued.events.some(event => event.type === 'matchOver')).toBe(true)
   })
 
-  it('enters MatchOver when dealIndex reaches endValue in deals mode', () => {
+  it('enters MatchOver via continue when dealIndex reaches endValue in deals mode', () => {
     const state = lastTrickState({
       endMode: 'deals',
       endValue: 1,
@@ -288,11 +297,18 @@ describe('match end', () => {
     if (!result.ok) {
       return
     }
-    expect(result.state.phase).toBe('MatchOver')
-    expect(result.events.some(event => event.type === 'matchOver')).toBe(true)
+    expect(result.state.phase).toBe('Scoring')
+    expect(result.state.matchShouldEnd).toBe(true)
+
+    const continued = apply(result.state, { type: 'continue' }, { userId: HOST })
+    expect(continued.ok).toBe(true)
+    if (!continued.ok) {
+      return
+    }
+    expect(continued.state.phase).toBe('MatchOver')
   })
 
-  it('deals again when neither threshold nor deal limit is reached', () => {
+  it('stays on Scoring then deals again when neither end condition is reached', () => {
     const state = lastTrickState({
       endMode: 'threshold',
       endValue: 5000,
@@ -304,9 +320,18 @@ describe('match end', () => {
     if (!result.ok) {
       return
     }
-    expect(result.state.phase).toBe('Bidding')
-    expect(result.state.dealIndex).toBe(2)
-    expect(result.events.some(event => event.type === 'matchOver')).toBe(false)
+    expect(result.state.phase).toBe('Scoring')
+    expect(result.state.matchShouldEnd).toBe(false)
+    expect(result.state.lastDeltas).toBeDefined()
+
+    const continued = apply(result.state, { type: 'continue' }, { userId: HOST })
+    expect(continued.ok).toBe(true)
+    if (!continued.ok) {
+      return
+    }
+    expect(continued.state.phase).toBe('Bidding')
+    expect(continued.state.dealIndex).toBe(2)
+    expect(continued.events.some(event => event.type === 'matchOver')).toBe(false)
   })
 })
 

@@ -45,6 +45,8 @@ export function createEmptyGame(config: GameConfig): GameState {
     pilesDefense: [],
     scores: Array.from({ length: config.playerCount }, () => 0),
     dealIndex: 0,
+    attackTricks: 0,
+    defenseTricks: 0,
     hostUserId: config.hostUserId,
     rngCounter: 0,
   }

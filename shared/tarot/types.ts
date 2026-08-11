@@ -62,6 +62,15 @@ export type GameState = {
   dealIndex: number
   poigneeShown?: { seat: number, tier: 10 | 13 | 15 | 8 | 18 }
   chelemAnnounce?: 'announced' | 'defense'
+  /** Tricks won by attack / defense camps this deal (for chelem). */
+  attackTricks: number
+  defenseTricks: number
+  /** Petit won on the last trick of the deal. */
+  petitAuBoutCamp?: 'attack' | 'defense'
+  /** Last deal point deltas while phase === Scoring. */
+  lastDeltas?: Record<number, number>
+  /** After Scoring, continue ends the match instead of redealing. */
+  matchShouldEnd?: boolean
   hostUserId: string
   /** Monotonic counter for deterministic re-deals within a match. */
   rngCounter: number
@@ -110,6 +119,7 @@ export type Intent =
   | { type: 'announcePoignee', tier: 10 | 13 | 15 | 8 | 18 }
   | { type: 'announceChelem', kind: 'announced' | 'defense' }
   | { type: 'playCard', card: CardId }
+  | { type: 'continue' }
   | { type: 'leave' }
 
 export type PublicSeatInfo = Omit<SeatInfo, 'userId'> & { userId: string | null }
@@ -138,6 +148,8 @@ export type PublicGameView = {
   pilesDefenseCount: number
   poigneeShown?: GameState['poigneeShown']
   chelemAnnounce?: GameState['chelemAnnounce']
+  lastDeltas?: Record<number, number>
+  matchShouldEnd?: boolean
 }
 
 export type PrivateGameView = PublicGameView & {

@@ -1,21 +1,22 @@
 # Tarot français — moteur multijoueur (cycle 1)
 
 **Date:** 2026-08-11  
-**Status:** Draft for user review  
+**Status:** Implemented (branch `feat/tarot-game-engine-cycle1`) — validated 2026-08-12  
 **Stack:** Nuxt 4 + Nitro WebSocket + Yjs + Vitest  
 
 ## Context
 
-Le repo `cards` est aujourd’hui un **générateur / imprimeur de decks** (photos → IA → S3 → print). Il n’y a pas de jeu jouable, pas de Three.js runtime, pas de Yjs branché.
+Le repo `cards` est un **générateur / imprimeur de decks** (photos → IA → S3 → print). Le **cycle 1** ajoute un jeu de tarot FFT jouable (moteur + multi + UI 2D) sans TresJS.
 
 Objectif produit long terme : jeu 3D TresJS, avatars photo→Gemini→img2threejs, social amis.  
-**Ce document ne couvre que le cycle 1** : fondation jouable (règles + multi + UI 2D).
+**Ce document couvre le cycle 1** : fondation jouable (règles + multi + UI 2D).
 
 Références :
 - Règlement FFT (3 / 4 / 5 joueurs)
-- Patterns Yjs Quizwar (`.agents/skills/yjs/SKILL.md`) — à porter, pas présent dans ce repo
-- `ToCheckForDev.md` — FSM / game loop utiles surtout pour le cycle 3D ; ici la FSM = **phases de partie**
-- `ExempleCards.tsx` — démo React orpheline ; référence visuelle pour un cycle 3D ultérieur, pas importée
+- Patterns Yjs Quizwar (`.agents/skills/yjs/SKILL.md`)
+- Plan : `docs/superpowers/plans/2026-08-11-tarot-game-engine.md`
+- Smoke E2E : `node scripts/validate-tarot-e2e.mjs [baseUrl]`
+- `ToCheckForDev.md` / `ExempleCards.tsx` — références cycle 3D, hors scope cycle 1
 
 ## Goals (cycle 1)
 
@@ -63,7 +64,7 @@ flowchart LR
 - Les clients **n’écrivent jamais** l’état de jeu dans Yjs (awareness seule : nom, siège, online, isHost).
 - Mains / chien secrets : **uniquement** serveur → joueur concerné (WS).
 - `version` incrémentée à chaque transition FSM réussie.
-- Auth Google (`nuxt-auth-utils`) obligatoire pour créer / rejoindre. Bots = `bot:{n}`.
+- Auth (`nuxt-auth-utils`) obligatoire pour créer / rejoindre (Google et/ou email-password). Bots = `bot:{n}`.
 - Game store **in-memory** (une instance Nuxt). Redis si multi-replicas plus tard.
 - Service **y-websocket** séparé ; `runtimeConfig.public.yjsWebsocketUrl`.
 
@@ -167,7 +168,7 @@ Hors cycle 1 : pénalités tournoi / arbitre, duplicate, 6–8 joueurs.
 
 - `/play` — créer table (N, endMode, endValue) → redirect `/play/{code}`
 - `/play/[code]` — lobby puis table selon `phase`
-- Auth Google si session absente
+- Auth Google si session absente (ou login email/password)
 
 ### Lobby
 
@@ -223,6 +224,56 @@ tests/tarot/            unit tests moteur + FSM
 5. Déco → bot ; reco → reprise du même siège en live  
 6. Suite de tests moteur verte  
 
+## Implementation status (2026-08-12)
+
+### Done criteria
+
+| # | Critère | Statut | Preuve |
+|---|---------|--------|--------|
+| 1 | Table 3/4/5, invite, bots, start | **OK** | E2E 15/15 ; create 3/4/5 ; addBot×3 ; start → Bidding |
+| 2 | Donne complète jusqu’au score | **OK** | E2E playthrough `Bidding → DogEcarta → ReadyToPlay → Trick → MatchOver` |
+| 3 | Fin seuil 1000 **ou** N donnes | **OK** | Vitest `apply.test.ts` (threshold + deals) ; create API `endMode`/`endValue` |
+| 4 | Mains non exposées publiquement | **OK** | `toPublicView` sans `hands` ; peek API E2E ; private via WS only |
+| 5 | Déco → bot ; reco → même siège | **OK** | Vitest reclaim + BotRunner ; E2E reconnect hello |
+| 6 | Tests moteur verts | **OK** | `pnpm test` → 12 files / **86** tests |
+
+### Rules coverage vs stubs
+
+| Règle CDC | Statut | Notes |
+|-----------|--------|-------|
+| Deal 3/4/5 + petit sec | Complet | `deal.ts` + tests |
+| Enchères (overcall, all-pass) | Complet | `bid.ts` + FSM |
+| Écart (rois / bouts / atouts montrés) | Complet | `ecart.ts` |
+| Suivre / couper / surcouper / excuse | Complet | `legalMoves.ts` + `trick.ts` |
+| Scoring zéro-somme + seuils bouts | Complet | `score.ts` (ex. FFT garde+8) |
+| Poignée | Complet | Validation tier FFT + primes branchées dans `scoreDeal` |
+| Chelem | Complet | Détection made/failed/unannounced/defense via compteurs de plis |
+| Appel au roi (5j) | Complet | `callKing` résout `partnerSeat` (seul si roi chez le preneur / chien) |
+| Phase `Scoring` observable | Complet | Reste en `Scoring` avec `lastDeltas` ; intent `continue` (+ auto ~1s serveur) |
+
+### Runtime / ops
+
+| Sujet | Statut | Notes |
+|-------|--------|-------|
+| Nitro WS intents + private | OK | `/game/ws?code=` |
+| Yjs public publisher | OK avec fallback | Banner UI si Yjs down ; sync via WS/`GET` ; publisher serveur inchangé |
+| Auth | OK élargi | Google **ou** email/password (nuxt-auth-utils) |
+| Logs API | OK | `server/middleware/log-api.ts` → `[api] METHOD path status ms` (pas les assets) |
+| Délai bots | OK volontaire | 400–800 ms / action → ~45 s pour une donne 4j host+3 bots |
+
+### Correctifs post-impl (hors plan initial)
+
+- Host déjà assis à `create` → ne plus envoyer `join` (évite « Already seated »)
+- `publicState` mis à jour depuis le snapshot privé WS + refetch sur `applied` (lobby bots visible sans Yjs)
+- Peers reçoivent aussi un `private` push après intent d’autrui
+
+### Validation commands
+
+```bash
+pnpm test
+node scripts/validate-tarot-e2e.mjs http://localhost:3003
+```
+
 ## Open points resolved during brainstorming
 
 | Sujet | Décision |
@@ -234,3 +285,11 @@ tests/tarot/            unit tests moteur + FSM
 | Règles | FFT complet 3/4/5 |
 | 6–8 | Cycle ultérieur, variante unique à documenter |
 | Reclaim | Bot sur siège ; humain reprend en temps réel |
+
+## Next (hors cycle 1 — à cadrer)
+
+1. **Commit polish cycle 1** (écarts documentés) si pas encore sur la branche  
+2. **Cycle 2 CDC** : [`2026-08-12-tarot-table-3d-design.md`](./2026-08-12-tarot-table-3d-design.md) — full 3D TresJS perf + faces deck S3  
+3. Générer le plan d’implémentation Cycle 2 puis brancher `feat/tarot-table-3d-cycle2`  
+4. Bots rapides en dev (optionnel, cycle 1.x)  
+5. Merge PR cycle 1 quand prêt
