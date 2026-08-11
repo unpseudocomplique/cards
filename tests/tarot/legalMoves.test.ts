@@ -89,4 +89,26 @@ describe('legalMoves', () => {
     expect(moves).toContain(c('trump-5'))
     expect(moves).toContain(c('excuse'))
   })
+
+  it('requires following suit set by second card after excuse lead (seat 3+)', () => {
+    const hand = [c('diamonds-5'), c('diamonds-k'), c('hearts-2'), c('excuse')]
+    const trick = [
+      { seat: 0, card: c('excuse') },
+      { seat: 1, card: c('diamonds-j') },
+    ]
+    const moves = legalMoves(hand, trick, null)
+    expect(moves).toContain(c('diamonds-5'))
+    expect(moves).toContain(c('diamonds-k'))
+    expect(moves).toContain(c('excuse'))
+    expect(moves).not.toContain(c('hearts-2'))
+    expect(moves).toHaveLength(3)
+  })
+
+  it('derives led suit from trick when ledSuit param is omitted', () => {
+    const hand = [c('hearts-k'), c('clubs-5')]
+    const trick = [{ seat: 0, card: c('hearts-7') }]
+    const moves = legalMoves(hand, trick, null)
+    expect(moves).toContain(c('hearts-k'))
+    expect(moves).not.toContain(c('clubs-5'))
+  })
 })

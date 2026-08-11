@@ -1,5 +1,5 @@
 import { cardSuit } from './deck'
-import { trumpValue } from './trick'
+import { trickLedSuit, trumpValue } from './trick'
 import type { CardId, CardSuit } from './types'
 
 function isExcuse(card: CardId): boolean {
@@ -61,15 +61,21 @@ export function legalMoves(
     return [...hand]
   }
 
-  if (ledSuit === null) {
+  const effectiveLedSuit = ledSuit ?? trickLedSuit(trickCards)
+
+  if (trickCards.length >= 2 && effectiveLedSuit === null) {
+    throw new Error('legalMoves: cannot determine led suit for trick with 2+ cards')
+  }
+
+  if (effectiveLedSuit === null) {
     return [...hand]
   }
 
-  const suitCards = hand.filter(card => matchesLedSuit(card, ledSuit))
+  const suitCards = hand.filter(card => matchesLedSuit(card, effectiveLedSuit))
   let obligated: CardId[]
 
   if (suitCards.length > 0) {
-    obligated = ledSuit === 'trumps' ? trumpPlays(suitCards, trickCards) : suitCards
+    obligated = effectiveLedSuit === 'trumps' ? trumpPlays(suitCards, trickCards) : suitCards
   }
   else {
     const handTrumps = hand.filter(isRealTrump)

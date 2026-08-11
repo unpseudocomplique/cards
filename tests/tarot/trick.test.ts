@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { compareSuitRank, resolveTrick, trumpValue } from '../../shared/tarot/trick'
+import { compareSuitRank, resolveTrick, trickLedSuit, trumpValue } from '../../shared/tarot/trick'
 import type { CardId } from '../../shared/tarot/types'
 
 const c = (id: string) => id as CardId
@@ -21,6 +21,26 @@ describe('compareSuitRank', () => {
     expect(compareSuitRank(c('hearts-j'), c('hearts-10'))).toBeGreaterThan(0)
     expect(compareSuitRank(c('hearts-10'), c('hearts-1'))).toBeGreaterThan(0)
     expect(compareSuitRank(c('hearts-1'), c('hearts-k'))).toBeLessThan(0)
+  })
+})
+
+describe('trickLedSuit', () => {
+  it('returns null for empty trick or excuse-only lead', () => {
+    expect(trickLedSuit([])).toBeNull()
+    expect(trickLedSuit([{ seat: 0, card: c('excuse') }])).toBeNull()
+  })
+
+  it('uses second non-excuse card when excuse leads', () => {
+    const trick = [
+      { seat: 0, card: c('excuse') },
+      { seat: 1, card: c('diamonds-j') },
+    ]
+    expect(trickLedSuit(trick)).toBe('diamonds')
+  })
+
+  it('returns led suit for normal lead', () => {
+    expect(trickLedSuit([{ seat: 0, card: c('hearts-k') }])).toBe('hearts')
+    expect(trickLedSuit([{ seat: 0, card: c('trump-8') }])).toBe('trumps')
   })
 })
 

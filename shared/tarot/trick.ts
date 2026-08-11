@@ -1,4 +1,5 @@
-import type { CardId } from './types'
+import { cardSuit } from './deck'
+import type { CardId, CardSuit } from './types'
 
 const SUIT_RANK_ORDER = ['k', 'q', 'c', 'j', '10', '9', '8', '7', '6', '5', '4', '3', '2', '1'] as const
 
@@ -44,22 +45,22 @@ function highestTrump(cards: { seat: number, card: CardId }[]): { seat: number, 
   return best
 }
 
-function effectiveLedSuit(cards: { seat: number, card: CardId }[]): 'hearts' | 'diamonds' | 'clubs' | 'spades' | 'trumps' | null {
+/** Led suit for a trick in progress or at resolution (excuse lead → first non-excuse card). */
+export function trickLedSuit(cards: { seat: number, card: CardId }[]): CardSuit | null {
   if (cards.length === 0) {
     return null
   }
   if (cards[0].card === 'excuse') {
-    const second = cards[1]
-    if (!second) {
-      return null
+    for (let i = 1; i < cards.length; i++) {
+      const card = cards[i].card
+      if (card === 'excuse') {
+        continue
+      }
+      return cardSuit(card)
     }
-    return isRealTrump(second.card) ? 'trumps' : (second.card.split('-')[0] as 'hearts' | 'diamonds' | 'clubs' | 'spades')
+    return null
   }
-  const first = cards[0].card
-  if (isRealTrump(first)) {
-    return 'trumps'
-  }
-  return first.split('-')[0] as 'hearts' | 'diamonds' | 'clubs' | 'spades'
+  return cardSuit(cards[0].card)
 }
 
 function highestOfLedSuit(
@@ -88,7 +89,7 @@ export function resolveTrick(cards: { seat: number, card: CardId }[]): { winnerS
     return { winnerSeat: trumpWinner.seat }
   }
 
-  const ledSuit = effectiveLedSuit(cards)
+  const ledSuit = trickLedSuit(cards)
   if (!ledSuit || ledSuit === 'trumps') {
     throw new Error('resolveTrick: no winner (trump-led or excuse-only trick)')
   }
