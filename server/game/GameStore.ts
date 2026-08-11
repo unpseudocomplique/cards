@@ -263,3 +263,7 @@ class GameStore {
 }
 
 export const gameStore = new GameStore()
+
+import { attachYjsPublisher } from './yjsPublisher'
+
+attachYjsPublisher(gameStore)

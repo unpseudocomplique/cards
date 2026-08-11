@@ -1,7 +1,6 @@
 import { onDisconnect, onHello } from '~~/server/game/DisconnectManager'
 import { gameStore } from '~~/server/game/GameStore'
 import type { PeerHandle } from '~~/server/game/types'
-import '~~/server/game/yjsPublisher'
 import { toPrivateView } from '~~/shared/tarot'
 import type { Intent } from '~~/shared/tarot'
 
@@ -67,6 +66,26 @@ function attachPeer(peer: object, ctx: WsPeerContext): PeerHandle {
   return handle
 }
 
+function completeHello(peer: object, ctx: WsPeerContext): boolean {
+  const seat = resolveSeat(ctx.code, ctx.userId)
+  if (seat === null) {
+    sendError(peer as { send: (data: string) => void }, 'NOT_SEATED', 'No seat at this table')
+    return false
+  }
+
+  const helloResult = onHello(ctx.code, ctx.userId)
+  if (!helloResult.ok) {
+    sendError(peer as { send: (data: string) => void }, helloResult.error, helloResult.reason)
+    return false
+  }
+
+  ctx.seat = seat
+  attachPeer(peer, ctx)
+  ctx.helloReceived = true
+  sendPrivate(peer as { send: (data: string) => void }, ctx.code, seat)
+  return true
+}
+
 function readCode(peer: { request: { url: string } }): string {
   const url = new URL(peer.request.url)
   return url.searchParams.get('code')?.trim() ?? ''
@@ -116,23 +135,21 @@ export default defineWebSocketHandler({
     }
 
     if (parsed.type === 'hello') {
-      ctx.helloReceived = true
-      attachPeer(peer, ctx)
+      if (ctx.helloReceived) {
+        const seat = resolveSeat(ctx.code, ctx.userId)
+        if (seat !== null) {
+          sendPrivate(peer, ctx.code, seat)
+        }
+        return
+      }
 
       const seat = resolveSeat(ctx.code, ctx.userId)
-      ctx.seat = seat
       if (seat === null) {
         sendError(peer, 'NOT_SEATED', 'Join the table before sending hello')
         return
       }
 
-      const helloResult = onHello(ctx.code, ctx.userId)
-      if (!helloResult.ok) {
-        sendError(peer, helloResult.error, helloResult.reason)
-        return
-      }
-
-      sendPrivate(peer, ctx.code, seat)
+      completeHello(peer, ctx)
       return
     }
 
@@ -142,7 +159,7 @@ export default defineWebSocketHandler({
         return
       }
 
-      if (!ctx.helloReceived) {
+      if (!ctx.helloReceived && parsed.intent.type !== 'join') {
         sendError(peer, 'NOT_CONNECTED', 'Send hello before intents')
         return
       }
@@ -158,15 +175,8 @@ export default defineWebSocketHandler({
       }
 
       if (parsed.intent.type === 'join') {
-        const seat = resolveSeat(ctx.code, ctx.userId)
-        if (seat !== null) {
-          ctx.seat = seat
-          const helloResult = onHello(ctx.code, ctx.userId)
-          if (!helloResult.ok) {
-            sendError(peer, helloResult.error, helloResult.reason)
-            return
-          }
-        }
+        completeHello(peer, ctx)
+        return
       }
 
       if (ctx.seat !== null) {

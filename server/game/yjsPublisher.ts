@@ -1,12 +1,15 @@
 import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 import { toPublicView } from '~~/shared/tarot'
-import type { PublicGameView } from '~~/shared/tarot'
-import { gameStore } from './GameStore'
+import type { GameState, PublicGameView } from '~~/shared/tarot'
 
 type RoomConnection = {
   doc: Y.Doc
   provider: WebsocketProvider
+}
+
+type StatePublisher = {
+  setOnStateChange: (callback: (code: string, state: GameState) => void) => void
 }
 
 const rooms = new Map<string, RoomConnection>()
@@ -15,11 +18,23 @@ function roomName(code: string): string {
   return `tarot-${code}`
 }
 
-function getConnection(code: string): RoomConnection {
+function getYjsUrl(): string | null {
+  try {
+    const config = useRuntimeConfig()
+    return String(config.public.yjsWebsocketUrl)
+  } catch {
+    return null
+  }
+}
+
+function getConnection(code: string): RoomConnection | null {
+  const serverUrl = getYjsUrl()
+  if (!serverUrl) {
+    return null
+  }
+
   let connection = rooms.get(code)
   if (!connection) {
-    const config = useRuntimeConfig()
-    const serverUrl = String(config.public.yjsWebsocketUrl)
     const doc = new Y.Doc()
     const provider = new WebsocketProvider(serverUrl, roomName(code), doc, {
       connect: true,
@@ -32,7 +47,12 @@ function getConnection(code: string): RoomConnection {
 }
 
 export function publishPublic(code: string, view: PublicGameView): void {
-  const { doc } = getConnection(code)
+  const connection = getConnection(code)
+  if (!connection) {
+    return
+  }
+
+  const { doc } = connection
   const publicMap = doc.getMap('public')
   doc.transact(() => {
     publicMap.set('snapshot', view)
@@ -50,6 +70,8 @@ export function destroyRoom(code: string): void {
   rooms.delete(code)
 }
 
-gameStore.setOnStateChange((code, state) => {
-  publishPublic(code, toPublicView(state))
-})
+export function attachYjsPublisher(store: StatePublisher): void {
+  store.setOnStateChange((code, state) => {
+    publishPublic(code, toPublicView(state))
+  })
+}
