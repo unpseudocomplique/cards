@@ -290,6 +290,6 @@ node scripts/validate-tarot-e2e.mjs http://localhost:3003
 
 1. **Commit polish cycle 1** (écarts documentés) si pas encore sur la branche  
 2. **Cycle 2 CDC** : [`2026-08-12-tarot-table-3d-design.md`](./2026-08-12-tarot-table-3d-design.md) — full 3D TresJS perf + faces deck S3  
-3. Générer le plan d’implémentation Cycle 2 puis brancher `feat/tarot-table-3d-cycle2`  
+3. Générer le plan d’implémentation Cycle 2 puis brancher `feat/tarot-table-3d-cycle2` — **plan ready**: [`../plans/2026-08-12-tarot-table-3d.md`](../plans/2026-08-12-tarot-table-3d.md)  
 4. Bots rapides en dev (optionnel, cycle 1.x)  
 5. Merge PR cycle 1 quand prêt

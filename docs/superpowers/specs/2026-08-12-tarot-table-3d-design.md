@@ -270,4 +270,4 @@ Composants 2D `HandCards` / `TrickArea` / `CardFace` : **retirés de la table** 
 
 1. Cycle 3 — avatars  
 2. Polish gfx (envmap légère, felt detail) sans casser le budget  
-3. Plan d’implémentation détaillé : `docs/superpowers/plans/2026-08-12-tarot-table-3d.md` (à générer après validation de ce CDC)
+3. Plan d’implémentation détaillé : [`docs/superpowers/plans/2026-08-12-tarot-table-3d.md`](../plans/2026-08-12-tarot-table-3d.md) — **ready**
