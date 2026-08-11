@@ -214,6 +214,15 @@ class GameStore {
       return
     }
 
+    // No bot actions in lobby / dealing / terminal match.
+    if (
+      state.phase === 'Lobby'
+      || state.phase === 'Dealing'
+      || state.phase === 'MatchOver'
+    ) {
+      return
+    }
+
     // 5p: taker must call a king before discard/play (may not be currentSeat yet).
     if (
       state.playerCount === 5
@@ -232,6 +241,12 @@ class GameStore {
         if (!current?.state.bid || current.state.calledKing) {
           return
         }
+        if (
+          current.state.phase !== 'DogEcarta'
+          && current.state.phase !== 'ReadyToPlay'
+        ) {
+          return
+        }
         const seatInfo = current.state.seats[takerSeat]
         if (!seatInfo?.userId || seatInfo.controlledBy !== 'bot') {
           return
@@ -246,6 +261,15 @@ class GameStore {
       return
     }
 
+    if (
+      state.phase !== 'Bidding'
+      && state.phase !== 'DogEcarta'
+      && state.phase !== 'ReadyToPlay'
+      && state.phase !== 'Trick'
+    ) {
+      return
+    }
+
     const seat = state.currentSeat
     const seatInfo = state.seats[seat]
     if (!seatInfo?.userId || seatInfo.controlledBy !== 'bot') {
@@ -256,6 +280,17 @@ class GameStore {
       room.botTimer = null
       const current = this.rooms.get(code)
       if (!current) {
+        return
+      }
+
+      const phase = current.state.phase
+      if (
+        phase !== 'Bidding'
+        && phase !== 'DogEcarta'
+        && phase !== 'ReadyToPlay'
+        && phase !== 'Trick'
+        && phase !== 'Scoring'
+      ) {
         return
       }
 
