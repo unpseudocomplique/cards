@@ -57,7 +57,8 @@ export default defineNuxtConfig({
     },
     public: {
       siteUrl: process.env.NUXT_PUBLIC_SITE_URL || 'http://localhost:3003',
-      googleClientId: process.env.NUXT_OAUTH_GOOGLE_CLIENT_ID || ''
+      googleClientId: process.env.NUXT_OAUTH_GOOGLE_CLIENT_ID || '',
+      yjsWebsocketUrl: process.env.NUXT_PUBLIC_YJS_WEBSOCKET_URL || 'ws://localhost:1234'
     }
   },
   devServer: {
@@ -68,6 +69,9 @@ export default defineNuxtConfig({
   compatibilityDate: '2024-11-01',
 
   nitro: {
+    experimental: {
+      websocket: true
+    },
     serverAssets: [
       {
         baseName: 'fonts',

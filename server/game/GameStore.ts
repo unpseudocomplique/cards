@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { apply, chooseBotIntent, createEmptyGame, toPublicView } from '~~/shared/tarot'
+import { apply, chooseBotIntent, createEmptyGame } from '~~/shared/tarot'
 import type { Actor, ApplyResult, GameState, Intent } from '~~/shared/tarot'
 import type { PeerHandle, Room } from './types'
 
@@ -29,6 +29,11 @@ function findSeatByUserId(state: GameState, userId: string): number | null {
 
 class GameStore {
   private rooms = new Map<string, Room>()
+  private onStateChange?: (code: string, state: GameState) => void
+
+  setOnStateChange(callback: (code: string, state: GameState) => void): void {
+    this.onStateChange = callback
+  }
 
   resetForTests(): void {
     for (const room of this.rooms.values()) {
@@ -109,7 +114,7 @@ class GameStore {
     }
 
     room.state = result.state
-    this.notifyPeers(code)
+    this.afterStateUpdate(code, actor.userId)
     this.scheduleIfBotTurn(code)
     return result
   }
@@ -131,7 +136,7 @@ class GameStore {
       index === seat ? { ...current, connected: false } : current,
     )
     room.state = { ...room.state, seats, version: room.state.version + 1 }
-    this.notifyPeers(code)
+    this.afterStateUpdate(code)
 
     const timer = setTimeout(() => {
       room.disconnectTimers.delete(userId)
@@ -150,7 +155,7 @@ class GameStore {
           : current,
       )
       room.state = { ...room.state, seats: nextSeats, version: room.state.version + 1 }
-      this.notifyPeers(code)
+      this.afterStateUpdate(code)
       this.scheduleIfBotTurn(code)
     }, DISCONNECT_GRACE_MS)
 
@@ -178,7 +183,7 @@ class GameStore {
     )
     const state: GameState = { ...room.state, seats, version: room.state.version + 1 }
     room.state = state
-    this.notifyPeers(code)
+    this.afterStateUpdate(code)
     return { ok: true, state, events: [] }
   }
 
@@ -233,14 +238,25 @@ class GameStore {
     }
   }
 
-  private notifyPeers(code: string): void {
+  private afterStateUpdate(code: string, actorUserId?: string): void {
+    this.notifyPeers(code, actorUserId)
+    const room = this.rooms.get(code)
+    if (room && this.onStateChange) {
+      this.onStateChange(code, room.state)
+    }
+  }
+
+  private notifyPeers(code: string, excludeUserId?: string): void {
     const room = this.rooms.get(code)
     if (!room) {
       return
     }
 
-    const payload = { type: 'public' as const, public: toPublicView(room.state) }
-    for (const peer of room.peers.values()) {
+    const payload = { type: 'applied' as const, publicVersion: room.state.version }
+    for (const [userId, peer] of room.peers) {
+      if (excludeUserId && userId === excludeUserId) {
+        continue
+      }
       peer.send(payload)
     }
   }
