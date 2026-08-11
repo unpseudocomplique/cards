@@ -1,5 +1,7 @@
 import { z } from 'zod'
 import { gameStore } from '~~/server/game/GameStore'
+import { requireOwnedDeck } from '~~/server/utils/deckAccess'
+import { assertPlayableTarotDeck } from '~~/server/utils/playableDeck'
 
 const createGameSchema = z.object({
   playerCount: z.union([z.literal(3), z.literal(4), z.literal(5)]),
@@ -22,6 +24,9 @@ export default defineEventHandler(async (event) => {
       data: result.error.flatten(),
     })
   }
+
+  const deck = await requireOwnedDeck(result.data.deckId, session.user.id)
+  assertPlayableTarotDeck(deck)
 
   const config = useRuntimeConfig(event)
   const siteUrl = String(config.public.siteUrl).replace(/\/$/, '')
