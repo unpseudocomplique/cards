@@ -224,6 +224,92 @@ describe('publicView secrecy', () => {
   })
 })
 
+describe('match end', () => {
+  function lastTrickState(overrides: Partial<GameState> = {}): GameState {
+    const base = createEmptyGame({
+      hostUserId: HOST,
+      playerCount: 4,
+      endMode: 'threshold',
+      endValue: 1000,
+    })
+
+    return {
+      ...base,
+      phase: 'Trick',
+      version: 1,
+      dealerSeat: 0,
+      currentSeat: 3,
+      bid: { seat: 0, contract: 'garde_sans' },
+      bidState: null,
+      bidSpoken: [],
+      chien: [],
+      ecart: [],
+      pilesAttack: [c('trump-21'), c('excuse')],
+      pilesDefense: [c('hearts-k')],
+      dealIndex: 1,
+      rngCounter: 1,
+      scores: [2000, 0, 0, 0],
+      seats: base.seats.map((seat, index) => ({
+        ...seat,
+        userId: `user:${index}`,
+        name: `P${index}`,
+        connected: true,
+      })),
+      hands: [[], [], [], [c('hearts-2')]],
+      trick: [
+        { seat: 0, card: c('hearts-3') },
+        { seat: 1, card: c('hearts-4') },
+        { seat: 2, card: c('hearts-5') },
+      ],
+      ...overrides,
+    }
+  }
+
+  it('enters MatchOver when threshold is reached after scoring', () => {
+    const state = lastTrickState()
+    const result = apply(state, { type: 'playCard', card: c('hearts-2') }, actorForSeat(state, 3))
+    expect(result.ok).toBe(true)
+    if (!result.ok) {
+      return
+    }
+    expect(result.state.phase).toBe('MatchOver')
+    expect(result.events.some(event => event.type === 'matchOver')).toBe(true)
+  })
+
+  it('enters MatchOver when dealIndex reaches endValue in deals mode', () => {
+    const state = lastTrickState({
+      endMode: 'deals',
+      endValue: 1,
+      dealIndex: 1,
+      scores: [0, 0, 0, 0],
+    })
+    const result = apply(state, { type: 'playCard', card: c('hearts-2') }, actorForSeat(state, 3))
+    expect(result.ok).toBe(true)
+    if (!result.ok) {
+      return
+    }
+    expect(result.state.phase).toBe('MatchOver')
+    expect(result.events.some(event => event.type === 'matchOver')).toBe(true)
+  })
+
+  it('deals again when neither threshold nor deal limit is reached', () => {
+    const state = lastTrickState({
+      endMode: 'threshold',
+      endValue: 5000,
+      dealIndex: 1,
+      scores: [0, 0, 0, 0],
+    })
+    const result = apply(state, { type: 'playCard', card: c('hearts-2') }, actorForSeat(state, 3))
+    expect(result.ok).toBe(true)
+    if (!result.ok) {
+      return
+    }
+    expect(result.state.phase).toBe('Bidding')
+    expect(result.state.dealIndex).toBe(2)
+    expect(result.events.some(event => event.type === 'matchOver')).toBe(false)
+  })
+})
+
 describe('bidState wiring smoke', () => {
   it('can construct mid-state bidding from createBidState', () => {
     const bidState = createBidState(4, 2)
