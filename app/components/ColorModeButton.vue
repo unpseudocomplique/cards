@@ -25,7 +25,6 @@ const startViewTransition = (event: MouseEvent) => {
   })
 
   transition.ready.then(() => {
-    const duration = 600
     document.documentElement.animate(
       {
         clipPath: [
@@ -34,7 +33,7 @@ const startViewTransition = (event: MouseEvent) => {
         ]
       },
       {
-        duration: duration,
+        duration: 600,
         easing: 'cubic-bezier(.76,.32,.29,.99)',
         pseudoElement: '::view-transition-new(root)'
       }
@@ -46,16 +45,16 @@ const startViewTransition = (event: MouseEvent) => {
 <template>
   <ClientOnly>
     <UButton
-      :aria-label="`Switch to ${nextTheme} mode`"
-      :icon="`i-lucide-${nextTheme === 'dark' ? 'sun' : 'moon'}`"
+      :aria-label="nextTheme === 'dark' ? 'Passer en thème sombre' : 'Passer en thème clair'"
+      :icon="`i-lucide-${nextTheme === 'dark' ? 'moon' : 'sun'}`"
       color="neutral"
       variant="ghost"
       size="sm"
-      class="rounded-full"
+      class="rounded-full min-h-11 min-w-11"
       @click="startViewTransition"
     />
     <template #fallback>
-      <div class="size-4" />
+      <div class="size-8" />
     </template>
   </ClientOnly>
 </template>
@@ -68,7 +67,7 @@ const startViewTransition = (event: MouseEvent) => {
 }
 
 ::view-transition-new(root) {
-  z-index: 9999;
+  z-index: 50;
 }
 ::view-transition-old(root) {
   z-index: 1;

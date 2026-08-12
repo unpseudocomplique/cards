@@ -49,20 +49,23 @@ async function createDeck() {
 </script>
 
 <template>
-  <UPage>
-    <UPageHeader
-      title="Nouveau deck"
-      description="Choisissez le format du jeu, puis vous pourrez importer les photos et générer les cartes."
-      :ui="{
-        container: 'gap-4 py-6 sm:py-8'
-      }"
-    />
+  <div>
+    <header class="mb-8">
+      <p class="text-xs tracking-[0.2em] text-primary uppercase">
+        Atelier
+      </p>
+      <h1 class="mt-2 font-serif text-3xl tracking-tight text-highlighted sm:text-4xl">
+        Nouveau deck
+      </h1>
+      <p class="mt-2 max-w-[46ch] text-pretty text-muted">
+        Choisissez le format du jeu, puis importez les photos et générez les cartes.
+      </p>
+    </header>
 
-    <UPageSection :ui="{ container: 'max-w-3xl pt-0 pb-8' }">
-      <form
-        class="space-y-6"
-        @submit.prevent="createDeck"
-      >
+    <form
+      class="max-w-xl space-y-6"
+      @submit.prevent="createDeck"
+    >
         <UFormField
           label="Nom du deck"
           required
@@ -118,6 +121,5 @@ async function createDeck() {
           </UButton>
         </div>
       </form>
-    </UPageSection>
-  </UPage>
+  </div>
 </template>

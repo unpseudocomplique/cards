@@ -79,24 +79,12 @@ onMounted(() => {
 </script>
 
 <template>
-  <UPage>
-    <UPageSection :ui="{ container: 'max-w-md py-16 sm:py-24' }">
-      <div class="rounded-lg border border-default bg-default p-6 shadow-sm">
-        <div class="mb-6 text-center">
-          <UIcon
-            name="i-lucide-lock-keyhole"
-            class="mx-auto mb-3 size-8 text-primary"
-          />
-          <h1 class="text-2xl font-bold text-highlighted">
-            {{ resetComplete ? 'Mot de passe mis à jour' : 'Réinitialisation du mot de passe' }}
-          </h1>
-          <p class="mt-2 text-sm text-muted">
-            {{ resetComplete
-              ? 'Votre nouveau mot de passe est prêt.'
-              : 'Choisissez un nouveau mot de passe pour reprendre la main.' }}
-          </p>
-        </div>
-
+  <AuthPanel
+    :title="resetComplete ? 'Mot de passe mis à jour' : 'Réinitialisation du mot de passe'"
+    :description="resetComplete
+      ? 'Votre nouveau mot de passe est prêt.'
+      : 'Choisissez un nouveau mot de passe pour reprendre la main.'"
+  >
         <div
           v-if="validationState === 'checking'"
           class="space-y-4 text-center"
@@ -207,7 +195,5 @@ onMounted(() => {
             Enregistrer le nouveau mot de passe
           </UButton>
         </form>
-      </div>
-    </UPageSection>
-  </UPage>
+  </AuthPanel>
 </template>

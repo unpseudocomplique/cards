@@ -115,6 +115,11 @@ const canDiscard = computed(() =>
 
 const debugGfx = computed(() => String(route.query.debugGfx ?? '') === '1')
 
+const tableActive = computed(() => Boolean(publicState.value) && !isLobby.value)
+const { isPhonePortrait, tryLockLandscape } = usePlayOrientation(tableActive)
+
+const tableNeedsLandscape = computed(() => tableActive.value && isPhonePortrait.value)
+
 const showPlayHand = computed(() =>
   !!privateState.value?.hand?.length
   && !canDiscard.value
@@ -168,10 +173,15 @@ async function copyInviteLink() {
 </script>
 
 <template>
+  <PlayRotatePrompt
+    v-if="tableNeedsLandscape"
+    @retry="tryLockLandscape"
+  />
+
   <!-- Immersive table -->
   <div
-    v-if="publicState && !isLobby"
-    class="relative h-dvh w-full overflow-hidden bg-[#0a0f0c]"
+    v-else-if="publicState && !isLobby"
+    class="relative h-dvh w-full overflow-hidden overscroll-none bg-ink-950"
   >
     <PlayTresTableScene
       class="absolute inset-0"
@@ -358,17 +368,23 @@ async function copyInviteLink() {
   <!-- Lobby / loading -->
   <div
     v-else
-    class="mx-auto min-h-dvh max-w-3xl px-4 py-8 sm:px-6"
+    class="mx-auto min-h-dvh max-w-xl px-4 py-8 pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-6"
   >
-    <div class="mb-6">
-      <p class="text-sm tracking-[0.2em] text-emerald-200/50 uppercase">
+    <div class="mb-8">
+      <NuxtLink
+        to="/play"
+        class="text-sm text-gold-200/70 hover:text-gold-100"
+      >
+        Retour aux tables
+      </NuxtLink>
+      <p class="mt-4 text-xs tracking-[0.2em] text-gold-400/80 uppercase">
         Tarot
       </p>
-      <h1 class="mt-1 font-serif text-3xl text-amber-50">
+      <h1 class="mt-1 font-serif text-3xl text-gold-50">
         Partie {{ code }}
       </h1>
       <p class="mt-1 text-sm text-white/50">
-        {{ connected ? 'Connecté au serveur' : 'Connexion en cours…' }}
+        {{ connected ? 'Connecté au salon' : 'Connexion en cours…' }}
       </p>
     </div>
 

@@ -46,24 +46,12 @@ async function requestResetLink() {
 </script>
 
 <template>
-  <UPage>
-    <UPageSection :ui="{ container: 'max-w-md py-16 sm:py-24' }">
-      <div class="rounded-lg border border-default bg-default p-6 shadow-sm">
-        <div class="mb-6 text-center">
-          <UIcon
-            name="i-lucide-key-round"
-            class="mx-auto mb-3 size-8 text-primary"
-          />
-          <h1 class="text-2xl font-bold text-highlighted">
-            {{ submittedEmail ? 'Regardez votre boîte mail' : 'Mot de passe oublié ?' }}
-          </h1>
-          <p class="mt-2 text-sm text-muted">
-            {{ submittedEmail
-              ? 'Un lien de récupération a été préparé si le compte existe.'
-              : 'Entrez votre e-mail pour recevoir un lien de récupération, même si vous utilisez Google.' }}
-          </p>
-        </div>
-
+  <AuthPanel
+    :title="submittedEmail ? 'Regardez votre boîte mail' : 'Mot de passe oublié'"
+    :description="submittedEmail
+      ? 'Un lien de récupération a été préparé si le compte existe.'
+      : 'Entrez votre e-mail pour recevoir un lien, même si vous utilisez Google.'"
+  >
         <div
           v-if="submittedEmail"
           class="space-y-5"
@@ -134,7 +122,5 @@ async function requestResetLink() {
             Revenir à la connexion
           </NuxtLink>
         </div>
-      </div>
-    </UPageSection>
-  </UPage>
+  </AuthPanel>
 </template>

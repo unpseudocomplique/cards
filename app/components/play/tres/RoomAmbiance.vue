@@ -43,7 +43,7 @@ const candlePositions = computed(() => {
 
 const seats = computed(() => {
   // Outside table rim so full legs/feet read; feet sit on parquet (y≈-0.86)
-  const radius = 3.55
+  const radius = 3.22
   const out: Array<{
     seat: number
     position: [number, number, number]
@@ -60,7 +60,7 @@ const seats = computed(() => {
     out.push({
       seat,
       position: [
-        Math.cos(angle) * radius * 1.12,
+        Math.cos(angle) * radius * 1.06,
         -0.86,
         Math.sin(angle) * radius,
       ],

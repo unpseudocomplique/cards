@@ -110,35 +110,39 @@ async function deleteDeck() {
 </script>
 
 <template>
-  <UPage>
-    <UPageHeader
-      :title="data?.deck.title || 'Deck'"
-      :description="data?.deck.description || 'Ajoutez vos photos, assignez les personnes, puis créez les visuels.'"
-      :links="[
-        { label: 'Retour', icon: 'i-lucide-arrow-left', to: '/dashboard', color: 'neutral', variant: 'subtle' }
-      ]"
-      :ui="{
-        root: 'border-b border-default',
-        container: 'gap-4 py-6 sm:py-8',
-        links: 'flex-wrap'
-      }"
-    />
-
-    <UPageSection :ui="{ container: 'pt-0 pb-8' }">
-      <div
-        v-if="pending"
-        class="space-y-4"
+  <div>
+    <header class="mb-6 border-b border-default/70 pb-6">
+      <UButton
+        to="/dashboard"
+        color="neutral"
+        variant="ghost"
+        icon="i-lucide-arrow-left"
+        class="-ml-2"
       >
-        <USkeleton class="h-28 rounded-xl" />
-        <USkeleton class="h-64 rounded-xl" />
-      </div>
+        Retour
+      </UButton>
+      <h1 class="mt-3 font-serif text-3xl tracking-tight text-highlighted sm:text-4xl">
+        {{ data?.deck.title || 'Deck' }}
+      </h1>
+      <p class="mt-2 max-w-[46ch] text-pretty text-muted">
+        {{ data?.deck.description || 'Ajoutez vos photos, assignez les personnes, puis créez les visuels.' }}
+      </p>
+    </header>
 
-      <div
-        v-else-if="data"
-        class="space-y-6 sm:space-y-8"
-      >
+    <div
+      v-if="pending"
+      class="space-y-4"
+    >
+      <USkeleton class="h-28 rounded-2xl" />
+      <USkeleton class="h-64 rounded-2xl" />
+    </div>
+
+    <div
+      v-else-if="data"
+      class="space-y-6 sm:space-y-8"
+    >
         <div class="grid gap-3 sm:grid-cols-[1fr_14rem] md:grid-cols-[1fr_18rem]">
-          <div class="rounded-xl border border-default bg-default p-4">
+          <div class="rounded-2xl border border-default/80 bg-elevated/30 p-4">
             <div class="flex items-center justify-between gap-3">
               <div class="min-w-0">
                 <p class="text-sm text-muted">
@@ -162,7 +166,7 @@ async function deleteDeck() {
             />
           </div>
 
-          <div class="rounded-xl border border-default bg-default p-4">
+          <div class="rounded-2xl border border-default/80 bg-elevated/30 p-4">
             <p class="text-sm text-muted">
               Format
             </p>
@@ -242,6 +246,5 @@ async function deleteDeck() {
           @card-updated="handleCardUpdated"
         />
       </div>
-    </UPageSection>
-  </UPage>
+  </div>
 </template>

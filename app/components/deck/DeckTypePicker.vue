@@ -32,7 +32,9 @@ const options: Array<{ value: DeckType, label: string, description: string, card
       :key="option.value"
       type="button"
       class="rounded-xl border p-4 text-left transition hover:bg-muted/60"
-      :class="model === option.value ? 'border-primary bg-primary/10' : 'border-default bg-default'"
+      :class="model === option.value
+        ? 'border-primary bg-primary/10 ring-1 ring-primary/30'
+        : 'border-default bg-elevated/20'"
       @click="model = option.value"
     >
       <span class="flex items-start justify-between gap-3">

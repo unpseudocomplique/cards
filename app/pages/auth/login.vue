@@ -86,22 +86,10 @@ async function loginWithEmail() {
 </script>
 
 <template>
-  <UPage>
-    <UPageSection :ui="{ container: 'max-w-md py-16 sm:py-24' }">
-      <div class="rounded-lg border border-default bg-default p-6 shadow-sm">
-        <div class="mb-6 text-center">
-          <UIcon
-            name="i-lucide-sparkles"
-            class="mx-auto mb-3 size-8 text-primary"
-          />
-          <h1 class="text-2xl font-bold text-highlighted">
-            Connexion
-          </h1>
-          <p class="mt-2 text-sm text-muted">
-            Connectez-vous pour sauvegarder vos decks et importer vos photos.
-          </p>
-        </div>
-
+  <AuthPanel
+    title="Connexion"
+    description="Entrez pour retrouver vos decks et ouvrir une table."
+  >
         <UAlert
           v-if="oauthError"
           class="mb-4"
@@ -194,7 +182,5 @@ async function loginWithEmail() {
             Créer un compte
           </NuxtLink>
         </div>
-      </div>
-    </UPageSection>
-  </UPage>
+  </AuthPanel>
 </template>

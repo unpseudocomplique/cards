@@ -5,4 +5,6 @@ export default withNuxt({
   rules: {
     '@typescript-eslint/no-explicit-any': 'off'
   }
+}).append({
+  ignores: ['app/components/play/tres/salon-cast/generated/**']
 })

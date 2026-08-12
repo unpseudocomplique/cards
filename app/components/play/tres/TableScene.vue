@@ -461,11 +461,11 @@ const winnerName = computed(() => {
 const holdBanner = computed(() => trickSummaryLine.value)
 
 const cameraPosition = computed<[number, number, number]>(() =>
-  isMobile.value ? [0, 3.15, 6.2] : [0, 2.75, 5.85],
+  isMobile.value ? [0, 3.25, 6.35] : [0, 2.95, 6.05],
 )
 
 const cameraLookAt = computed<[number, number, number]>(() =>
-  isMobile.value ? [0, 0.7, -0.15] : [0, 0.8, -0.2],
+  isMobile.value ? [0, 0.85, -0.2] : [0, 0.95, -0.25],
 )
 
 const priorityCodes = computed(() => {
@@ -528,26 +528,31 @@ function onLoop({ delta }: { delta: number }) {
         />
 
         <!-- Dramatic salon key + cool rim (no EffectComposer) -->
-        <TresHemisphereLight :args="['#ffe8d0', '#3a2418', 0.55]" />
-        <TresAmbientLight :intensity="0.5" />
+        <TresHemisphereLight :args="['#ffe8d0', '#3a2418', 0.7]" />
+        <TresAmbientLight :intensity="0.62" />
         <TresDirectionalLight
           :position="[2.8, 5.5, 4.0]"
-          :intensity="1.35"
+          :intensity="1.45"
           :cast-shadow="!isMobile && settings.shadows"
           color="#ffe2b8"
         />
         <TresDirectionalLight
           v-if="!isMobile"
           :position="[-4.5, 3.2, -2.5]"
-          :intensity="0.55"
+          :intensity="0.7"
           color="#9aaccc"
         />
         <TresPointLight
           :position="[0, 2.4, 1.5]"
           color="#ffd7a8"
-          :intensity="1.0"
+          :intensity="1.15"
           :distance="14"
           :decay="2"
+        />
+        <TresDirectionalLight
+          :position="[0, 3.6, 4.2]"
+          :intensity="0.55"
+          color="#ffe8d0"
         />
 
         <PlayTresTableFelt

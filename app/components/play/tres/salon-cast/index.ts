@@ -23,7 +23,7 @@ export type SalonCastId =
   | 'olivier'
   | 'sofia'
 
-type Factory = (options?: SalonModelOptions) => Promise<Group>
+type Factory = (options?: SalonModelOptions) => Group
 
 /** All 10 cast factories (img2threejs-style seated guests). */
 export const SALON_CAST_FACTORIES: Record<SalonCastId, Factory> = {
@@ -39,10 +39,10 @@ export const SALON_CAST_FACTORIES: Record<SalonCastId, Factory> = {
   sofia: createSofiaModel,
 }
 
-export async function createSalonCastModel(
+export function createSalonCastModel(
   id: string,
-  options: SalonModelOptions = {},
-): Promise<Group> {
+  options: SalonModelOptions = {}
+): Group {
   const factory = SALON_CAST_FACTORIES[id as SalonCastId]
   if (!factory) {
     throw new Error(`No salon cast factory for id: ${id}`)

@@ -15,6 +15,20 @@ export type HairStyle =
 
 export type OutfitStyle = 'tuxedo' | 'velvet_jacket' | 'evening_dress' | 'dinner_jacket'
 
+export type FacialHair = 'none' | 'short_beard' | 'full_beard' | 'handlebar'
+
+export type GlassesStyle = 'none' | 'oval' | 'round'
+
+export type BowTieStyle = 'none' | 'black' | 'white' | 'burgundy' | 'gold_ornate'
+
+export type PinStyle = 'none' | 'sphere' | 'compass' | 'eye' | 'filigree'
+
+export type EarringStyle = 'none' | 'stud' | 'hoop'
+
+export type HairOrnament = 'none' | 'laurel'
+
+export type CollarStyle = 'shirt' | 'wing' | 'blouse' | 'vneck'
+
 export type SalonSculptSpec = {
   id: string
   displayName: string
@@ -33,11 +47,25 @@ export type SalonSculptSpec = {
   shoe: string
   hairStyle: HairStyle
   outfit: OutfitStyle
-  /** Soft gender/build cue for hip/shoulder bias */
   build: 'masculine' | 'feminine' | 'androgynous'
-  hasBeard?: boolean
-  /** Face crop in portrait UV space (skip ornate frames). */
-  faceCrop: { sx: number, sy: number, sw: number, sh: number }
+  eyeColor: string
+  lipColor: string
+  browColor: string
+  facialHair: FacialHair
+  glasses: GlassesStyle
+  bowTie: BowTieStyle
+  scarf: boolean
+  earrings: EarringStyle
+  hairOrnament: HairOrnament
+  pinStyle: PinStyle
+  collar: CollarStyle
+  /** Skull width vs height (1 = average). */
+  faceWidth: number
+  jawWidth: number
+  noseScale: number
+  eyeScale: number
+  /** 0 young, 1 elder — drives crease / silver mix. */
+  age: number
 }
 
 export type SalonModelOptions = {

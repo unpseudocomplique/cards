@@ -64,22 +64,10 @@ async function registerWithEmail() {
 </script>
 
 <template>
-  <UPage>
-    <UPageSection :ui="{ container: 'max-w-md py-16 sm:py-24' }">
-      <div class="rounded-lg border border-default bg-default p-6 shadow-sm">
-        <div class="mb-6 text-center">
-          <UIcon
-            name="i-lucide-user-plus"
-            class="mx-auto mb-3 size-8 text-primary"
-          />
-          <h1 class="text-2xl font-bold text-highlighted">
-            Créer un compte
-          </h1>
-          <p class="mt-2 text-sm text-muted">
-            Inscrivez-vous avec votre email pour sauvegarder vos decks.
-          </p>
-        </div>
-
+  <AuthPanel
+    title="Créer un compte"
+    description="Un compte pour garder vos decks et rejoindre une table."
+  >
         <form
           class="space-y-4"
           @submit.prevent="registerWithEmail"
@@ -155,7 +143,5 @@ async function registerWithEmail() {
             Se connecter
           </NuxtLink>
         </div>
-      </div>
-    </UPageSection>
-  </UPage>
+  </AuthPanel>
 </template>

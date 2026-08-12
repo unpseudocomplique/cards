@@ -1,5 +1,14 @@
-/** Base salon cast — AI portraits + img2threejs seated factories. */
+/** Base salon cast — Gemini full-body refs + img2threejs seated factories. */
 export type SalonAccessory = 'pin' | 'glasses' | 'scarf' | 'bow' | 'none'
+
+const FULL_BODY_FRAME = [
+  'Full-body 3D character reference for image-to-3D reconstruction.',
+  'The ENTIRE figure is visible from the crown of the hair to the soles of the shoes: head, torso, both arms, both hands, both legs, both shoes. No cropping, no close-up bust.',
+  'The person is seated in a carved wooden salon armchair, three-quarter view facing the camera, knees and feet clearly visible, hands resting on the thighs.',
+  'Luxury French tarot salon, warm candlelight, painterly illustration with readable volumes and a sharp silhouette.',
+  'Simple dark burgundy studio background, no ornate picture frame, no text, no watermark.',
+  'Vertical composition.'
+].join(' ')
 
 export type SalonCharacter = {
   id: string
@@ -10,10 +19,16 @@ export type SalonCharacter = {
   accessory: SalonAccessory
   /** Seed for procedural suit/skin/hair palette fallback */
   seed: number
-  /** Gemini portrait prompt (bust, salon evening wear, no text) */
+  /** Identity clause fed into the Gemini full-body prompt */
+  identity: string
+  /** Gemini full-body seated prompt (head-to-toe, no text) */
   portraitPrompt: string
   /** Public path once generated */
   portraitPath: string
+}
+
+function fullBodyPrompt(identity: string) {
+  return `${identity} ${FULL_BODY_FRAME}`
 }
 
 export const SALON_CHARACTERS: SalonCharacter[] = [
@@ -24,7 +39,8 @@ export const SALON_CHARACTERS: SalonCharacter[] = [
     accent: '#d4a84b',
     accessory: 'glasses',
     seed: 0,
-    portraitPrompt: 'Portrait bust of a refined French man in his 40s for a luxury tarot salon game, warm olive skin, short salt-and-pepper hair, thin gold glasses, black tuxedo and ivory shirt, soft candlelight, painterly illustration, three-quarter view facing camera, no text, no watermark, dark burgundy background',
+    identity: 'A refined French man in his 40s, warm olive skin, short salt-and-pepper hair, thin gold oval glasses, salt-and-pepper beard, black tuxedo, ivory shirt, black bow tie.',
+    portraitPrompt: fullBodyPrompt('A refined French man in his 40s, warm olive skin, short salt-and-pepper hair, thin gold oval glasses, salt-and-pepper beard, black tuxedo, ivory shirt, black bow tie.'),
     portraitPath: '/salon-cast/aurelien.png',
   },
   {
@@ -34,7 +50,8 @@ export const SALON_CHARACTERS: SalonCharacter[] = [
     accent: '#e0c06a',
     accessory: 'scarf',
     seed: 2,
-    portraitPrompt: 'Portrait bust of an elegant French woman in her 30s for a luxury card salon, light skin, dark wavy hair pinned up, black velvet jacket, gold silk scarf, subtle makeup, soft chandelier light, painterly illustration, three-quarter view facing camera, no text, no watermark, deep crimson background',
+    identity: 'An elegant French woman in her 30s, light skin, dark wavy hair in an updo with face-framing curls, black velvet jacket, gold silk scarf, gold hoop earrings.',
+    portraitPrompt: fullBodyPrompt('An elegant French woman in her 30s, light skin, dark wavy hair in an updo with face-framing curls, black velvet jacket, gold silk scarf, gold hoop earrings.'),
     portraitPath: '/salon-cast/camille.png',
   },
   {
@@ -44,7 +61,8 @@ export const SALON_CHARACTERS: SalonCharacter[] = [
     accent: '#c9a227',
     accessory: 'pin',
     seed: 1,
-    portraitPrompt: 'Portrait bust of a distinguished Middle Eastern man in his 50s for a luxury tarot salon, deep brown skin, trimmed beard, black dinner jacket, gold lapel pin, calm confident expression, soft warm lighting, painterly illustration, three-quarter view facing camera, no text, no watermark, dark wood panel background',
+    identity: 'A distinguished Middle Eastern man in his 50s, deep brown skin, short cropped hair, trimmed salt-and-pepper beard, black patterned dinner jacket, white shirt, black bow tie, gold compass-rose lapel pin with a red gem.',
+    portraitPrompt: fullBodyPrompt('A distinguished Middle Eastern man in his 50s, deep brown skin, short cropped hair, trimmed salt-and-pepper beard, black patterned dinner jacket, white shirt, black bow tie, gold compass-rose lapel pin with a red gem.'),
     portraitPath: '/salon-cast/hassan.png',
   },
   {
@@ -54,7 +72,8 @@ export const SALON_CHARACTERS: SalonCharacter[] = [
     accent: '#d4a84b',
     accessory: 'bow',
     seed: 4,
-    portraitPrompt: 'Portrait bust of a young Mediterranean woman for a luxury card salon, olive skin, black bob haircut, black tuxedo shirt with gold bow tie, sharp cheekbones, soft candlelight, painterly illustration, three-quarter view facing camera, no text, no watermark, burgundy velvet background',
+    identity: 'A young Mediterranean woman, olive skin, jet-black chin-length bob, black tuxedo shirt, large ornate gold metallic bow tie, sharp cheekbones.',
+    portraitPrompt: fullBodyPrompt('A young Mediterranean woman, olive skin, jet-black chin-length bob, black tuxedo shirt, large ornate gold metallic bow tie, sharp cheekbones.'),
     portraitPath: '/salon-cast/ines.png',
   },
   {
@@ -64,7 +83,8 @@ export const SALON_CHARACTERS: SalonCharacter[] = [
     accent: '#b08d3e',
     accessory: 'pin',
     seed: 3,
-    portraitPrompt: 'Portrait bust of a charismatic French man in his 30s for a luxury tarot salon, fair skin, chestnut hair slicked back, black suit, white shirt, gold pin, slight smirk, warm dramatic lighting, painterly illustration, three-quarter view facing camera, no text, no watermark, dark salon background',
+    identity: 'A charismatic French man in his 30s, fair skin, chestnut hair slicked back, prominent handlebar mustache, charcoal three-piece suit, white shirt, dark necktie, gold eye-of-providence lapel pin.',
+    portraitPrompt: fullBodyPrompt('A charismatic French man in his 30s, fair skin, chestnut hair slicked back, prominent handlebar mustache, charcoal three-piece suit, white shirt, dark necktie, gold eye-of-providence lapel pin.'),
     portraitPath: '/salon-cast/julien.png',
   },
   {
@@ -74,7 +94,8 @@ export const SALON_CHARACTERS: SalonCharacter[] = [
     accent: '#e8c070',
     accessory: 'glasses',
     seed: 6,
-    portraitPrompt: 'Portrait bust of a stylish Black French woman in her 30s for a luxury card salon, deep brown skin, short natural hair with gold clip, black blazer, cream blouse, thin gold glasses, poised expression, soft chandelier glow, painterly illustration, three-quarter view facing camera, no text, no watermark, dark crimson background',
+    identity: 'A stylish Black French woman in her 30s, deep brown skin, short natural curls with a gold laurel hair clip, round gold glasses, black blazer, cream silk blouse, gold hoop earrings.',
+    portraitPrompt: fullBodyPrompt('A stylish Black French woman in her 30s, deep brown skin, short natural curls with a gold laurel hair clip, round gold glasses, black blazer, cream silk blouse, gold hoop earrings.'),
     portraitPath: '/salon-cast/lea.png',
   },
   {
@@ -84,7 +105,8 @@ export const SALON_CHARACTERS: SalonCharacter[] = [
     accent: '#c4a35a',
     accessory: 'bow',
     seed: 5,
-    portraitPrompt: 'Portrait bust of an Italian man in his 45s for a luxury tarot salon, tanned skin, thick dark hair, black tuxedo, burgundy bow tie, warm smile lines, candlelit ambience, painterly illustration, three-quarter view facing camera, no text, no watermark, wood and velvet background',
+    identity: 'An Italian man in his 45s, tanned skin, thick dark wavy hair, salt-and-pepper beard, black tuxedo, white shirt, burgundy bow tie, warm smile.',
+    portraitPrompt: fullBodyPrompt('An Italian man in his 45s, tanned skin, thick dark wavy hair, salt-and-pepper beard, black tuxedo, white shirt, burgundy bow tie, warm smile.'),
     portraitPath: '/salon-cast/marco.png',
   },
   {
@@ -94,7 +116,8 @@ export const SALON_CHARACTERS: SalonCharacter[] = [
     accent: '#d0b060',
     accessory: 'scarf',
     seed: 7,
-    portraitPrompt: 'Portrait bust of a graceful older French woman for a luxury card salon, warm brown skin, silver-streaked hair in a bun, black evening dress with gold scarf, kind intelligent eyes, soft warm light, painterly illustration, three-quarter view facing camera, no text, no watermark, deep burgundy background',
+    identity: 'A graceful older French woman, warm brown skin, silver wavy hair in a low bun, black evening dress, gold-embroidered shawl, gold stud earrings and a small gold necklace.',
+    portraitPrompt: fullBodyPrompt('A graceful older French woman, warm brown skin, silver wavy hair in a low bun, black evening dress, gold-embroidered shawl, gold stud earrings and a small gold necklace.'),
     portraitPath: '/salon-cast/nadege.png',
   },
   {
@@ -104,7 +127,8 @@ export const SALON_CHARACTERS: SalonCharacter[] = [
     accent: '#b8974a',
     accessory: 'glasses',
     seed: 0,
-    portraitPrompt: 'Portrait bust of an older French gentleman for a luxury tarot salon, pale skin, white hair, round gold glasses, classic black tuxedo, ivory bow tie, serene expression, soft candlelight, painterly illustration, three-quarter view facing camera, no text, no watermark, dark wood background',
+    identity: 'An older French gentleman in his 70s, pale skin, short white hair swept back, round gold glasses, classic black tuxedo, ivory wing collar, white bow tie.',
+    portraitPrompt: fullBodyPrompt('An older French gentleman in his 70s, pale skin, short white hair swept back, round gold glasses, classic black tuxedo, ivory wing collar, white bow tie.'),
     portraitPath: '/salon-cast/olivier.png',
   },
   {
@@ -114,7 +138,8 @@ export const SALON_CHARACTERS: SalonCharacter[] = [
     accent: '#e0c06a',
     accessory: 'pin',
     seed: 2,
-    portraitPrompt: 'Portrait bust of a glamorous South American woman in her 30s for a luxury card salon, golden-brown skin, long dark hair with waves, black satin jacket, gold jewelry pin, confident gaze, dramatic warm lighting, painterly illustration, three-quarter view facing camera, no text, no watermark, crimson velvet background',
+    identity: 'A glamorous South American woman in her 30s, golden-brown skin, long dark wavy hair over one shoulder, black satin jacket, gold filigree brooch, gold stud earrings.',
+    portraitPrompt: fullBodyPrompt('A glamorous South American woman in her 30s, golden-brown skin, long dark wavy hair over one shoulder, black satin jacket, gold filigree brooch, gold stud earrings.'),
     portraitPath: '/salon-cast/sofia.png',
   },
 ]

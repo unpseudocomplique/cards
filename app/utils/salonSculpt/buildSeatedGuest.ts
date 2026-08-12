@@ -1,159 +1,213 @@
 import * as THREE from 'three'
-import type { HairStyle, SalonModelOptions, SalonSculptSpec } from './types'
-import { loadLikenessAlbedo } from './likenessTexture'
+import { buildHead, type Mats } from './buildHead'
+import { SculptKit } from './kit'
+import type { SalonModelOptions, SalonSculptSpec } from './types'
 
-function mat(color: string, extras: THREE.MeshStandardMaterialParameters = {}) {
-  return new THREE.MeshStandardMaterial({
-    color,
-    roughness: 0.55,
-    metalness: 0.05,
-    ...extras,
-  })
-}
-
-function mesh(
-  geo: THREE.BufferGeometry,
-  material: THREE.Material,
-  position: [number, number, number],
-  shadows: boolean,
-  rotation?: [number, number, number],
-  scale?: [number, number, number],
-) {
-  const m = new THREE.Mesh(geo, material)
-  m.position.set(...position)
-  if (rotation) {
-    m.rotation.set(...rotation)
-  }
-  if (scale) {
-    m.scale.set(...scale)
-  }
-  m.castShadow = shadows
-  m.receiveShadow = shadows
-  return m
-}
-
-function addHair(
-  head: THREE.Group,
-  style: HairStyle,
-  hairMat: THREE.Material,
-  shadows: boolean,
-  headScale: number,
-) {
-  const s = headScale
-  const scalp = mesh(
-    new THREE.SphereGeometry(0.24 * s, 18, 14),
-    hairMat,
-    [0, 0.12 * s, -0.02 * s],
-    shadows,
-    undefined,
-    [1.08, 0.72, 1.1],
-  )
-  head.add(scalp)
-
-  const lock = (pos: [number, number, number], sc: [number, number, number], rot?: [number, number, number]) => {
-    head.add(mesh(new THREE.SphereGeometry(0.12 * s, 12, 10), hairMat, pos, shadows, rot, sc))
-  }
-
-  switch (style) {
-    case 'bob':
-      lock([-0.16 * s, 0.02 * s, 0.08 * s], [0.9, 1.1, 0.7])
-      lock([0.16 * s, 0.02 * s, 0.08 * s], [0.9, 1.1, 0.7])
-      lock([0, -0.02 * s, -0.14 * s], [1.25, 1.15, 0.85])
-      lock([-0.1 * s, 0.08 * s, 0.16 * s], [0.7, 0.55, 0.45], [0.2, 0, 0])
-      break
-    case 'updo':
-      lock([0, 0.22 * s, -0.04 * s], [1.15, 1.0, 1.0])
-      lock([-0.12 * s, 0.1 * s, 0.12 * s], [0.65, 0.7, 0.55])
-      lock([0.14 * s, 0.08 * s, 0.1 * s], [0.55, 0.65, 0.5])
-      break
-    case 'bun_silver':
-      lock([0, 0.26 * s, -0.06 * s], [0.85, 0.75, 0.85])
-      lock([0, 0.14 * s, -0.12 * s], [1.1, 0.7, 0.9])
-      lock([-0.08 * s, 0.05 * s, 0.14 * s], [0.45, 0.4, 0.35])
-      break
-    case 'long_waves':
-      lock([-0.2 * s, -0.05 * s, 0.02 * s], [0.7, 1.6, 0.65])
-      lock([0.2 * s, -0.05 * s, 0.02 * s], [0.7, 1.6, 0.65])
-      lock([-0.12 * s, -0.18 * s, -0.05 * s], [0.55, 1.4, 0.5])
-      lock([0.12 * s, -0.18 * s, -0.05 * s], [0.55, 1.4, 0.5])
-      lock([0, 0.18 * s, 0.1 * s], [1.1, 0.55, 0.7])
-      break
-    case 'natural_short':
-      lock([0, 0.1 * s, 0], [1.2, 0.85, 1.15])
-      lock([-0.1 * s, 0.06 * s, 0.1 * s], [0.55, 0.5, 0.5])
-      lock([0.1 * s, 0.06 * s, 0.1 * s], [0.55, 0.5, 0.5])
-      break
-    case 'thick_dark':
-      lock([0, 0.14 * s, -0.02 * s], [1.25, 0.9, 1.2])
-      lock([-0.14 * s, 0.04 * s, 0.08 * s], [0.7, 0.85, 0.6])
-      lock([0.14 * s, 0.04 * s, 0.08 * s], [0.7, 0.85, 0.6])
-      lock([0, 0.02 * s, -0.16 * s], [1.1, 0.9, 0.7])
-      break
-    case 'white_short':
-      lock([0, 0.1 * s, -0.02 * s], [1.15, 0.7, 1.1])
-      lock([0, 0.05 * s, -0.14 * s], [1.0, 0.65, 0.7])
-      break
-    case 'salt_pepper':
-      lock([0, 0.1 * s, -0.02 * s], [1.12, 0.68, 1.08])
-      lock([-0.08 * s, 0.02 * s, 0.12 * s], [0.45, 0.4, 0.35])
-      lock([0.08 * s, 0.02 * s, 0.12 * s], [0.45, 0.4, 0.35])
-      break
-    case 'cropped_beard':
-      lock([0, 0.08 * s, -0.02 * s], [1.1, 0.65, 1.05])
-      break
-    case 'short_slick':
-    default:
-      lock([0, 0.1 * s, -0.04 * s], [1.15, 0.65, 1.12])
-      lock([0, 0.02 * s, -0.14 * s], [1.0, 0.7, 0.65])
-      break
-  }
-}
-
-function addAccessory(
+function addHand(
+  kit: SculptKit,
   root: THREE.Group,
   spec: SalonSculptSpec,
-  accentMat: THREE.Material,
-  headY: number,
-  shadows: boolean,
+  skin: THREE.Material,
+  sign: number,
+  wrist: [number, number, number],
+  shadows: boolean
 ) {
-  const a = spec.accessory
-  if (a === 'glasses') {
-    const g = new THREE.Group()
-    g.position.set(0, headY + 0.02, 0.22 * spec.headScale)
-    const rim = mat(spec.accent, { metalness: 0.9, roughness: 0.28 })
-    g.add(mesh(new THREE.TorusGeometry(0.06 * spec.headScale, 0.01, 8, 16), rim, [-0.08 * spec.headScale, 0, 0], false))
-    g.add(mesh(new THREE.TorusGeometry(0.06 * spec.headScale, 0.01, 8, 16), rim, [0.08 * spec.headScale, 0, 0], false))
-    g.add(mesh(new THREE.BoxGeometry(0.05 * spec.headScale, 0.012, 0.012), rim, [0, 0, 0], false))
-    root.add(g)
-  }
-  if (a === 'bow') {
-    root.add(mesh(new THREE.BoxGeometry(0.22, 0.08, 0.04), accentMat, [0, 1.42, 0.24], shadows))
-    root.add(mesh(new THREE.BoxGeometry(0.1, 0.07, 0.03), accentMat, [-0.1, 1.42, 0.25], shadows, [0, 0, 0.35]))
-    root.add(mesh(new THREE.BoxGeometry(0.1, 0.07, 0.03), accentMat, [0.1, 1.42, 0.25], shadows, [0, 0, -0.35]))
-  }
-  if (a === 'scarf') {
-    root.add(mesh(new THREE.TorusGeometry(0.16, 0.045, 10, 24), accentMat, [0, 1.4, 0.08], shadows, [0.9, 0, 0]))
-    root.add(mesh(new THREE.BoxGeometry(0.12, 0.35, 0.05), accentMat, [0.12, 1.2, 0.18], shadows, [0.2, 0, 0.15]))
-  }
-  if (a === 'pin') {
-    root.add(mesh(
-      new THREE.SphereGeometry(0.04, 12, 12),
-      mat(spec.accent, { metalness: 0.95, roughness: 0.22, emissive: spec.accent, emissiveIntensity: 0.25 }),
-      [0.2, 1.22, 0.22],
+  const g = new THREE.Group()
+  g.position.set(...wrist)
+  g.rotation.set(0.25, 0, sign * 0.12)
+  g.add(kit.mesh(
+    new THREE.SphereGeometry(0.055, 10, 8),
+    skin,
+    [0, 0, 0],
+    shadows,
+    undefined,
+    [1.1, 0.7, 1.3]
+  ))
+  for (let i = 0; i < 4; i++) {
+    const fx = (i - 1.5) * 0.028
+    g.add(kit.mesh(
+      new THREE.CylinderGeometry(0.01, 0.012, 0.09, 6),
+      skin,
+      [fx, 0.0, 0.07],
       shadows,
+      [1.15, 0, 0]
+    ))
+  }
+  g.add(kit.mesh(
+    new THREE.CylinderGeometry(0.011, 0.013, 0.06, 6),
+    skin,
+    [sign * -0.04, 0.01, 0.03],
+    shadows,
+    [0.8, sign * 0.8, 0.4]
+  ))
+  root.add(g)
+}
+
+function addBowTie(
+  kit: SculptKit,
+  root: THREE.Group,
+  spec: SalonSculptSpec,
+  gold: THREE.Material,
+  shadows: boolean
+) {
+  if (spec.bowTie === 'none') {
+    return
+  }
+  const color = spec.bowTie === 'white'
+    ? '#f4efe6'
+    : spec.bowTie === 'burgundy'
+      ? '#6b2438'
+      : spec.bowTie === 'gold_ornate'
+        ? spec.accent
+        : '#121014'
+  const mat = spec.bowTie === 'gold_ornate'
+    ? gold
+    : kit.mat(color, { roughness: spec.bowTie === 'white' ? 0.45 : 0.4, metalness: spec.bowTie === 'gold_ornate' ? 0.85 : 0.08 })
+  const y = 1.42
+  const z = 0.26
+  root.add(kit.mesh(new THREE.BoxGeometry(0.06, 0.05, 0.04), mat, [0, y, z], shadows))
+  root.add(kit.mesh(
+    new THREE.SphereGeometry(0.07, 10, 8),
+    mat,
+    [-0.08, y, z],
+    shadows,
+    [0, 0, 0.35],
+    [1.4, 0.7, 0.35]
+  ))
+  root.add(kit.mesh(
+    new THREE.SphereGeometry(0.07, 10, 8),
+    mat,
+    [0.08, y, z],
+    shadows,
+    [0, 0, -0.35],
+    [1.4, 0.7, 0.35]
+  ))
+}
+
+function addScarf(
+  kit: SculptKit,
+  root: THREE.Group,
+  spec: SalonSculptSpec,
+  gold: THREE.Material,
+  shadows: boolean
+) {
+  if (!spec.scarf) {
+    return
+  }
+  const silk = kit.mat(spec.accent, { roughness: 0.28, metalness: 0.35 })
+  root.add(kit.mesh(
+    new THREE.TorusGeometry(0.15, 0.04, 10, 24),
+    silk,
+    [0, 1.4, 0.06],
+    shadows,
+    [1.05, 0, 0]
+  ))
+  root.add(kit.mesh(
+    kit.tube([[0.08, 1.38, 0.16], [0.12, 1.18, 0.2], [0.1, 0.95, 0.18]], 0.028, 8, 6),
+    silk,
+    [0, 0, 0],
+    shadows
+  ))
+  if (spec.id === 'nadege') {
+    root.add(kit.mesh(
+      new THREE.TorusGeometry(0.2, 0.012, 8, 24),
+      gold,
+      [0, 1.38, 0.08],
+      false,
+      [1.0, 0, 0]
     ))
   }
 }
 
-/**
- * Shared seated guest builder — anatomy in head-units, likeness on head mesh
- * (no floating face disc). Each cast factory passes a unique SalonSculptSpec.
- */
-export async function buildSalonSeatedGuest(
+function addPin(
+  kit: SculptKit,
+  root: THREE.Group,
   spec: SalonSculptSpec,
-  options: SalonModelOptions = {},
-): Promise<THREE.Group> {
+  gold: THREE.Material,
+  shadows: boolean
+) {
+  if (spec.pinStyle === 'none') {
+    return
+  }
+  const p: [number, number, number] = [0.2, 1.22, 0.22]
+  if (spec.pinStyle === 'compass') {
+    const g = new THREE.Group()
+    g.position.set(...p)
+    g.add(kit.mesh(new THREE.CircleGeometry(0.045, 8), gold, [0, 0, 0], shadows))
+    g.add(kit.mesh(
+      new THREE.SphereGeometry(0.016, 10, 8),
+      kit.mat('#8a1828', { roughness: 0.25, metalness: 0.4, emissive: '#4a0810', emissiveIntensity: 0.25 }),
+      [0, 0, 0.012],
+      false
+    ))
+    root.add(g)
+    return
+  }
+  if (spec.pinStyle === 'eye') {
+    const g = new THREE.Group()
+    g.position.set(...p)
+    g.add(kit.mesh(new THREE.CircleGeometry(0.04, 12), gold, [0, 0, 0], shadows))
+    g.add(kit.mesh(
+      new THREE.SphereGeometry(0.014, 10, 8),
+      kit.mat('#1a100c', { roughness: 0.4, metalness: 0.1 }),
+      [0, 0, 0.01],
+      false
+    ))
+    root.add(g)
+    return
+  }
+  if (spec.pinStyle === 'filigree') {
+    root.add(kit.mesh(new THREE.TorusGeometry(0.035, 0.008, 8, 16), gold, p, shadows))
+    root.add(kit.mesh(new THREE.SphereGeometry(0.016, 10, 8), gold, [p[0], p[1], p[2] + 0.01], shadows))
+    return
+  }
+  root.add(kit.mesh(
+    new THREE.SphereGeometry(0.035, 12, 12),
+    kit.mat(spec.accent, { metalness: 0.95, roughness: 0.22, emissive: spec.accent, emissiveIntensity: 0.2 }),
+    p,
+    shadows
+  ))
+}
+
+function addChair(kit: SculptKit, root: THREE.Group, spec: SalonSculptSpec, shadows: boolean) {
+  const wood = kit.mat('#5a3220', { roughness: 0.58, metalness: 0.06 })
+  const woodDark = kit.mat('#3a2014', { roughness: 0.55, metalness: 0.05 })
+  const velvet = kit.mat('#4a1824', { roughness: 0.72, metalness: 0.04 })
+  const gold = kit.mat(spec.accent, { roughness: 0.28, metalness: 0.9 })
+  const chair = new THREE.Group()
+  chair.name = 'chair'
+  chair.add(kit.mesh(new THREE.BoxGeometry(0.92, 0.1, 0.82), wood, [0, 0.46, 0.04], shadows))
+  chair.add(kit.mesh(
+    new THREE.BoxGeometry(0.84, 0.08, 0.74),
+    velvet,
+    [0, 0.54, 0.06],
+    shadows
+  ))
+  chair.add(kit.mesh(new THREE.BoxGeometry(0.9, 1.28, 0.1), wood, [0, 1.18, -0.38], shadows))
+  chair.add(kit.mesh(
+    new THREE.BoxGeometry(0.78, 0.9, 0.06),
+    velvet,
+    [0, 1.2, -0.32],
+    shadows
+  ))
+  chair.add(kit.mesh(new THREE.BoxGeometry(0.96, 0.07, 0.12), gold, [0, 1.84, -0.38], false))
+  for (const [x, z] of [[-0.36, 0.3], [0.36, 0.3], [-0.36, -0.26], [0.36, -0.26]] as const) {
+    chair.add(kit.mesh(new THREE.CylinderGeometry(0.045, 0.055, 0.46, 10), woodDark, [x, 0.22, z], shadows))
+    chair.add(kit.mesh(new THREE.TorusGeometry(0.05, 0.012, 8, 12), gold, [x, 0.4, z], false, [Math.PI / 2, 0, 0]))
+  }
+  root.add(chair)
+}
+
+/**
+ * Procedural seated salon guest — sculpted head, lock hair, layered clothes.
+ * Identity is geometry + PBR, not a portrait pasted on a mannequin.
+ */
+export function buildSalonSeatedGuest(
+  spec: SalonSculptSpec,
+  options: SalonModelOptions = {}
+): THREE.Group {
   const shadows = options.shadows ?? false
+  const kit = new SculptKit()
   const root = new THREE.Group()
   root.name = `salon-${spec.id}`
 
@@ -162,191 +216,205 @@ export async function buildSalonSeatedGuest(
   const td = spec.torsoDepth
   const hw = spec.hipWidth
   const feminine = spec.build === 'feminine'
+  const velvet = spec.outfit === 'velvet_jacket' || spec.outfit === 'dinner_jacket'
 
-  const skinMat = mat(spec.skin, { roughness: 0.62, metalness: 0 })
-  const hairMat = mat(spec.hair, { roughness: 0.82, metalness: 0 })
-  const suitMat = mat(spec.suit, { roughness: 0.48, metalness: 0.08 })
-  const shirtMat = mat(spec.shirt, { roughness: 0.55, metalness: 0 })
-  const shoeMat = mat(spec.shoe, { roughness: 0.4, metalness: 0.15 })
-  const accentMat = mat(spec.accent, { roughness: 0.3, metalness: 0.85 })
-  const woodMat = mat('#6a3a24', { roughness: 0.65, metalness: 0.04 })
-  const woodDark = mat('#4a2818', { roughness: 0.55, metalness: 0.05 })
-
-  // Chair
-  const chair = new THREE.Group()
-  chair.name = 'chair'
-  chair.add(mesh(new THREE.BoxGeometry(0.95, 0.12, 0.85), woodMat, [0, 0.48, 0.05], shadows))
-  chair.add(mesh(new THREE.BoxGeometry(0.95, 1.35, 0.12), mat('#7a4528', { roughness: 0.45, metalness: 0.06 }), [0, 1.15, -0.38], shadows))
-  chair.add(mesh(new THREE.BoxGeometry(1.0, 0.08, 0.14), accentMat, [0, 1.82, -0.38], false))
-  for (const [x, , z] of [
-    [-0.38, 0, 0.32],
-    [0.38, 0, 0.32],
-    [-0.38, 0, -0.28],
-    [0.38, 0, -0.28],
-  ] as const) {
-    chair.add(mesh(new THREE.CylinderGeometry(0.055, 0.065, 0.44, 8), woodDark, [x, 0.22, z], shadows))
+  const skin = kit.mat(spec.skin, { roughness: 0.58, metalness: 0 })
+  const hair = kit.mat(spec.hair, { roughness: 0.62, metalness: 0.04 })
+  const beard = kit.mat(spec.hair, { roughness: 0.7, metalness: 0.02 })
+  const suit = kit.mat(spec.suit, {
+    roughness: velvet ? 0.72 : 0.42,
+    metalness: velvet ? 0.04 : 0.1
+  })
+  const shirt = kit.mat(spec.shirt, { roughness: spec.collar === 'blouse' ? 0.38 : 0.55, metalness: 0 })
+  const shoe = kit.mat(spec.shoe, { roughness: 0.38, metalness: 0.18 })
+  const gold = kit.mat(spec.accent, { roughness: 0.26, metalness: 0.92 })
+  const mats: Mats = {
+    skin,
+    hair,
+    beard,
+    eyeWhite: kit.mat('#f4f0ea', { roughness: 0.22, metalness: 0 }),
+    iris: kit.mat(spec.eyeColor, { roughness: 0.28, metalness: 0.05, side: THREE.DoubleSide }),
+    pupil: kit.mat('#0a0806', { roughness: 0.35, metalness: 0, side: THREE.DoubleSide }),
+    catchlight: kit.mat('#fff6e8', { roughness: 0.15, metalness: 0, emissive: '#fff6e8', emissiveIntensity: 0.85 }),
+    lip: kit.mat(spec.lipColor, { roughness: 0.42, metalness: 0.04 }),
+    brow: kit.mat(spec.browColor, { roughness: 0.7, metalness: 0 }),
+    gold,
+    glass: kit.mat('#c8d8e8', { roughness: 0.08, metalness: 0.15, transparent: true, opacity: 0.22, side: THREE.DoubleSide })
   }
-  root.add(chair)
 
-  // Lower body (seated)
-  const hips = mesh(
-    new THREE.BoxGeometry(0.55 * hw, 0.22, 0.42 * td),
-    suitMat,
-    [0, 0.58, 0.08],
+  addChair(kit, root, spec, shadows)
+
+  // img2threejs character tree, seated 8-head compression (crown ~1.45)
+  const hip: [number, number, number] = [0, 0.54, 0.06]
+  const chestY = 0.96
+  const shoulderY = 1.14
+  const headY = 1.34
+
+  const hips = kit.mesh(
+    new THREE.SphereGeometry(0.16, 14, 12),
+    suit,
+    hip,
     shadows,
+    undefined,
+    [1.25 * hw, 0.85, 1.1 * td]
   )
   root.add(hips)
 
-  for (const sign of [-1, 1]) {
-    root.add(mesh(
-      new THREE.CylinderGeometry(0.1, 0.11, 0.42, 10),
-      suitMat,
-      [sign * 0.16 * hw, 0.38, 0.28],
-      shadows,
-      [1.15, 0, sign * 0.08],
-    ))
-    root.add(mesh(
-      new THREE.CylinderGeometry(0.085, 0.09, 0.38, 10),
-      suitMat,
-      [sign * 0.2 * hw, 0.22, 0.58],
-      shadows,
-      [1.35, 0, 0],
-    ))
-    root.add(mesh(
-      new THREE.BoxGeometry(0.16, 0.08, 0.28),
-      shoeMat,
-      [sign * 0.2 * hw, 0.08, 0.82],
-      shadows,
+  if (spec.outfit === 'evening_dress') {
+    root.add(kit.mesh(
+      new THREE.CylinderGeometry(0.22 * hw, 0.42 * hw, 0.62, 16),
+      suit,
+      [0, 0.42, 0.08],
+      shadows
     ))
   }
 
-  // Torso
-  const torsoH = feminine ? 0.62 : 0.68
-  const torso = mesh(
-    new THREE.BoxGeometry(0.48 * sw, torsoH, 0.28 * td),
-    suitMat,
-    [0, 0.95, 0.02],
-    shadows,
+  for (const sign of [-1, 1]) {
+    root.add(kit.mesh(
+      new THREE.CylinderGeometry(0.09, 0.11, 0.46, 10),
+      suit,
+      [sign * 0.15 * hw, 0.42, 0.28],
+      shadows,
+      [1.12, 0, sign * 0.06]
+    ))
+    root.add(kit.mesh(
+      new THREE.SphereGeometry(0.09, 10, 8),
+      suit,
+      [sign * 0.18 * hw, 0.28, 0.52],
+      shadows
+    ))
+    root.add(kit.mesh(
+      new THREE.CylinderGeometry(0.075, 0.085, 0.4, 10),
+      suit,
+      [sign * 0.19 * hw, 0.18, 0.68],
+      shadows,
+      [1.25, 0, 0]
+    ))
+    root.add(kit.mesh(
+      new THREE.BoxGeometry(0.14, 0.07, 0.26),
+      shoe,
+      [sign * 0.19 * hw, 0.06, 0.88],
+      shadows
+    ))
+    root.add(kit.mesh(
+      new THREE.SphereGeometry(0.04, 8, 6),
+      shoe,
+      [sign * 0.19 * hw, 0.05, 1.0],
+      shadows,
+      undefined,
+      [1.2, 0.7, 1.1]
+    ))
+  }
+
+  // Torso — tapered cylinder, not a box
+  const torsoH = feminine ? 0.58 : 0.64
+  const torso = kit.mesh(
+    new THREE.CylinderGeometry(0.2 * sw, 0.24 * sw, torsoH, 14),
+    suit,
+    [0, 0.98, 0.02],
+    shadows
   )
   root.add(torso)
-
-  if (spec.outfit === 'evening_dress') {
-    root.add(mesh(
-      new THREE.CylinderGeometry(0.28 * hw, 0.38 * hw, 0.55, 14),
-      suitMat,
-      [0, 0.55, 0.05],
-      shadows,
-    ))
-  }
-
-  // Shirt / lapels
-  root.add(mesh(new THREE.BoxGeometry(0.16, 0.42, 0.06), shirtMat, [0, 1.05, 0.16], shadows))
-  if (spec.outfit !== 'evening_dress') {
-    root.add(mesh(new THREE.BoxGeometry(0.12, 0.38, 0.04), suitMat, [-0.14 * sw, 1.08, 0.15], shadows, [0, 0, 0.25]))
-    root.add(mesh(new THREE.BoxGeometry(0.12, 0.38, 0.04), suitMat, [0.14 * sw, 1.08, 0.15], shadows, [0, 0, -0.25]))
-  }
-
-  // Arms resting forward
-  for (const sign of [-1, 1]) {
-    root.add(mesh(new THREE.SphereGeometry(0.14, 12, 12), suitMat, [sign * 0.32 * sw, 1.28, 0], shadows))
-    root.add(mesh(
-      new THREE.CylinderGeometry(0.085, 0.095, 0.4, 10),
-      suitMat,
-      [sign * 0.42 * sw, 1.0, 0.12],
-      shadows,
-      [0.85, 0, sign * 0.15],
-    ))
-    root.add(mesh(
-      new THREE.CylinderGeometry(0.07, 0.08, 0.36, 10),
-      suitMat,
-      [sign * 0.4 * sw, 0.72, 0.42],
-      shadows,
-      [1.15, sign * 0.05, 0],
-    ))
-    root.add(mesh(new THREE.SphereGeometry(0.085, 10, 10), skinMat, [sign * 0.34 * sw, 0.58, 0.72], shadows))
-  }
-
-  // Neck + head with likeness albedo (integrated, not a floating disc)
-  const headY = 1.82
-  root.add(mesh(new THREE.CylinderGeometry(0.09 * hs, 0.11 * hs, 0.16, 12), skinMat, [0, 1.55, 0.04], shadows))
-
-  const headGroup = new THREE.Group()
-  headGroup.name = 'head'
-  headGroup.position.set(0, headY, 0.05)
-
-  let faceMap: THREE.CanvasTexture | null = null
-  try {
-    if (import.meta.client) {
-      faceMap = await loadLikenessAlbedo(spec.portraitUrl, spec.faceCrop, spec.skin)
-    }
-  } catch (error) {
-    console.warn('[salon] likeness failed', spec.id, error)
-  }
-
-  const headMat = faceMap
-    ? new THREE.MeshStandardMaterial({
-        map: faceMap,
-        color: '#ffffff',
-        roughness: 0.52,
-        metalness: 0,
-        emissive: '#ffffff',
-        emissiveMap: faceMap,
-        emissiveIntensity: 0.42,
-      })
-    : skinMat
-
-  const headMesh = mesh(
-    new THREE.SphereGeometry(0.23 * hs, 28, 22),
-    headMat,
-    [0, 0, 0],
+  root.add(kit.mesh(
+    new THREE.SphereGeometry(0.24 * sw, 14, 12),
+    suit,
+    [0, 1.28, 0.0],
     shadows,
     undefined,
-    [0.95, 1.05, 0.92],
-  )
-  headGroup.add(headMesh)
+    [1.2, 0.58, 0.98 * td]
+  ))
 
-  // Soft ear volumes
-  headGroup.add(mesh(new THREE.SphereGeometry(0.05 * hs, 10, 10), skinMat, [-0.22 * hs, 0, 0], false, undefined, [0.6, 1, 0.7]))
-  headGroup.add(mesh(new THREE.SphereGeometry(0.05 * hs, 10, 10), skinMat, [0.22 * hs, 0, 0], false, undefined, [0.6, 1, 0.7]))
-
-  if (spec.hasBeard) {
-    headGroup.add(mesh(
-      new THREE.SphereGeometry(0.14 * hs, 14, 12),
-      hairMat,
-      [0, -0.12 * hs, 0.12 * hs],
-      false,
-      undefined,
-      [1.05, 0.85, 0.75],
+  // Shirt / collar
+  if (spec.collar !== 'vneck') {
+    root.add(kit.mesh(new THREE.BoxGeometry(0.14, 0.38, 0.06), shirt, [0, 1.12, 0.155], shadows))
+  }
+  if (spec.collar === 'wing' || spec.collar === 'shirt' || spec.collar === 'blouse') {
+    root.add(kit.mesh(
+      new THREE.BoxGeometry(0.08, 0.1, 0.03),
+      shirt,
+      [-0.06, 1.4, 0.18],
+      shadows,
+      [0.2, 0.4, 0.3]
+    ))
+    root.add(kit.mesh(
+      new THREE.BoxGeometry(0.08, 0.1, 0.03),
+      shirt,
+      [0.06, 1.4, 0.18],
+      shadows,
+      [0.2, -0.4, -0.3]
     ))
   }
+  if (spec.outfit !== 'evening_dress') {
+    // Peak lapels
+    root.add(kit.mesh(
+      new THREE.BoxGeometry(0.14, 0.42, 0.035),
+      suit,
+      [-0.12 * sw, 1.14, 0.16],
+      shadows,
+      [0.05, 0.15, 0.35]
+    ))
+    root.add(kit.mesh(
+      new THREE.BoxGeometry(0.14, 0.42, 0.035),
+      suit,
+      [0.12 * sw, 1.14, 0.16],
+      shadows,
+      [0.05, -0.15, -0.35]
+    ))
+    // Buttons
+    for (const by of [1.18, 1.05, 0.92]) {
+      root.add(kit.mesh(new THREE.SphereGeometry(0.012, 8, 8), gold, [0, by, 0.19], false))
+    }
+  }
 
-  addHair(headGroup, spec.hairStyle, hairMat, shadows, hs)
-  root.add(headGroup)
+  // Neck
+  root.add(kit.mesh(
+    new THREE.CylinderGeometry(0.08 * hs, 0.1 * hs, 0.16, 12),
+    skin,
+    [0, 1.52, 0.04],
+    shadows
+  ))
 
-  addAccessory(root, spec, accentMat, headY, shadows)
+  // Arms resting forward — overlapping capsules so joints read as one limb
+  for (const sign of [-1, 1]) {
+    const sx = sign * 0.28 * sw
+    root.add(kit.mesh(new THREE.SphereGeometry(0.12, 12, 12), suit, [sx, 1.3, 0.02], shadows))
+    root.add(kit.mesh(
+      new THREE.CylinderGeometry(0.08, 0.1, 0.42, 10),
+      suit,
+      [sx + sign * 0.06, 1.08, 0.16],
+      shadows,
+      [0.95, 0, sign * 0.12]
+    ))
+    root.add(kit.mesh(new THREE.SphereGeometry(0.08, 10, 8), suit, [sx + sign * 0.08, 0.84, 0.38], shadows))
+    root.add(kit.mesh(
+      new THREE.CylinderGeometry(0.065, 0.078, 0.36, 10),
+      suit,
+      [sx + sign * 0.05, 0.7, 0.54],
+      shadows,
+      [1.05, sign * 0.04, 0]
+    ))
+    root.add(kit.mesh(
+      new THREE.TorusGeometry(0.06, 0.012, 8, 12),
+      shirt,
+      [sx + sign * 0.03, 0.6, 0.68],
+      false,
+      [1.05, 0, 0]
+    ))
+    addHand(kit, root, spec, skin, sign, [sx + sign * 0.03, 0.6, 0.68], shadows)
+  }
+
+  addBowTie(kit, root, spec, gold, shadows)
+  addScarf(kit, root, spec, gold, shadows)
+  addPin(kit, root, spec, gold, shadows)
+
+  const head = buildHead(kit, spec, mats, shadows)
+  head.position.set(0, 1.78, 0.05)
+  root.add(head)
 
   root.userData.sculptRuntime = {
     characterId: spec.id,
-    pivots: {
-      root,
-      head: headGroup,
-      torso,
-      hips,
-    },
-    dispose: () => {
-      faceMap?.dispose()
-      skinMat.dispose()
-      hairMat.dispose()
-      suitMat.dispose()
-      shirtMat.dispose()
-      shoeMat.dispose()
-      accentMat.dispose()
-      woodMat.dispose()
-      woodDark.dispose()
-      if (headMat !== skinMat) {
-        headMat.dispose()
-      }
-    },
+    pivots: { root, head, torso, hips },
+    dispose: () => kit.dispose()
   }
 
   return root

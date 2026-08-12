@@ -1,8 +1,7 @@
 import type { SalonModelOptions } from '~/utils/salonSculpt/types'
-import { buildSalonSeatedGuest } from '~/utils/salonSculpt/buildSeatedGuest'
+import { buildSculptedGuest } from '~/utils/salonSculpt/buildSculptedGuest'
 import { salonSculptSpec } from '~/utils/salonSculpt/specs'
 
-/** img2threejs-style factory — Nadège (silver bun, scarf, evening dress). */
-export async function createNadegeModel(options: SalonModelOptions = {}) {
-  return buildSalonSeatedGuest(salonSculptSpec('nadege'), options)
+export function createNadegeModel(options: SalonModelOptions = {}) {
+  return buildSculptedGuest(salonSculptSpec('nadege'), options)
 }

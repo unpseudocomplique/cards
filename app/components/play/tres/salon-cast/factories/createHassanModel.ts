@@ -1,8 +1,7 @@
 import type { SalonModelOptions } from '~/utils/salonSculpt/types'
-import { buildSalonSeatedGuest } from '~/utils/salonSculpt/buildSeatedGuest'
+import { buildSculptedGuest } from '~/utils/salonSculpt/buildSculptedGuest'
 import { salonSculptSpec } from '~/utils/salonSculpt/specs'
 
-/** img2threejs-style factory — Hassan (beard, lapel pin, dinner jacket). */
-export async function createHassanModel(options: SalonModelOptions = {}) {
-  return buildSalonSeatedGuest(salonSculptSpec('hassan'), options)
+export function createHassanModel(options: SalonModelOptions = {}) {
+  return buildSculptedGuest(salonSculptSpec('hassan'), options)
 }

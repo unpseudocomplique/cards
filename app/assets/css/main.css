@@ -4,22 +4,92 @@
 @source "../../../content/**/*";
 
 @theme static {
-  --font-sans: 'Public Sans', sans-serif;
-  --font-serif: 'Instrument Serif', serif;
+  --font-sans: 'Outfit', sans-serif;
+  --font-serif: 'Fraunces', serif;
+
+  --color-gold-50: oklch(0.975 0.018 82);
+  --color-gold-100: oklch(0.945 0.038 82);
+  --color-gold-200: oklch(0.890 0.068 82);
+  --color-gold-300: oklch(0.820 0.098 82);
+  --color-gold-400: oklch(0.755 0.118 82);
+  --color-gold-500: oklch(0.690 0.125 82);
+  --color-gold-600: oklch(0.585 0.112 82);
+  --color-gold-700: oklch(0.475 0.092 82);
+  --color-gold-800: oklch(0.365 0.068 78);
+  --color-gold-900: oklch(0.275 0.048 72);
+  --color-gold-950: oklch(0.195 0.032 65);
+
+  --color-ink-50: oklch(0.972 0.01 62);
+  --color-ink-100: oklch(0.942 0.012 55);
+  --color-ink-200: oklch(0.882 0.014 50);
+  --color-ink-300: oklch(0.772 0.016 48);
+  --color-ink-400: oklch(0.642 0.018 46);
+  --color-ink-500: oklch(0.528 0.02 44);
+  --color-ink-600: oklch(0.428 0.02 42);
+  --color-ink-700: oklch(0.338 0.02 40);
+  --color-ink-800: oklch(0.255 0.018 38);
+  --color-ink-900: oklch(0.188 0.016 36);
+  --color-ink-950: oklch(0.142 0.014 34);
 }
 
 :root {
-  --ui-container: var(--container-4xl);
+  --ui-container: 72rem;
+  --ui-radius: 0.5rem;
+  --ui-header-height: 4rem;
+  --ui-primary: var(--ui-color-primary-700);
+  --z-skip: 70;
+  --z-header: 40;
+  --z-overlay: 50;
 
   ::selection {
-    color: #282a30;
-    background-color: #c8c8c8;
+    color: oklch(0.2 0.03 55);
+    background-color: oklch(0.82 0.08 82);
   }
 }
 
 .dark {
+  --ui-primary: var(--ui-color-primary-400);
+
   ::selection {
-    color: #ffffff;
-    background-color: #474747;
+    color: oklch(0.18 0.02 40);
+    background-color: oklch(0.78 0.1 82);
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body {
+  font-optical-sizing: auto;
+}
+
+.salon-wash {
+  background-color: var(--ui-bg);
+  background-image:
+    radial-gradient(1200px 520px at 12% -8%, oklch(0.42 0.04 42 / 0.22), transparent 58%),
+    radial-gradient(900px 480px at 92% 8%, oklch(0.38 0.035 82 / 0.12), transparent 52%),
+    radial-gradient(700px 420px at 50% 110%, oklch(0.28 0.03 145 / 0.14), transparent 60%);
+  background-repeat: no-repeat;
+}
+
+.dark .salon-wash {
+  background-image:
+    radial-gradient(1200px 520px at 12% -8%, oklch(0.28 0.035 38 / 0.38), transparent 58%),
+    radial-gradient(900px 480px at 92% 8%, oklch(0.32 0.04 82 / 0.1), transparent 52%),
+    radial-gradient(700px 420px at 50% 110%, oklch(0.22 0.03 145 / 0.18), transparent 60%);
+}
+
+@media (max-width: 768px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
   }
 }

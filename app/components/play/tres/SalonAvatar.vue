@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * Mounts one of the 10 img2threejs-style salon cast factories into the Tres scene.
+ * Mounts one of the 10 procedural salon cast factories into the Tres scene.
  */
 import type { Group } from 'three'
 import { createSalonCastModel } from '~/components/play/tres/salon-cast'
@@ -9,25 +9,18 @@ const props = withDefaults(defineProps<{
   characterId: string
   shadows?: boolean
 }>(), {
-  shadows: false,
+  shadows: false
 })
 
 const object = shallowRef<Group | null>(null)
-let gen = 0
 
-async function mount() {
-  const g = ++gen
+function mount() {
   disposeCurrent()
   if (!import.meta.client || !props.characterId) {
     return
   }
   try {
-    const model = await createSalonCastModel(props.characterId, { shadows: props.shadows })
-    if (g !== gen) {
-      model.userData.sculptRuntime?.dispose?.()
-      return
-    }
-    object.value = model
+    object.value = createSalonCastModel(props.characterId, { shadows: props.shadows })
   } catch (error) {
     console.warn('[salon] cast model failed', props.characterId, error)
   }
@@ -46,13 +39,12 @@ function disposeCurrent() {
 watch(
   () => [props.characterId, props.shadows] as const,
   () => {
-    void mount()
+    mount()
   },
-  { immediate: true },
+  { immediate: true }
 )
 
 onUnmounted(() => {
-  gen++
   disposeCurrent()
 })
 </script>
@@ -60,6 +52,7 @@ onUnmounted(() => {
 <template>
   <primitive
     v-if="object"
+    :key="characterId"
     :object="object"
   />
 </template>

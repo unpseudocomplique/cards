@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Generate 10 salon character portraits via Gemini and write to public/salon-cast/.
- * Usage: node --env-file=.env scripts/generate-salon-characters.mjs
+ * Generate 10 full-body salon avatars via Gemini (head-to-toe seated refs for img2threejs).
+ * Usage: node --env-file=.env scripts/generate-salon-characters.mjs [id...]
  */
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -11,47 +11,30 @@ import { generateImage } from 'ai'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
+const FRAME = [
+  'Full-body 3D character reference for image-to-3D reconstruction.',
+  'The ENTIRE figure is visible from the crown of the hair to the soles of the shoes: head, torso, both arms, both hands, both legs, both shoes. No cropping, no close-up bust.',
+  'The person is seated in a carved wooden salon armchair, three-quarter view facing the camera, knees and feet clearly visible, hands resting on the thighs.',
+  'Luxury French tarot salon, warm candlelight, painterly illustration with readable volumes and a sharp silhouette.',
+  'Simple dark burgundy studio background, no ornate picture frame, no text, no watermark.',
+  'Vertical composition.'
+].join(' ')
+
+function prompt(identity) {
+  return `${identity} ${FRAME}`
+}
+
 const CHARACTERS = [
-  {
-    id: 'aurelien',
-    prompt: 'Portrait bust of a refined French man in his 40s for a luxury tarot salon game, warm olive skin, short salt-and-pepper hair, thin gold glasses, black tuxedo and ivory shirt, soft candlelight, painterly illustration, three-quarter view facing camera, no text, no watermark, dark burgundy background',
-  },
-  {
-    id: 'camille',
-    prompt: 'Portrait bust of an elegant French woman in her 30s for a luxury card salon, light skin, dark wavy hair pinned up, black velvet jacket, gold silk scarf, subtle makeup, soft chandelier light, painterly illustration, three-quarter view facing camera, no text, no watermark, deep crimson background',
-  },
-  {
-    id: 'hassan',
-    prompt: 'Portrait bust of a distinguished Middle Eastern man in his 50s for a luxury tarot salon, deep brown skin, trimmed beard, black dinner jacket, gold lapel pin, calm confident expression, soft warm lighting, painterly illustration, three-quarter view facing camera, no text, no watermark, dark wood panel background',
-  },
-  {
-    id: 'ines',
-    prompt: 'Portrait bust of a young Mediterranean woman for a luxury card salon, olive skin, black bob haircut, black tuxedo shirt with gold bow tie, sharp cheekbones, soft candlelight, painterly illustration, three-quarter view facing camera, no text, no watermark, burgundy velvet background',
-  },
-  {
-    id: 'julien',
-    prompt: 'Portrait bust of a charismatic French man in his 30s for a luxury tarot salon, fair skin, chestnut hair slicked back, black suit, white shirt, gold pin, slight smirk, warm dramatic lighting, painterly illustration, three-quarter view facing camera, no text, no watermark, dark salon background',
-  },
-  {
-    id: 'lea',
-    prompt: 'Portrait bust of a stylish Black French woman in her 30s for a luxury card salon, deep brown skin, short natural hair with gold clip, black blazer, cream blouse, thin gold glasses, poised expression, soft chandelier glow, painterly illustration, three-quarter view facing camera, no text, no watermark, dark crimson background',
-  },
-  {
-    id: 'marco',
-    prompt: 'Portrait bust of an Italian man in his 45s for a luxury tarot salon, tanned skin, thick dark hair, black tuxedo, burgundy bow tie, warm smile lines, candlelit ambience, painterly illustration, three-quarter view facing camera, no text, no watermark, wood and velvet background',
-  },
-  {
-    id: 'nadege',
-    prompt: 'Portrait bust of a graceful older French woman for a luxury card salon, warm brown skin, silver-streaked hair in a bun, black evening dress with gold scarf, kind intelligent eyes, soft warm light, painterly illustration, three-quarter view facing camera, no text, no watermark, deep burgundy background',
-  },
-  {
-    id: 'olivier',
-    prompt: 'Portrait bust of an older French gentleman for a luxury tarot salon, pale skin, white hair, round gold glasses, classic black tuxedo, ivory bow tie, serene expression, soft candlelight, painterly illustration, three-quarter view facing camera, no text, no watermark, dark wood background',
-  },
-  {
-    id: 'sofia',
-    prompt: 'Portrait bust of a glamorous South American woman in her 30s for a luxury card salon, golden-brown skin, long dark hair with waves, black satin jacket, gold jewelry pin, confident gaze, dramatic warm lighting, painterly illustration, three-quarter view facing camera, no text, no watermark, crimson velvet background',
-  },
+  { id: 'aurelien', prompt: prompt('A refined French man in his 40s, warm olive skin, short salt-and-pepper hair, thin gold oval glasses, salt-and-pepper beard, black tuxedo, ivory shirt, black bow tie.') },
+  { id: 'camille', prompt: prompt('An elegant French woman in her 30s, light skin, dark wavy hair in an updo with face-framing curls, black velvet jacket, gold silk scarf, gold hoop earrings.') },
+  { id: 'hassan', prompt: prompt('A distinguished Middle Eastern man in his 50s, deep brown skin, short cropped hair, trimmed salt-and-pepper beard, black patterned dinner jacket, white shirt, black bow tie, gold compass-rose lapel pin with a red gem.') },
+  { id: 'ines', prompt: prompt('A young Mediterranean woman, olive skin, jet-black chin-length bob, black tuxedo shirt, large ornate gold metallic bow tie, sharp cheekbones.') },
+  { id: 'julien', prompt: prompt('A charismatic French man in his 30s, fair skin, chestnut hair slicked back, prominent handlebar mustache, charcoal three-piece suit, white shirt, dark necktie, gold eye-of-providence lapel pin.') },
+  { id: 'lea', prompt: prompt('A stylish Black French woman in her 30s, deep brown skin, short natural curls with a gold laurel hair clip, round gold glasses, black blazer, cream silk blouse, gold hoop earrings.') },
+  { id: 'marco', prompt: prompt('An Italian man in his 45s, tanned skin, thick dark wavy hair, salt-and-pepper beard, black tuxedo, white shirt, burgundy bow tie, warm smile.') },
+  { id: 'nadege', prompt: prompt('A graceful older French woman, warm brown skin, silver wavy hair in a low bun, black evening dress, gold-embroidered shawl, gold stud earrings and a small gold necklace.') },
+  { id: 'olivier', prompt: prompt('An older French gentleman in his 70s, pale skin, short white hair swept back, round gold glasses, classic black tuxedo, ivory wing collar, white bow tie.') },
+  { id: 'sofia', prompt: prompt('A glamorous South American woman in her 30s, golden-brown skin, long dark wavy hair over one shoulder, black satin jacket, gold filigree brooch, gold stud earrings.') }
 ]
 
 const outDir = join(root, 'public/salon-cast')
@@ -81,12 +64,12 @@ for (const character of list) {
       const result = await generateImage({
         model,
         prompt: character.prompt,
-        aspectRatio: '1:1',
+        aspectRatio: '3:4',
         providerOptions: {
           google: {
-            responseModalities: ['TEXT', 'IMAGE'],
-          },
-        },
+            responseModalities: ['TEXT', 'IMAGE']
+          }
+        }
       })
       if (result.image?.uint8Array?.byteLength) {
         image = result.image

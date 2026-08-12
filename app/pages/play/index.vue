@@ -93,30 +93,33 @@ async function createGame() {
 </script>
 
 <template>
-  <UPage>
-    <UPageHeader
-      title="Jouer au tarot"
-      description="Créez une table 3D privée avec votre deck tarot78."
-      :ui="{
-        container: 'gap-4 py-6 sm:py-8',
-      }"
+  <div>
+    <header class="mb-8">
+      <p class="text-xs tracking-[0.2em] text-primary uppercase">
+        Table privée
+      </p>
+      <h1 class="mt-2 font-serif text-3xl tracking-tight text-highlighted sm:text-4xl">
+        Jouer au tarot
+      </h1>
+      <p class="mt-2 max-w-[46ch] text-pretty text-muted">
+        Ouvrez une table 3D avec votre deck tarot 78 cartes. Sur téléphone, la partie se joue en paysage.
+      </p>
+    </header>
+
+    <UAlert
+      v-if="decksStatus === 'success' && tarotDecks.length === 0"
+      class="mb-6"
+      color="warning"
+      variant="subtle"
+      icon="i-lucide-layers"
+      title="Aucun deck tarot 78"
+      description="Créez d’abord un deck tarot à 78 cartes, puis revenez ouvrir une table."
     />
 
-    <UPageSection :ui="{ container: 'max-w-3xl pt-0 pb-8' }">
-      <UAlert
-        v-if="decksStatus === 'success' && tarotDecks.length === 0"
-        class="mb-6"
-        color="warning"
-        variant="subtle"
-        icon="i-lucide-layers"
-        title="Aucun deck tarot78"
-        description="Créez d’abord un deck tarot à 78 cartes dans le générateur, puis revenez ici."
-      />
-
-      <form
-        class="space-y-6"
-        @submit.prevent="createGame"
-      >
+    <form
+      class="max-w-xl space-y-6"
+      @submit.prevent="createGame"
+    >
         <UFormField
           label="Deck (faces 3D)"
           required
@@ -179,10 +182,9 @@ async function createGame() {
             :loading="isSubmitting"
             :disabled="!form.deckId"
           >
-            Créer la partie
+            Ouvrir la table
           </UButton>
         </div>
       </form>
-    </UPageSection>
-  </UPage>
+  </div>
 </template>

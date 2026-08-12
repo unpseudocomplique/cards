@@ -12,12 +12,18 @@ export default defineNuxtConfig({
         lang: 'fr'
       },
       meta: [
-        { name: 'theme-color', content: '#0f172a' }
+        { name: 'theme-color', content: '#1c1612' },
+        { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' }
       ]
     }
   },
 
   css: ['~/assets/css/main.css'],
+
+  colorMode: {
+    preference: 'dark',
+    fallback: 'dark'
+  },
 
   content: {
     experimental: {
@@ -70,7 +76,8 @@ export default defineNuxtConfig({
 
   routeRules: {
     // OAuth + session routes must never be prerendered (crawlLinks would bake localhost redirect_uri).
-    '/auth/**': { prerender: false }
+    '/auth/**': { prerender: false },
+    '/play/salon-cast': { ssr: false, prerender: false }
   },
 
   nitro: {
@@ -88,7 +95,7 @@ export default defineNuxtConfig({
         '/'
       ],
       crawlLinks: true,
-      ignore: ['/auth/**']
+      ignore: ['/auth/**', '/play/salon-cast']
     }
   },
 

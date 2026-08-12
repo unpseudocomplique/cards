@@ -1,8 +1,7 @@
 import type { SalonModelOptions } from '~/utils/salonSculpt/types'
-import { buildSalonSeatedGuest } from '~/utils/salonSculpt/buildSeatedGuest'
+import { buildSculptedGuest } from '~/utils/salonSculpt/buildSculptedGuest'
 import { salonSculptSpec } from '~/utils/salonSculpt/specs'
 
-/** img2threejs-style factory — Marco (thick dark hair, burgundy bow, tuxedo). */
-export async function createMarcoModel(options: SalonModelOptions = {}) {
-  return buildSalonSeatedGuest(salonSculptSpec('marco'), options)
+export function createMarcoModel(options: SalonModelOptions = {}) {
+  return buildSculptedGuest(salonSculptSpec('marco'), options)
 }
