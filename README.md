@@ -8,7 +8,7 @@ Partie multijoueur Tarot français (FFT, 3–5 joueurs) : moteur pur testé, syn
 
 - **Tests moteur** : `pnpm test`
 - **Sync publique locale** : `docker compose up -d` démarre aussi **yjs** (`y-websocket@2.0.4` serveur sur `:1234`, compatible `yjs@13` + client `y-websocket@3`). Vérifiez `NUXT_PUBLIC_YJS_WEBSOCKET_URL=ws://localhost:1234`.
-- **Yjs prod (Coolify)** : ne déployez **pas** le repo `yjs/y-websocket` (v3 = client only → `Cannot find module './y-websocket.cjs'`). Utilisez le Dockerfile `deploy/yjs/Dockerfile` (Build Pack Dockerfile, port **1234**), domaine `https://realtime-tarot.untestcomplique.com`, et sur Cards : `NUXT_PUBLIC_YJS_WEBSOCKET_URL=wss://realtime-tarot.untestcomplique.com`. Évitez `@y/websocket-server` tant que Cards est en `yjs@13` (il tire `yjs@14`).
+- **Yjs prod (Coolify)** : ne déployez **pas** le repo `yjs/y-websocket` (v3 = client only → `Cannot find module './y-websocket.cjs'`). Utilisez le Dockerfile `deploy/yjs/Dockerfile` (Build Pack Dockerfile, port **1234**), domaine `https://realtime-tarot.untestcomplique.com`, et sur Cards : `NUXT_PUBLIC_YJS_WEBSOCKET_URL=wss://realtime-tarot.untestcomplique.com`. Évitez `@y/websocket-server` / **yjs 14** tant que TipTap exige `yjs@^13` et que yjs 14 reste en beta (détails dans `deploy/yjs/README.md`).
 - **Debug gfx** : `?debugGfx=1` sur `/play/[code]` (profil qualité, fps, textures)
 - **Spec & plan** : cycle 1 [`docs/superpowers/specs/2026-08-11-tarot-game-engine-design.md`](docs/superpowers/specs/2026-08-11-tarot-game-engine-design.md) · cycle 2 3D [`docs/superpowers/specs/2026-08-12-tarot-table-3d-design.md`](docs/superpowers/specs/2026-08-12-tarot-table-3d-design.md)
 
@@ -68,6 +68,8 @@ Pour le développement local, ajouter aussi:
 http://localhost:3003
 http://localhost:3003/auth/google
 ```
+
+L’app envoie `redirect_uri` depuis `NUXT_PUBLIC_SITE_URL` (ou `NUXT_OAUTH_GOOGLE_REDIRECT_URL`), pas depuis le host du reverse proxy. Les routes `/auth/**` sont exclues du prerender : un crawl au build sinon fige `http://localhost/auth/google` et provoque `redirect_uri_mismatch` en prod.
 
 ### Test local du conteneur
 

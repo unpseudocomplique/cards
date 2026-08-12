@@ -35,7 +35,12 @@ export default defineNuxtConfig({
     oauth: {
       google: {
         clientId: process.env.NUXT_OAUTH_GOOGLE_CLIENT_ID || '',
-        clientSecret: process.env.NUXT_OAUTH_GOOGLE_CLIENT_SECRET || ''
+        clientSecret: process.env.NUXT_OAUTH_GOOGLE_CLIENT_SECRET || '',
+        // Behind Coolify the request host is often `localhost`; never rely on getRequestURL alone.
+        redirectURL: process.env.NUXT_OAUTH_GOOGLE_REDIRECT_URL
+          || (process.env.NUXT_PUBLIC_SITE_URL
+            ? `${String(process.env.NUXT_PUBLIC_SITE_URL).replace(/\/$/, '')}/auth/google`
+            : '')
       }
     },
     session: {
@@ -63,6 +68,11 @@ export default defineNuxtConfig({
 
   compatibilityDate: '2024-11-01',
 
+  routeRules: {
+    // OAuth + session routes must never be prerendered (crawlLinks would bake localhost redirect_uri).
+    '/auth/**': { prerender: false }
+  },
+
   nitro: {
     experimental: {
       websocket: true
@@ -77,7 +87,8 @@ export default defineNuxtConfig({
       routes: [
         '/'
       ],
-      crawlLinks: true
+      crawlLinks: true,
+      ignore: ['/auth/**']
     }
   },
 
