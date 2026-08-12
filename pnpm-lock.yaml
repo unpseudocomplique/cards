@@ -6,6 +6,7 @@ settings:
 
 overrides:
   pg-connection-string: 2.12.0
+  yjs: 13.6.32
 
 importers:
 
@@ -87,10 +88,10 @@ importers:
         specifier: ^0.185.1
         version: 0.185.1
       y-websocket:
-        specifier: ^3.1.0
+        specifier: 3.1.0
         version: 3.1.0(yjs@13.6.32)
       yjs:
-        specifier: ^13.6.32
+        specifier: 13.6.32
         version: 13.6.32
       zod:
         specifier: ^4.3.5
@@ -2972,7 +2973,7 @@ packages:
       '@tiptap/core': 3.22.4
       '@tiptap/pm': 3.22.4
       '@tiptap/y-tiptap': ^3.0.2
-      yjs: ^13
+      yjs: 13.6.32
 
   '@tiptap/extension-document@3.22.4':
     resolution: {integrity: sha512-XQKla1+703FqQJC48tPDVgt9ucGiFbIEmQdOg5L5o07z9a6/NzuaZAc+1zJ7NxcUZzy+z6wBn1PrVMTiqiSXlw==}
@@ -3144,7 +3145,7 @@ packages:
       prosemirror-state: ^1.2.3
       prosemirror-view: ^1.9.10
       y-protocols: ^1.0.1
-      yjs: ^13.5.38
+      yjs: 13.6.32
 
   '@tresjs/core@5.8.3':
     resolution: {integrity: sha512-1I5Y/qJ1z5JnObUwtkCnKFiCQw2cS2tp0KH18FgBQAD6quQ87eGzHrWThrdcuv6RFAgwuRTpTH7qBNWmtW3tSQ==}
@@ -7794,13 +7795,13 @@ packages:
     resolution: {integrity: sha512-YSVsLoXxO67J6eE/nV4AtFtT3QEotZf5sK5BHxFBXso7VDUT3Tx07IfA6hsu5Q5OmBdMkQVmFZ9QOA7fikWvnw==}
     engines: {node: '>=16.0.0', npm: '>=8.0.0'}
     peerDependencies:
-      yjs: ^13.0.0
+      yjs: 13.6.32
 
   y-websocket@3.1.0:
     resolution: {integrity: sha512-ZNzwH84Ysxv7zjpFNZHjTJvrBZgcAqMljTe+6zrWciAML9LQ18aVylyPNH9faxCXqEOV8I0JY4TGtrIHFX+Xwg==}
     engines: {node: '>=16.0.0', npm: '>=8.0.0'}
     peerDependencies:
-      yjs: ^13.5.6
+      yjs: 13.6.32
 
   y18n@5.0.8:
     resolution: {integrity: sha512-0pfFzegeDWJHJIAmTLRP2DwHjdF5s7jo9tuztdQxAhINCdvS+3nGINqPd00AphqJR/0LhANUS6/+7SCb98YOfA==}

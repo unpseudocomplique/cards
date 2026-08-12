@@ -82,9 +82,17 @@ export default defineNuxtConfig({
   },
 
   vite: {
+    resolve: {
+      // TipTap collaboration + our tarot sync must share one Yjs singleton.
+      dedupe: ['yjs', 'lib0', 'y-protocols', 'y-websocket']
+    },
     optimizeDeps: {
       include: [
-        'browser-image-compression'
+        'browser-image-compression',
+        'yjs',
+        'y-websocket',
+        'lib0',
+        'y-protocols'
       ]
     }
   },
