@@ -18,7 +18,8 @@ function stackForSeat(seat: number) {
 
 function seatPose(seat: number): { position: [number, number, number], yaw: number } {
   const count = props.playerCount
-  const radius = 2.55
+  // Keep opponent hands near the rim, not under the center trick.
+  const radius = 3.05
   const rel = (seat - props.localSeat + count) % count
   const angle = Math.PI / 2 + (rel / count) * Math.PI * 2
   return {

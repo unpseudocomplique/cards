@@ -71,12 +71,6 @@ const seats = computed(() => {
   return out
 })
 
-const chipStacks = [
-  { position: [1.1, 0.05, 0.9] as [number, number, number], color: '#8b1e2d', count: 4 },
-  { position: [-1.25, 0.05, 0.7] as [number, number, number], color: '#1e3a5f', count: 3 },
-  { position: [0.2, 0.05, -1.35] as [number, number, number], color: '#2d5a3a', count: 5 },
-]
-
 watch(
   () => props.quality,
   (quality) => {
@@ -240,23 +234,6 @@ function frameMat(map: AmbianceArtBundle['paintings'][number] | null) {
         :character-id="seat.characterId"
         :shadows="shadows"
       />
-    </TresGroup>
-
-    <!-- Felt chip stacks -->
-    <TresGroup
-      v-for="(stack, si) in chipStacks"
-      :key="`chips-${si}`"
-      :position="stack.position"
-    >
-      <TresMesh
-        v-for="n in stack.count"
-        :key="n"
-        :position="[0, (n - 1) * 0.035, 0]"
-        :cast-shadow="shadows"
-      >
-        <TresCylinderGeometry :args="[0.09, 0.09, 0.032, 16]" />
-        <TresMeshStandardMaterial :color="stack.color" :roughness="0.45" :metalness="0.15" />
-      </TresMesh>
     </TresGroup>
 
     <!-- Sideboard + props -->

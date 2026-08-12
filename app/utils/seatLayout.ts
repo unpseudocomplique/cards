@@ -28,10 +28,18 @@ export function wonPileAnchor(
   height: number,
 ): { x: number, y: number } {
   const seatPos = seatAnchor(seat, localSeat, playerCount, width, height)
-  const tableCenter = { x: width * 0.5, y: height * 0.42 }
-  const pull = seat === localSeat ? 0.22 : 0.34
-  return {
-    x: seatPos.x + (tableCenter.x - seatPos.x) * pull,
-    y: seatPos.y + (tableCenter.y - seatPos.y) * pull,
+  const tableCenter = { x: width * 0.5, y: height * 0.38 }
+  const isLocal = seat === localSeat
+  // Local pile above the hand arc; opponents mid-felt, not under names/UI.
+  const pull = isLocal ? 0.58 : 0.32
+  const x = seatPos.x + (tableCenter.x - seatPos.x) * pull
+  let y = seatPos.y + (tableCenter.y - seatPos.y) * pull
+  if (!isLocal) {
+    // Keep side piles on the felt band, clear of the hand.
+    y = Math.min(y, height * 0.52)
   }
+  else {
+    y = Math.min(y, height * 0.62)
+  }
+  return { x, y }
 }

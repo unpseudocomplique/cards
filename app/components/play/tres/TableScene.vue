@@ -2,6 +2,7 @@
 import type { CardId, PrivateGameView, PublicGameView } from '~~/shared/tarot'
 import {
   boutLabel,
+  describeTrick,
   isBout,
   isPetitStolen,
   resolveTrick,
@@ -118,10 +119,17 @@ const displayTrick = ref<TrickEntry[]>([])
 const collectingToSeat = shallowRef<number | null>(null)
 const suppressUntil = shallowRef<CardId | null>(null)
 const tableFx = ref<TableFxEvent[]>([])
+const trickSummaryLine = shallowRef<string | null>(null)
 let collectTimer: ReturnType<typeof setTimeout> | null = null
+let holdTimer: ReturnType<typeof setTimeout> | null = null
 let knownTrickKey = ''
 let fxSeq = 0
 const celebratedBouts = new Set<string>()
+
+/** Keep the finished trick readable before sweeping cards away. */
+const TRICK_HOLD_MS = 2_000
+const TRICK_COLLECT_MS = 1_400
+const TRICK_SUMMARY_TTL_MS = TRICK_HOLD_MS + TRICK_COLLECT_MS + 200
 
 function pushFx(event: Omit<TableFxEvent, 'id'>, ttlMs = 1_600) {
   const id = `fx-${++fxSeq}`
@@ -167,7 +175,31 @@ function celebratePetitSteal(victimSeat: number, thiefSeat: number) {
     title: 'Petit volé !',
     subtitle: `${seatName(thiefSeat)} pique le Petit de ${seatName(victimSeat)}`,
     accent: 'rose',
-  }, 2_200)
+  }, TRICK_SUMMARY_TTL_MS)
+}
+
+function celebrateTrickSummary(trickCards: TrickEntry[], winnerSeat: number) {
+  try {
+    const summary = describeTrick(props.publicState, trickCards)
+    trickSummaryLine.value = `${summary.title} — ${summary.subtitle}`
+    pushFx({
+      kind: 'trick-won',
+      title: summary.title,
+      subtitle: summary.subtitle,
+      details: summary.details,
+      accent: summary.accent,
+    }, TRICK_SUMMARY_TTL_MS)
+  }
+  catch {
+    const name = seatName(winnerSeat)
+    trickSummaryLine.value = `Pli pour ${name}`
+    pushFx({
+      kind: 'trick-won',
+      title: `Pli pour ${name}`,
+      subtitle: 'Le pli est ramassé',
+      accent: 'slate',
+    }, TRICK_SUMMARY_TTL_MS)
+  }
 }
 
 function faceUrlFor(card: CardId): string | null {
@@ -260,8 +292,12 @@ function beginCollect(winnerSeat: number, trickCards: TrickEntry[]) {
   if (collectTimer) {
     clearTimeout(collectTimer)
   }
+  if (holdTimer) {
+    clearTimeout(holdTimer)
+  }
 
   displayTrick.value = trickCards.map(entry => ({ ...entry }))
+  collectingToSeat.value = null
 
   for (const entry of trickCards) {
     celebrateBout(entry.card, entry.seat)
@@ -270,14 +306,23 @@ function beginCollect(winnerSeat: number, trickCards: TrickEntry[]) {
   const steal = isPetitStolen(props.publicState, trickCards, winnerSeat)
   if (steal.stolen) {
     celebratePetitSteal(steal.victimSeat, steal.thiefSeat)
+    trickSummaryLine.value = `Petit volé — pli pour ${seatName(winnerSeat)}`
+  }
+  else {
+    celebrateTrickSummary(trickCards, winnerSeat)
   }
 
-  collectingToSeat.value = winnerSeat
-  collectTimer = setTimeout(() => {
-    displayTrick.value = []
-    collectingToSeat.value = null
-    collectTimer = null
-  }, steal.stolen ? 1_450 : 1_200)
+  // Hold the completed trick + explanation, then sweep toward the winner.
+  holdTimer = setTimeout(() => {
+    holdTimer = null
+    collectingToSeat.value = winnerSeat
+    collectTimer = setTimeout(() => {
+      displayTrick.value = []
+      collectingToSeat.value = null
+      trickSummaryLine.value = null
+      collectTimer = null
+    }, steal.stolen ? TRICK_COLLECT_MS + 250 : TRICK_COLLECT_MS)
+  }, steal.stolen ? TRICK_HOLD_MS + 400 : TRICK_HOLD_MS)
 }
 
 watch(
@@ -383,6 +428,9 @@ onUnmounted(() => {
   if (collectTimer) {
     clearTimeout(collectTimer)
   }
+  if (holdTimer) {
+    clearTimeout(holdTimer)
+  }
   textures.disposeAll()
 })
 
@@ -404,11 +452,13 @@ const visibleTrick = computed(() => {
 })
 
 const winnerName = computed(() => {
-  if (collectingToSeat.value == null) {
-    return null
+  if (collectingToSeat.value != null) {
+    return props.publicState.seats[collectingToSeat.value]?.name ?? `Siège ${collectingToSeat.value + 1}`
   }
-  return props.publicState.seats[collectingToSeat.value]?.name ?? `Siège ${collectingToSeat.value + 1}`
+  return null
 })
+
+const holdBanner = computed(() => trickSummaryLine.value)
 
 const cameraPosition = computed<[number, number, number]>(() =>
   isMobile.value ? [0, 3.15, 6.2] : [0, 2.75, 5.85],
@@ -550,6 +600,7 @@ function onLoop({ delta }: { delta: number }) {
         :scene-height="sceneSize.height"
         :collecting-to-seat="collectingToSeat"
         :winner-name="winnerName"
+        :hold-banner="holdBanner"
       />
 
       <PlayChienOverlay

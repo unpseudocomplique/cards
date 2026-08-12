@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { AnimatePresence, motion } from 'motion-v'
 
-export type TableFxKind = 'bout' | 'petit-steal'
+export type TableFxKind = 'bout' | 'petit-steal' | 'trick-won'
 
 export type TableFxEvent = {
   id: string
   kind: TableFxKind
   title: string
   subtitle?: string
-  accent?: 'gold' | 'rose'
+  details?: string[]
+  accent?: 'gold' | 'rose' | 'slate'
 }
 
 defineProps<{
@@ -18,13 +19,17 @@ defineProps<{
 const prefersReduced = usePreferredReducedMotion()
 
 function particles(kind: TableFxKind) {
+  if (kind === 'trick-won') {
+    return Array.from({ length: 10 }, (_, i) => i)
+  }
   const count = kind === 'petit-steal' ? 18 : 14
   return Array.from({ length: count }, (_, i) => i)
 }
 
 function particleStyle(index: number, kind: TableFxKind) {
-  const angle = (index / (kind === 'petit-steal' ? 18 : 14)) * Math.PI * 2
-  const dist = 48 + (index % 5) * 18
+  const count = kind === 'petit-steal' ? 18 : kind === 'trick-won' ? 10 : 14
+  const angle = (index / count) * Math.PI * 2
+  const dist = (kind === 'trick-won' ? 36 : 48) + (index % 5) * 16
   return {
     '--dx': `${Math.cos(angle) * dist}px`,
     '--dy': `${Math.sin(angle) * dist - 20}px`,
@@ -32,31 +37,76 @@ function particleStyle(index: number, kind: TableFxKind) {
     '--rot': `${(index * 37) % 360}deg`,
   }
 }
+
+function eyebrow(kind: TableFxKind) {
+  if (kind === 'petit-steal') {
+    return 'Provocation'
+  }
+  if (kind === 'bout') {
+    return 'Bout'
+  }
+  return 'Fin de pli'
+}
+
+function panelClass(event: TableFxEvent) {
+  if (event.kind === 'petit-steal' || event.accent === 'rose') {
+    return 'border-rose-300/40 bg-rose-950/85 text-rose-50'
+  }
+  if (event.kind === 'bout' || event.accent === 'gold') {
+    return 'border-amber-200/35 bg-black/78 text-amber-50'
+  }
+  return 'border-white/20 bg-stone-950/82 text-stone-50'
+}
+
+function eyebrowClass(event: TableFxEvent) {
+  if (event.kind === 'petit-steal' || event.accent === 'rose') {
+    return 'text-rose-200/80'
+  }
+  if (event.kind === 'bout' || event.accent === 'gold') {
+    return 'text-amber-200/70'
+  }
+  return 'text-white/55'
+}
+
+function subtitleClass(event: TableFxEvent) {
+  if (event.kind === 'petit-steal' || event.accent === 'rose') {
+    return 'text-rose-100/85'
+  }
+  if (event.kind === 'bout' || event.accent === 'gold') {
+    return 'text-white/70'
+  }
+  return 'text-white/75'
+}
 </script>
 
 <template>
-  <div class="pointer-events-none absolute inset-0 z-[70] overflow-hidden">
+  <div
+    class="pointer-events-none absolute inset-0 z-[70] overflow-hidden"
+    data-testid="table-fx-root"
+  >
     <AnimatePresence>
       <motion.div
         v-for="event in events"
         :key="event.id"
         class="absolute inset-0 flex items-center justify-center"
+        :data-testid="`table-fx-${event.kind}`"
+        :data-fx-title="event.title"
         :initial="prefersReduced ? false : { opacity: 0 }"
         :animate="{ opacity: 1 }"
         :exit="{ opacity: 0 }"
-        :transition="{ duration: 0.2 }"
+        :transition="{ duration: 0.22 }"
       >
-        <!-- Soft flash -->
         <div
           class="absolute inset-0"
-          :class="event.kind === 'petit-steal'
+          :class="event.kind === 'petit-steal' || event.accent === 'rose'
             ? 'bg-[radial-gradient(circle_at_center,rgba(244,63,94,0.28),transparent_55%)]'
-            : 'bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.22),transparent_55%)]'"
+            : event.kind === 'bout' || event.accent === 'gold'
+              ? 'bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.22),transparent_55%)]'
+              : 'bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.10),transparent_52%)]'"
         />
 
-        <!-- Burst particles -->
         <div
-          v-if="!prefersReduced"
+          v-if="!prefersReduced && event.kind !== 'trick-won'"
           class="absolute left-1/2 top-[38%] h-0 w-0"
         >
           <span
@@ -69,30 +119,41 @@ function particleStyle(index: number, kind: TableFxKind) {
         </div>
 
         <motion.div
-          class="relative mx-4 max-w-sm rounded-2xl border px-5 py-4 text-center shadow-2xl backdrop-blur-md"
-          :class="event.kind === 'petit-steal'
-            ? 'border-rose-300/40 bg-rose-950/80 text-rose-50'
-            : 'border-amber-200/35 bg-black/75 text-amber-50'"
-          :initial="prefersReduced ? false : { scale: 0.7, y: 24, rotate: event.kind === 'petit-steal' ? -6 : 0 }"
+          class="relative mx-4 max-w-md rounded-2xl border px-5 py-4 text-center shadow-2xl backdrop-blur-md"
+          :class="panelClass(event)"
+          :initial="prefersReduced ? false : { scale: 0.82, y: 18, rotate: event.kind === 'petit-steal' ? -5 : 0 }"
           :animate="{ scale: 1, y: 0, rotate: 0 }"
-          :transition="{ type: 'spring', stiffness: 320, damping: 18 }"
+          :transition="{ type: 'spring', stiffness: 300, damping: 20 }"
         >
           <p
             class="text-[10px] tracking-[0.25em] uppercase"
-            :class="event.kind === 'petit-steal' ? 'text-rose-200/80' : 'text-amber-200/70'"
+            :class="eyebrowClass(event)"
           >
-            {{ event.kind === 'petit-steal' ? 'Provocation' : 'Bout' }}
+            {{ eyebrow(event.kind) }}
           </p>
           <p class="mt-1 font-serif text-2xl font-semibold tracking-wide sm:text-3xl">
             {{ event.title }}
           </p>
           <p
             v-if="event.subtitle"
-            class="mt-2 text-sm"
-            :class="event.kind === 'petit-steal' ? 'text-rose-100/85' : 'text-white/70'"
+            class="mt-2 text-sm sm:text-base"
+            :class="subtitleClass(event)"
           >
             {{ event.subtitle }}
           </p>
+          <ul
+            v-if="event.details?.length"
+            class="mt-3 space-y-1 border-t border-white/10 pt-3 text-left text-xs text-white/70 sm:text-sm"
+          >
+            <li
+              v-for="(line, i) in event.details"
+              :key="i"
+              class="flex gap-2"
+            >
+              <span class="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-current opacity-60" />
+              <span>{{ line }}</span>
+            </li>
+          </ul>
         </motion.div>
       </motion.div>
     </AnimatePresence>

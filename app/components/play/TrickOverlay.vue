@@ -16,6 +16,8 @@ const props = defineProps<{
   /** Winner seat while collecting the trick toward their pile. */
   collectingToSeat?: number | null
   winnerName?: string | null
+  /** Shown while the finished trick is held before collect. */
+  holdBanner?: string | null
 }>()
 
 const prefersReduced = usePreferredReducedMotion()
@@ -104,6 +106,15 @@ const spring = computed(() =>
         :transition="{ type: 'spring', stiffness: 320, damping: 22 }"
       >
         Pli pour {{ winnerName }}
+      </motion.div>
+      <motion.div
+        v-else-if="holdBanner"
+        class="pointer-events-none absolute -top-12 left-1/2 max-w-[90vw] -translate-x-1/2 rounded-full border border-white/20 bg-black/75 px-3 py-1.5 text-center text-xs font-medium tracking-wide text-white/90 sm:text-sm"
+        :initial="{ opacity: 0, y: 8, scale: 0.96 }"
+        :animate="{ opacity: 1, y: 0, scale: 1 }"
+        :transition="{ type: 'spring', stiffness: 300, damping: 22 }"
+      >
+        {{ holdBanner }}
       </motion.div>
     </div>
   </div>

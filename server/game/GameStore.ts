@@ -5,7 +5,7 @@ import type { PeerHandle, Room } from './types'
 
 const CODE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 const DISCONNECT_GRACE_MS = 8_000
-const TRICK_RESOLVE_PAUSE_MS = 1_800
+const TRICK_RESOLVE_PAUSE_MS = 3_600
 
 type BotDelayKind = 'bid' | 'playLead' | 'playFollow' | 'discard' | 'king' | 'scoring' | 'trickPause' | 'chienReveal'
 
@@ -16,7 +16,8 @@ const BOT_DELAY_MS: Record<BotDelayKind, { min: number, max: number }> = {
   discard: { min: 1_400, max: 2_800 },
   king: { min: 1_100, max: 2_200 },
   scoring: { min: 1_600, max: 2_600 },
-  trickPause: { min: TRICK_RESOLVE_PAUSE_MS, max: TRICK_RESOLVE_PAUSE_MS + 400 },
+  // Match client hold + collect so bots don't play over the summary.
+  trickPause: { min: TRICK_RESOLVE_PAUSE_MS, max: TRICK_RESOLVE_PAUSE_MS + 500 },
   // Let everyone read garde_sans / garde_contre dog before first card.
   chienReveal: { min: 4_800, max: 5_400 },
 }

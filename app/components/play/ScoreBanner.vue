@@ -26,6 +26,18 @@ const takerName = computed(() => {
   }
   return props.state.seats.find(entry => entry.seatId === seat)?.name || `Siège ${seat + 1}`
 })
+
+const statusLabel = computed(() => {
+  // Between tricks the server clears `trick` but keeps `lastTrick` during the resolve pause.
+  if (
+    props.state.phase === 'Trick'
+    && (props.state.trick?.length ?? 0) === 0
+    && (props.state.lastTrick?.length ?? 0) > 0
+  ) {
+    return 'Fin de pli'
+  }
+  return tarotPhaseLabel(props.state.phase)
+})
 </script>
 
 <template>
@@ -63,7 +75,7 @@ const takerName = computed(() => {
       </div>
 
       <span class="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/80">
-        {{ tarotPhaseLabel(state.phase) }}
+        {{ statusLabel }}
       </span>
     </div>
 

@@ -32,7 +32,7 @@ function styleFor(seat: number) {
 </script>
 
 <template>
-  <div class="pointer-events-none absolute inset-0 z-[18]">
+  <div class="pointer-events-none absolute inset-0 z-[28]">
     <div
       v-for="(_, seat) in tricksWonBySeat"
       :key="`won-${seat}`"
