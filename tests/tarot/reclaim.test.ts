@@ -79,7 +79,7 @@ describe('seat reclaim', () => {
     }
 
     for (let i = 0; i < 3; i++) {
-      vi.advanceTimersByTime(800)
+      vi.advanceTimersByTime(2_500)
     }
 
     expect(gameStore.get(code)!.currentSeat).toBe(0)
@@ -90,7 +90,7 @@ describe('seat reclaim', () => {
     vi.advanceTimersByTime(8_000)
     expect(gameStore.get(code)!.seats[0]?.controlledBy).toBe('bot')
 
-    vi.advanceTimersByTime(800)
+    vi.advanceTimersByTime(2_500)
 
     expect(gameStore.get(code)!.bidSpoken.length).toBeGreaterThan(beforeBidCount)
     expect(gameStore.get(code)!.bidSpoken.some(entry => entry.seat === 0)).toBe(true)
@@ -117,7 +117,7 @@ describe('seat reclaim', () => {
     }
 
     for (let i = 0; i < 3; i++) {
-      vi.advanceTimersByTime(800)
+      vi.advanceTimersByTime(2_500)
     }
 
     expect(gameStore.get(code)!.currentSeat).toBe(0)

@@ -1,4 +1,5 @@
 import { legalMoves } from './legalMoves'
+import { sortHand } from './handSort'
 import { trickLedSuit } from './trick'
 import type {
   CardId,
@@ -19,22 +20,15 @@ function publicSeats(state: GameState): PublicSeatInfo[] {
 }
 
 function chienRevealed(state: GameState): CardId[] | null {
-  if (state.phase === 'Lobby' || state.phase === 'Dealing' || state.phase === 'Bidding') {
+  // Show the dog only before the first card (ReadyToPlay). For garde_sans/contre the
+  // cards stay in state.chien until scoring — they must not remain on screen during Trick.
+  if (state.phase !== 'ReadyToPlay') {
     return null
   }
-  if (state.chien.length === 0 && state.ecart.length > 0) {
+  if (state.bid?.contract !== 'garde_sans' && state.bid?.contract !== 'garde_contre') {
     return null
   }
-  if (state.bid?.contract === 'garde_sans' || state.bid?.contract === 'garde_contre') {
-    return state.chien.length > 0 ? state.chien : null
-  }
-  if (state.phase === 'DogEcarta') {
-    return null
-  }
-  if (state.chien.length > 0) {
-    return state.chien
-  }
-  return null
+  return state.chien.length > 0 ? state.chien : null
 }
 
 function computeLegalMoves(state: GameState, seat: number): CardId[] {
@@ -76,6 +70,9 @@ export function toPublicView(state: GameState): PublicGameView {
     dealIndex: state.dealIndex,
     pilesAttackCount: state.pilesAttack.length,
     pilesDefenseCount: state.pilesDefense.length,
+    tricksWonBySeat: [...(state.tricksWonBySeat ?? Array.from({ length: state.playerCount }, () => 0))],
+    lastTrick: state.lastTrick ? state.lastTrick.map(entry => ({ ...entry })) : null,
+    lastTrickWinnerSeat: state.lastTrickWinnerSeat ?? null,
     poigneeShown: state.poigneeShown,
     chelemAnnounce: state.chelemAnnounce,
     lastDeltas: state.lastDeltas ? { ...state.lastDeltas } : undefined,
@@ -85,7 +82,7 @@ export function toPublicView(state: GameState): PublicGameView {
 
 export function toPrivateView(state: GameState, seat: number): PrivateGameView {
   const publicView = toPublicView(state)
-  const hand = [...(state.hands[seat] ?? [])]
+  const hand = sortHand([...(state.hands[seat] ?? [])])
   return {
     ...publicView,
     seat,

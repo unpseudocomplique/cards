@@ -27,6 +27,8 @@ const {
   join,
 } = useTarotGame(code)
 
+const { faceUrlFor } = useDeckFaceUrls(code)
+
 const joined = shallowRef(false)
 
 const alreadySeated = computed(() => {
@@ -181,7 +183,7 @@ async function copyInviteLink() {
       @play="sendIntent({ type: 'playCard', card: $event })"
     />
 
-    <div class="pointer-events-none absolute inset-0 z-10 flex flex-col p-3 sm:p-4">
+    <div class="pointer-events-none absolute inset-x-0 top-0 z-40 flex flex-col p-3 sm:p-4">
       <div class="pointer-events-auto mx-auto w-full max-w-5xl space-y-2">
         <div class="flex items-start justify-between gap-3">
           <PlayScoreBanner
@@ -200,8 +202,10 @@ async function copyInviteLink() {
         </div>
 
         <PlayBidPanel
-          v-if="publicState.phase === 'Bidding' && isMyTurn"
+          v-if="publicState.phase === 'Bidding'"
           compact
+          :disabled="!isMyTurn"
+          :state="publicState"
           @bid="sendIntent({ type: 'bid', bid: $event })"
         />
 
@@ -223,6 +227,7 @@ async function copyInviteLink() {
       </div>
 
       <div
+        v-if="needsKingCall || canDiscard || publicState.phase === 'Scoring' || publicState.phase === 'MatchOver'"
         class="pointer-events-auto mx-auto mt-auto w-full max-w-3xl space-y-3"
         :class="showPlayHand ? 'mb-[min(30vh,240px)] sm:mb-[min(36vh,300px)]' : ''"
       >
@@ -238,18 +243,19 @@ async function copyInviteLink() {
             Choisissez le roi partenaire.
           </p>
           <div class="mt-3 flex flex-wrap gap-2">
-            <UButton
+            <button
               v-for="king in kingOptions"
               :key="king"
-              color="neutral"
-              variant="soft"
+              type="button"
+              class="rounded-xl transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 hover:-translate-y-0.5"
               @click="sendIntent({ type: 'callKing', king })"
             >
-              <PlayCardFace
+              <PlayDeckCard
                 :card-id="king"
+                :face-url="faceUrlFor(king)"
                 size="sm"
               />
-            </UButton>
+            </button>
           </div>
         </div>
 
@@ -263,18 +269,23 @@ async function copyInviteLink() {
           <p class="mt-1 text-sm text-white/60">
             {{ selectedDiscard.length }} / {{ discardSize }} cartes
           </p>
-          <div class="mt-3 flex max-h-40 flex-wrap justify-center gap-2 overflow-y-auto">
+          <div class="mt-3 flex max-h-48 flex-wrap justify-center gap-2 overflow-y-auto">
             <button
               v-for="card in privateState!.hand"
               :key="`discard-${card}`"
               type="button"
-              class="rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+              class="rounded-xl transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
               :class="selectedDiscard.includes(card)
                 ? 'ring-2 ring-amber-300 -translate-y-1'
                 : 'opacity-90 hover:-translate-y-0.5'"
               @click="toggleDiscard(card)"
             >
-              <PlayCardFace :card-id="card" />
+              <PlayDeckCard
+                :card-id="card"
+                :face-url="faceUrlFor(card)"
+                size="sm"
+                :highlighted="selectedDiscard.includes(card)"
+              />
             </button>
           </div>
           <div class="mt-3 flex justify-end">

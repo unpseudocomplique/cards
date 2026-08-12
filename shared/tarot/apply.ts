@@ -12,6 +12,7 @@ import {
 } from './announces'
 import { dealHands } from './deal'
 import { mergeChienIntoHand, validateEcart } from './ecart'
+import { attackSeats, isAttackSeat } from './camps'
 import { legalMoves } from './legalMoves'
 import { computeDealScore } from './score'
 import { resolveTrick, trickLedSuit } from './trick'
@@ -86,21 +87,6 @@ function requireTurnSeat(state: GameState, actor: Actor): number | ApplyResult {
   return seat
 }
 
-function attackSeats(state: GameState): number[] {
-  const taker = state.bid?.seat
-  if (taker === undefined) {
-    return []
-  }
-  if (state.playerCount === 5 && state.partnerSeat !== undefined) {
-    return [taker, state.partnerSeat]
-  }
-  return [taker]
-}
-
-function isAttackSeat(state: GameState, seat: number): boolean {
-  return attackSeats(state).includes(seat)
-}
-
 function removeOneCard(hand: CardId[], card: CardId): CardId[] {
   const index = hand.indexOf(card)
   if (index === -1) {
@@ -149,6 +135,9 @@ function resetDealFields(state: GameState): GameState {
     chelemAnnounce: undefined,
     attackTricks: 0,
     defenseTricks: 0,
+    tricksWonBySeat: Array.from({ length: state.playerCount }, () => 0),
+    lastTrick: null,
+    lastTrickWinnerSeat: null,
     petitAuBoutCamp: undefined,
     lastDeltas: undefined,
     matchShouldEnd: undefined,
@@ -358,14 +347,20 @@ function resolveCompletedTrick(state: GameState): ApplyResult {
   const piles = distributeTrickCards(state, winnerSeat)
   const events: GameEvent[] = [{ type: 'trickWon', seat: winnerSeat }]
   const attackWon = isAttackSeat(state, winnerSeat)
+  const tricksWonBySeat = state.tricksWonBySeat.map((count, seat) =>
+    seat === winnerSeat ? count + 1 : count,
+  )
 
   let next: GameState = {
     ...state,
     ...piles,
     trick: [],
+    lastTrick: state.trick.map(entry => ({ ...entry })),
+    lastTrickWinnerSeat: winnerSeat,
     currentSeat: winnerSeat,
     attackTricks: state.attackTricks + (attackWon ? 1 : 0),
     defenseTricks: state.defenseTricks + (attackWon ? 0 : 1),
+    tricksWonBySeat,
   }
 
   if (allHandsEmpty(next)) {
@@ -713,6 +708,8 @@ function handlePlayCard(state: GameState, intent: Extract<Intent, { type: 'playC
     hands,
     trick,
     currentSeat: nextSeat(state, seat),
+    lastTrick: null,
+    lastTrickWinnerSeat: null,
   }
 
   if (trick.length < state.playerCount) {

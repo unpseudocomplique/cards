@@ -15,6 +15,31 @@ type ServerMessage =
   | { type: 'error', error: string, reason?: string }
   | { type: 'applied', publicVersion?: number }
 
+function localizeGameError(reason: string | undefined, fallback: string | undefined): string {
+  const raw = reason ?? fallback ?? 'Erreur'
+  if (/must strictly overcall current winning bid/i.test(raw)) {
+    const match = raw.match(/winning bid (\w+)/i)
+    const labels: Record<string, string> = {
+      prise: 'Prise',
+      garde: 'Garde',
+      garde_sans: 'Garde sans',
+      garde_contre: 'Garde contre',
+    }
+    const current = match?.[1] ? (labels[match[1]] ?? match[1]) : 'enchère en cours'
+    return `Il faut surenchérir (au-dessus de ${current}).`
+  }
+  if (/already spoken/i.test(raw)) {
+    return 'Vous avez déjà parlé pour cette donne.'
+  }
+  if (/not seat .* turn/i.test(raw)) {
+    return 'Ce n’est pas votre tour d’enchérir.'
+  }
+  if (/bidding round is already complete/i.test(raw)) {
+    return 'Les enchères sont terminées.'
+  }
+  return raw
+}
+
 function resolveCode(code: Ref<string> | string): Ref<string> {
   return isRef(code) ? code : ref(code)
 }
@@ -133,7 +158,7 @@ export function useTarotGame(code: Ref<string> | string) {
         if (message.error === 'NOT_SEATED' || message.reason === 'Already seated at this table') {
           break
         }
-        error.value = message.reason ?? message.error
+        error.value = localizeGameError(message.reason, message.error)
         break
       case 'applied':
         // Fallback when Yjs public sync is unavailable or lagged.

@@ -5,8 +5,21 @@ import type { PeerHandle, Room } from './types'
 
 const CODE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 const DISCONNECT_GRACE_MS = 8_000
-const BOT_DELAY_MIN_MS = 400
-const BOT_DELAY_MAX_MS = 800
+const TRICK_RESOLVE_PAUSE_MS = 1_800
+
+type BotDelayKind = 'bid' | 'playLead' | 'playFollow' | 'discard' | 'king' | 'scoring' | 'trickPause' | 'chienReveal'
+
+const BOT_DELAY_MS: Record<BotDelayKind, { min: number, max: number }> = {
+  bid: { min: 900, max: 2_400 },
+  playLead: { min: 700, max: 1_600 },
+  playFollow: { min: 450, max: 1_200 },
+  discard: { min: 1_400, max: 2_800 },
+  king: { min: 1_100, max: 2_200 },
+  scoring: { min: 1_600, max: 2_600 },
+  trickPause: { min: TRICK_RESOLVE_PAUSE_MS, max: TRICK_RESOLVE_PAUSE_MS + 400 },
+  // Let everyone read garde_sans / garde_contre dog before first card.
+  chienReveal: { min: 4_800, max: 5_400 },
+}
 
 function randomCode(): string {
   const length = 6 + (randomBytes(1)[0]! % 3)
@@ -18,8 +31,43 @@ function randomCode(): string {
   return code
 }
 
-function randomBotDelayMs(): number {
-  return BOT_DELAY_MIN_MS + Math.floor(Math.random() * (BOT_DELAY_MAX_MS - BOT_DELAY_MIN_MS + 1))
+function randomDelayMs(kind: BotDelayKind): number {
+  const { min, max } = BOT_DELAY_MS[kind]
+  return min + Math.floor(Math.random() * (max - min + 1))
+}
+
+function botDelayForState(state: GameState): number {
+  if (state.phase === 'Scoring') {
+    return randomDelayMs('scoring')
+  }
+  if (
+    state.playerCount === 5
+    && state.bid
+    && !state.calledKing
+    && (state.phase === 'DogEcarta' || state.phase === 'ReadyToPlay')
+  ) {
+    return randomDelayMs('king')
+  }
+  if (state.phase === 'Bidding') {
+    return randomDelayMs('bid')
+  }
+  if (state.phase === 'DogEcarta') {
+    return randomDelayMs('discard')
+  }
+  if (
+    state.phase === 'ReadyToPlay'
+    && state.trick.length === 0
+    && state.chien.length > 0
+    && (state.bid?.contract === 'garde_sans' || state.bid?.contract === 'garde_contre')
+  ) {
+    return randomDelayMs('chienReveal')
+  }
+  if (state.phase === 'Trick' || state.phase === 'ReadyToPlay') {
+    return state.trick.length === 0
+      ? randomDelayMs('playLead')
+      : randomDelayMs('playFollow')
+  }
+  return randomDelayMs('playFollow')
 }
 
 function findSeatByUserId(state: GameState, userId: string): number | null {
@@ -119,7 +167,8 @@ class GameStore {
     room.state = result.state
     console.log(`[tarot] ${code} intent ${intent.type} ok → phase=${result.state.phase} v=${result.state.version}`)
     this.afterStateUpdate(code, actor.userId)
-    this.scheduleIfBotTurn(code)
+    const trickJustWon = result.events.some(event => event.type === 'trickWon')
+    this.scheduleIfBotTurn(code, trickJustWon ? 'trickPause' : undefined)
     return result
   }
 
@@ -191,7 +240,7 @@ class GameStore {
     return { ok: true, state, events: [] }
   }
 
-  scheduleIfBotTurn(code: string): void {
+  scheduleIfBotTurn(code: string, delayKind?: BotDelayKind): void {
     const room = this.rooms.get(code)
     if (!room) {
       return
@@ -200,6 +249,9 @@ class GameStore {
     this.clearBotTimer(room)
 
     const state = room.state
+    const delayMs = delayKind
+      ? randomDelayMs(delayKind)
+      : botDelayForState(state)
 
     // Scoring: auto-continue after a short pause so the phase is observable.
     if (state.phase === 'Scoring') {
@@ -210,7 +262,7 @@ class GameStore {
           return
         }
         this.applyIntent(code, { type: 'continue' }, { userId: current.state.hostUserId })
-      }, Math.max(randomBotDelayMs(), 1_000))
+      }, delayMs)
       return
     }
 
@@ -257,7 +309,7 @@ class GameStore {
         } catch (error) {
           console.error(`Bot king call failed for table ${code}:`, error)
         }
-      }, randomBotDelayMs())
+      }, delayMs)
       return
     }
 
@@ -306,7 +358,7 @@ class GameStore {
       } catch (error) {
         console.error(`Bot turn failed for table ${code}:`, error)
       }
-    }, randomBotDelayMs())
+    }, delayMs)
   }
 
   private clearBotTimer(room: Room): void {

@@ -24,15 +24,28 @@ const sizeClass = computed(() => {
     case 'sm':
       return 'h-[5.25rem] w-[3.5rem] sm:h-24 sm:w-16'
     case 'lg':
-      return 'h-28 w-[4.75rem] sm:h-32 sm:w-[5.5rem]'
+      return 'h-28 w-[4.75rem] sm:h-[9.25rem] sm:w-[5.5rem]'
     default:
       return 'h-[6.5rem] w-[4.35rem] sm:h-[9.25rem] sm:w-[6.25rem]'
   }
 })
 
+const indexTextClass = computed(() => {
+  switch (props.size) {
+    case 'xs':
+      return 'text-[0.55rem]'
+    case 'sm':
+      return 'text-[0.65rem] sm:text-[0.7rem]'
+    case 'lg':
+      return 'text-[0.8rem] sm:text-[0.9rem]'
+    default:
+      return 'text-[0.7rem] sm:text-[0.8rem]'
+  }
+})
+
 const colorClass = computed(() => {
   if (label.value.color === 'red') return 'text-red-700'
-  if (label.value.color === 'gold') return 'text-amber-800'
+  if (label.value.color === 'gold') return 'text-amber-900'
   return 'text-stone-900'
 })
 
@@ -43,6 +56,9 @@ const centerGlyph = computed(() => {
   }
   return short.replace(/[♥♦♣♠]/g, '').slice(0, 2)
 })
+
+/** Corner index always shown — critical for custom trump art. */
+const indexLabel = computed(() => label.value.shortLabel)
 </script>
 
 <template>
@@ -66,10 +82,10 @@ const centerGlyph = computed(() => {
       class="flex h-full w-full flex-col justify-between px-1.5 py-1.5"
     >
       <div
-        class="text-left text-[0.7rem] leading-none font-bold sm:text-[0.8rem]"
-        :class="colorClass"
+        class="text-left leading-none font-bold"
+        :class="[colorClass, indexTextClass]"
       >
-        {{ label.shortLabel }}
+        {{ indexLabel }}
       </div>
       <div
         class="text-center text-2xl leading-none font-bold sm:text-3xl"
@@ -78,11 +94,27 @@ const centerGlyph = computed(() => {
         {{ centerGlyph }}
       </div>
       <div
-        class="self-end rotate-180 text-left text-[0.7rem] leading-none font-bold sm:text-[0.8rem]"
-        :class="colorClass"
+        class="self-end rotate-180 text-left leading-none font-bold"
+        :class="[colorClass, indexTextClass]"
       >
-        {{ label.shortLabel }}
+        {{ indexLabel }}
       </div>
     </div>
+
+    <!-- Readable indices on custom faces (esp. atouts) -->
+    <template v-if="faceUrl">
+      <div
+        class="pointer-events-none absolute top-1 left-1 rounded bg-black/55 px-1 py-0.5 font-bold text-amber-50 shadow-sm backdrop-blur-[2px]"
+        :class="indexTextClass"
+      >
+        {{ indexLabel }}
+      </div>
+      <div
+        class="pointer-events-none absolute right-1 bottom-1 rotate-180 rounded bg-black/55 px-1 py-0.5 font-bold text-amber-50 shadow-sm backdrop-blur-[2px]"
+        :class="indexTextClass"
+      >
+        {{ indexLabel }}
+      </div>
+    </template>
   </div>
 </template>

@@ -48,6 +48,9 @@ export function createEmptyGame(config: GameConfig): GameState {
     dealIndex: 0,
     attackTricks: 0,
     defenseTricks: 0,
+    tricksWonBySeat: Array.from({ length: config.playerCount }, () => 0),
+    lastTrick: null,
+    lastTrickWinnerSeat: null,
     hostUserId: config.hostUserId,
     rngCounter: 0,
   }

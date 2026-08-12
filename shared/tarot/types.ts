@@ -67,6 +67,11 @@ export type GameState = {
   /** Tricks won by attack / defense camps this deal (for chelem). */
   attackTricks: number
   defenseTricks: number
+  /** Face-down won-trick stacks per seat (visual + bookkeeping). */
+  tricksWonBySeat: number[]
+  /** Last completed trick (kept briefly for client FX / collect anim). */
+  lastTrick: Array<{ seat: number, card: CardId }> | null
+  lastTrickWinnerSeat: number | null
   /** Petit won on the last trick of the deal. */
   petitAuBoutCamp?: 'attack' | 'defense'
   /** Last deal point deltas while phase === Scoring. */
@@ -149,6 +154,9 @@ export type PublicGameView = {
   dealIndex: number
   pilesAttackCount: number
   pilesDefenseCount: number
+  tricksWonBySeat: number[]
+  lastTrick: Array<{ seat: number, card: CardId }> | null
+  lastTrickWinnerSeat: number | null
   poigneeShown?: GameState['poigneeShown']
   chelemAnnounce?: GameState['chelemAnnounce']
   lastDeltas?: Record<number, number>

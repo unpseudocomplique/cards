@@ -223,7 +223,7 @@ describe('publicView secrecy', () => {
     expect(serialized).toContain('"hearts-7"')
 
     const privateView = toPrivateView(state, 0)
-    expect(privateView.hand).toEqual(state.hands[0])
+    expect(privateView.hand).toEqual(['trump-21', 'excuse', 'hearts-k'])
     expect(privateView.legalMoves.length).toBe(0)
   })
 
@@ -236,6 +236,33 @@ describe('publicView secrecy', () => {
       deckId: 'deck-abc',
     })
     expect(toPublicView(state).deckId).toBe('deck-abc')
+  })
+
+  it('reveals garde_sans chien only during ReadyToPlay', () => {
+    const dog = [c('hearts-2'), c('spades-a'), c('diamonds-k'), c('clubs-3'), c('trump-4'), c('spades-j')]
+    const base = createEmptyGame({
+      hostUserId: HOST,
+      playerCount: 4,
+      endMode: 'deals',
+      endValue: 1,
+      deckId: 'deck-test',
+    })
+    const ready: GameState = {
+      ...base,
+      phase: 'ReadyToPlay',
+      bid: { seat: 0, contract: 'garde_sans' },
+      chien: dog,
+      currentSeat: 1,
+    }
+    expect(toPublicView(ready).chienRevealed).toEqual(dog)
+
+    const playing: GameState = {
+      ...ready,
+      phase: 'Trick',
+      trick: [{ seat: 1, card: c('diamonds-5') }],
+      currentSeat: 2,
+    }
+    expect(toPublicView(playing).chienRevealed).toBeNull()
   })
 })
 

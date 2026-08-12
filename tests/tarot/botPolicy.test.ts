@@ -92,10 +92,10 @@ function playState(overrides: Partial<GameState> = {}): GameState {
 }
 
 describe('chooseBotIntent bidding', () => {
-  it('passes with fewer than four real trumps', () => {
+  it('passes with a weak hand (few trumps, no oudler)', () => {
     const hand = [
-      c('trump-1'), c('trump-5'), c('trump-10'),
-      c('hearts-1'), c('hearts-2'), c('excuse'),
+      c('trump-2'), c('trump-5'),
+      c('hearts-1'), c('hearts-2'), c('clubs-3'), c('diamonds-4'),
     ]
     const state = biddingState(hand)
     const intent = chooseBotIntent(state, 1)
@@ -124,10 +124,41 @@ describe('chooseBotIntent bidding', () => {
     expect(result.ok).toBe(true)
   })
 
-  it('passes when prise would not overcall the current winner', () => {
+  it('bids garde_contre with a monster trump + oudler hand', () => {
     const hand = [
-      c('trump-21'), c('trump-5'), c('trump-10'), c('trump-15'),
-      c('hearts-1'), c('excuse'),
+      c('trump-1'), c('trump-21'), c('trump-14'), c('trump-15'), c('trump-16'), c('trump-18'),
+      c('excuse'), c('hearts-k'), c('spades-k'),
+    ]
+    const state = biddingState(hand)
+    expect(chooseBotIntent(state, 1)).toEqual({ type: 'bid', bid: 'garde_contre' })
+  })
+
+  it('overcalls beyond prise when a strong hand faces an existing prise', () => {
+    const hand = [
+      c('trump-1'), c('trump-14'), c('trump-15'), c('trump-16'), c('trump-10'),
+      c('excuse'), c('hearts-k'),
+    ]
+    let bidState = createBidState(4, 0)
+    bidState = {
+      ...bidState,
+      spoken: [{ seat: 0, bid: 'prise' }],
+      currentWinner: { seat: 0, contract: 'prise' },
+    }
+    const state = biddingState(hand, {
+      bidState,
+      currentSeat: expectedSeat(bidState),
+    })
+    const intent = chooseBotIntent(state, 1)
+    expect(intent.type).toBe('bid')
+    if (intent.type === 'bid') {
+      expect(['garde', 'garde_sans', 'garde_contre']).toContain(intent.bid)
+    }
+  })
+
+  it('passes when a marginal prise hand cannot stretch over an existing prise', () => {
+    const hand = [
+      c('trump-1'), c('trump-5'), c('trump-8'), c('trump-10'),
+      c('hearts-1'), c('hearts-2'),
     ]
     let bidState = createBidState(4, 0)
     const first = { seat: 0, bid: 'prise' as const }
