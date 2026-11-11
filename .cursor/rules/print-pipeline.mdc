@@ -1,67 +1,30 @@
 ---
-description: Print pipeline, foil dorure, and card-back rules for personalized decks. Do not regress print specs or move foil work to third-party apps.
-globs: server/utils/cardRenderer.ts,server/utils/printExport.ts,shared/utils/printSpec.ts,server/api/decks/**/exports/**,server/api/decks/**/back/**,app/components/deck/DeckPrintPanel.vue
+description: Card rendering, colour themes, single card back and print pipeline for personalized decks. Do not regress deck uniformity or reintroduce foil.
+globs: server/utils/cardRenderer.ts,server/utils/cardPromptBuilder.ts,server/utils/printExport.ts,shared/utils/printSpec.ts,shared/utils/cardThemes.ts,server/api/decks/**/exports/**,server/api/decks/**/back/**,app/components/deck/DeckPrintPanel.vue
 alwaysApply: false
 ---
 
-# Print pipeline & dorure (do not regress)
+# Card generation & print (do not regress)
 
-## Canonical specs
+Reference: `docs/print-pipeline.md`.
 
-Source of truth: `shared/utils/printSpec.ts`
+## Deck uniformity
 
-- **DPI:** 300
-- **Bleed:** 3 mm every side
-- **Poker / enseignes (3:4):** trim 63.5 × 88.9 mm
-- **Atouts (9:16):** trim 70 × 124.4 mm
-- **Screen preview:** 900×1200 (3:4) or 900×1600 (9:16) — fast UI only, not press
+- **One format per deck**: `DECK_CARD_ASPECT_RATIO` (3:4) for every card, trumps and Excuse included. Never reintroduce per-card formats: backs must be indistinguishable.
+- **One colour theme per deck**: `settings.colorTheme` → `getCardTheme()`. It feeds every prompt (scene, character, back) AND every rendered colour. Don't hard-code colours in prompts or renderer.
+- **One layout**: `getCardLayout()` is shared by faces and back (same contour, same frame language). No per-role chrome (no special gold frame for kings/trumps).
+- **One back**: `renderCardBackImage()` → `settings.cardBackImageUrl`, reused for every card in play and print.
 
-Do **not** change these constants without updating `README.md` (section Impression) and `docs/print-pipeline.md`.
+## Indices
 
-## Dorure entirely in-app
+Drawn from font outlines (`drawRank`): same cap height on all cards, bbox-centred, two-digit ranks tightened/condensed rather than shrunk. Never use SVG `<text>` (Sharp can't rasterize it reliably).
 
-Hot-foil stamps are generated **inside** the app. Never require Illustrator / InDesign for foil masks.
+## Foil / dorure
 
-| Output | Role |
-|--------|------|
-| Screen chrome | Metallic gold gradient on **face** frames only (trumps, kings, queens) |
-| Face `*-foil.png` | Surgical gold from costume/jewelry ∪ chrome **frames only** (never R / suit pips) |
-| `card-back-foil.png` | **Surgical** gold extracted from the back artwork (filigree, moons…) |
+Abandoned. Do not add foil masks, gold extraction, or "paint polished gold for hot-foil" prompt text.
 
-Renderer entry points:
+## Print specs
 
-- `extractGoldFoilMask()` — `server/utils/foilMask.ts`
-- `renderSurgicalCardFoilMask()` — faces (costume + chrome)
-- `renderCardBackFoilMaskFromArt()` — back artwork gold only
-- Preview gold frames: `getChromeFill()` / `FOIL_GOLD` in `cardRenderer.ts` (**faces only**)
+`shared/utils/printSpec.ts`: 300 DPI, 3 mm bleed, trim 63.5 × 88.9 mm. Do not change without updating `README.md` and `docs/print-pipeline.md`.
 
-**Card backs must NOT get geometric SVG rectangles overlaid** — they cut ornate motifs.
-
-## Card back
-
-- Prompt: `buildCardBackPrompt()` + `settings.cardBackPrompt` (full-bleed, no mockup frame)
-- Generate: `POST /api/decks/:id/back/generate`
-- Stores in `deck.settings`: `cardBackImageUrl`, `cardBackFoilUrl` (+ keys)
-- `renderCardBackImage()` = art only (corner radius on screen). No scene frame overlay.
-
-## Print export ZIP
-
-`POST /api/decks/:id/exports/print` → `buildPrintExportZip()`
-
-```
-print/faces/{cardCode}.png
-print/foil/{cardCode}-foil.png
-print/back/card-back.png          (if generated)
-print/back/card-back-foil.png
-print/print-spec.json
-```
-
-Faces are upscaled to the print canvas (trim + bleed). Prefer keeping this structure.
-
-## Hard rules
-
-1. AI prompts must forbid painted frames / numbers / pips — chrome and foil stay in Sharp/SVG.
-2. Do not drop bleed from print canvases.
-3. Do not replace foil PNGs with “gold paint baked into the face only”.
-4. Liberation Serif Bold remains the index face (opentype → SVG paths); Sharp cannot rely on `<text>`.
-5. Font loading via `assets:fonts` Nitro storage + filesystem fallbacks (`indexFont.ts`).
+ZIP: `print/faces/{cardCode}.png`, `print/back/card-back.png`, `print/print-spec.json`.

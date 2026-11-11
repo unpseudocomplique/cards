@@ -18,6 +18,19 @@ export const defaultRolePrompts: Record<CardPromptRole, string> = {
 }
 
 export const defaultSuitPrompts: Record<CardPromptSuit, string> = {
+  hearts: 'Couleur Coeurs: ambiance chaleureuse, joyeuse et affectueuse. Le regard est doux ou amoureux. Motifs textiles arrondis et délicats, sans pictogramme de coeur.',
+  diamonds: 'Couleur Carreaux: ambiance stricte, précise et noble, mais bienveillante. Motifs géométriques fins rappelant le raffinement et la structure, sans losange isolé de carte.',
+  clubs: 'Couleur Trèfles: ambiance vivante, confiante et naturelle. Broderies végétales discrètes et énergie terrienne, sans pictogramme de trèfle.',
+  spades: 'Couleur Piques: ambiance calme, intense et stratégique. Lignes plus nettes et attitude concentrée, sans pictogramme de pique.',
+  trumps: 'Atouts: ambiance de tarot sobre, verticale et symbolique. Aucun pip d enseigne (pas de cœur, carreau, trèfle, pique), sans chiffres ni cartouches imprimés dans l illustration.'
+}
+
+/**
+ * Former defaults that hard-coded their own colours (red, green, navy…).
+ * They fought the deck colour theme, and older decks persisted them verbatim,
+ * so they are treated as "no override" and replaced by the current defaults.
+ */
+const legacyDefaultSuitPrompts: Record<CardPromptSuit, string> = {
   hearts: 'Couleur Coeurs: ambiance chaleureuse, joyeuse et affectueuse. Le regard est doux ou amoureux. Costume avec accents rouges, bordeaux ou rose profond, motifs textiles arrondis et délicats, sans pictogramme de coeur.',
   diamonds: 'Couleur Carreaux: ambiance stricte, précise et noble, mais bienveillante. Costume avec accents rouges, dorés ou ivoire, motifs géométriques fins rappelant le raffinement et la structure, sans losange isolé de carte.',
   clubs: 'Couleur Trèfles: ambiance vivante, confiante et naturelle. Costume avec accents vert sombre, noir ou cuivre, broderies végétales discrètes et énergie terrienne, sans pictogramme de trèfle.',
@@ -33,8 +46,18 @@ export function mergeRolePrompts(prompts?: CardRolePrompts | null) {
 }
 
 export function mergeSuitPrompts(prompts?: CardSuitPrompts | null) {
+  const overrides: CardSuitPrompts = {}
+
+  for (const suit of cardPromptSuitValues) {
+    const value = prompts?.[suit]
+
+    if (value && value !== legacyDefaultSuitPrompts[suit]) {
+      overrides[suit] = value
+    }
+  }
+
   return {
     ...defaultSuitPrompts,
-    ...(prompts || {})
+    ...overrides
   }
 }

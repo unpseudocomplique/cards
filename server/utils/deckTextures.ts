@@ -1,11 +1,12 @@
-import { buildTarot78Deck, isTrump } from '~~/shared/tarot'
-import type { CardId } from '~~/shared/tarot'
+import { buildTarot78Deck } from '~~/shared/tarot'
+import { DECK_CARD_ASPECT_RATIO } from '~~/shared/utils/printSpec'
 import type { DeckTextureManifest } from '~~/shared/tarot/deckTextures'
 
 export type { DeckTextureManifest } from '~~/shared/tarot/deckTextures'
 
-export function aspectRatioForCard(cardCode: string): '3:4' | '9:16' {
-  return isTrump(cardCode as CardId) ? '9:16' : '3:4'
+/** Every card of a deck shares one format (and one back). */
+export function aspectRatioForCard(_cardCode: string): '3:4' | '9:16' {
+  return DECK_CARD_ASPECT_RATIO
 }
 
 export function buildDeckTextureManifest(input: {
@@ -19,7 +20,7 @@ export function buildDeckTextureManifest(input: {
     return {
       cardCode,
       faceUrl: row?.finalImageUrl ?? null,
-      aspectRatio: row?.aspectRatio ?? aspectRatioForCard(cardCode),
+      aspectRatio: aspectRatioForCard(cardCode),
     }
   })
 

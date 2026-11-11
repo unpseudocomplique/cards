@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { defaultRolePrompts, defaultSuitPrompts } from '~~/shared/utils/cardPromptPresets'
+import { cardThemeIds, defaultCardThemeId } from '~~/shared/utils/cardThemes'
 import { getCardCatalog } from '~~/server/utils/cardCatalog'
 import { db, deckCards, decks } from '~~/server/utils/db'
 
@@ -8,7 +9,8 @@ const createDeckSchema = z.object({
   description: z.string().max(500).optional(),
   type: z.enum(['classic52', 'tarot56', 'tarot78']),
   allowPhotoReuse: z.boolean().default(true),
-  visualStyle: z.string().min(3).max(160).default('illustration royale contemporaine')
+  visualStyle: z.string().min(3).max(160).default('illustration royale contemporaine'),
+  colorTheme: z.enum(cardThemeIds).default(defaultCardThemeId)
 })
 
 export default defineEventHandler(async (event) => {
@@ -39,6 +41,7 @@ export default defineEventHandler(async (event) => {
         settings: {
           allowPhotoReuse: input.allowPhotoReuse,
           visualStyle: input.visualStyle,
+          colorTheme: input.colorTheme,
           rolePrompts: defaultRolePrompts,
           suitPrompts: defaultSuitPrompts
         }

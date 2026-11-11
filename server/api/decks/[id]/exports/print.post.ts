@@ -31,8 +31,7 @@ export default defineEventHandler(async (event) => {
       userId: session.user.id,
       deckTitle: deck.title,
       deckType: deck.type,
-      settings: deck.settings,
-      defaultAspectRatio: deck.type === 'tarot78' ? '9:16' : '3:4'
+      settings: deck.settings
     })
 
     const [readyJob] = await db

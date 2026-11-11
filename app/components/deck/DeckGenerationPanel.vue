@@ -2,6 +2,8 @@
 import type { DeckCard, DeckDetails } from '~/types/deck'
 import type { CardRolePrompts, CardSuitPrompts } from '~~/shared/utils/cardPromptPresets'
 import { mergeRolePrompts, mergeSuitPrompts } from '~~/shared/utils/cardPromptPresets'
+import type { CardThemeId } from '~~/shared/utils/cardThemes'
+import { getCardTheme } from '~~/shared/utils/cardThemes'
 
 type RoleValue = 'number' | 'ace' | 'jack' | 'knight' | 'queen' | 'king' | 'trump' | 'excuse'
 type SuitValue = 'hearts' | 'diamonds' | 'clubs' | 'spades' | 'trumps'
@@ -13,6 +15,7 @@ type GenerateJob = {
 const props = defineProps<{
   deckId: string
   visualStyle: string
+  colorTheme?: CardThemeId
   rolePrompts?: CardRolePrompts
   suitPrompts?: CardSuitPrompts
   cards: DeckCard[]
@@ -25,6 +28,7 @@ const emit = defineEmits<{
 
 const toast = useToast()
 const globalPromptDraft = shallowRef(props.visualStyle)
+const colorThemeDraft = shallowRef<CardThemeId>(getCardTheme(props.colorTheme).id)
 const selectedRolePrompt = shallowRef<RoleValue>('king')
 const selectedSuitPrompt = shallowRef<SuitValue>('hearts')
 const rolePromptDraft = shallowRef('')
@@ -118,6 +122,12 @@ const stylePreview = computed(() => globalPromptDraft.value.trim() || 'Aucune am
 watch(() => props.visualStyle, (visualStyle) => {
   globalPromptDraft.value = visualStyle
 })
+
+watch(() => props.colorTheme, (colorTheme) => {
+  colorThemeDraft.value = getCardTheme(colorTheme).id
+})
+
+const colorThemeChanged = computed(() => colorThemeDraft.value !== getCardTheme(props.colorTheme).id)
 
 watch([mergedRolePrompts, selectedRolePrompt], ([rolePrompts, role]) => {
   rolePromptDraft.value = rolePrompts[role]
@@ -243,6 +253,7 @@ async function saveGlobalPrompt() {
       body: showAdvancedStyle.value
         ? {
             visualStyle,
+            colorTheme: colorThemeDraft.value,
             rolePrompts: {
               [selectedRolePrompt.value]: rolePrompt
             },
@@ -250,7 +261,7 @@ async function saveGlobalPrompt() {
               [selectedSuitPrompt.value]: suitPrompt
             }
           }
-        : { visualStyle }
+        : { visualStyle, colorTheme: colorThemeDraft.value }
     })
 
     toast.add({
@@ -616,6 +627,22 @@ async function queuePendingCards() {
           {{ showAdvancedStyle ? 'Masquer les détails' : 'Affiner le style' }}
         </UButton>
       </div>
+
+      <UFormField
+        label="Thème de couleurs"
+        hint="Palette, cadre et chiffres de toutes les cartes et du dos."
+      >
+        <DeckThemePicker v-model="colorThemeDraft" />
+      </UFormField>
+
+      <UAlert
+        v-if="colorThemeChanged && readyCount"
+        color="info"
+        variant="subtle"
+        icon="i-lucide-palette"
+        title="Nouveau thème"
+        description="Enregistrez puis régénérez les cartes déjà prêtes et le dos pour que tout le jeu reste homogène."
+      />
 
       <UFormField label="Style global">
         <textarea

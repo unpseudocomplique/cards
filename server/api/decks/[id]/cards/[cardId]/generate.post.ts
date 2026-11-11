@@ -11,6 +11,7 @@ import { db, deckCards, deckPhotos, decks } from '~~/server/utils/db'
 import { assertCanGenerate } from '~~/server/utils/generationAccess'
 import { normalizeGenerationError } from '~~/server/utils/generationErrors'
 import { generateFileKey, uploadFile } from '~~/server/utils/s3'
+import { DECK_CARD_ASPECT_RATIO } from '~~/shared/utils/printSpec'
 
 function mediaTypeToExtension(mediaType?: string) {
   const extensions: Record<string, string> = {
@@ -163,7 +164,7 @@ export default defineEventHandler(async (event) => {
       generateWithRetry('décor', {
         model: aiImageModel,
         prompt: scenePrompt,
-        aspectRatio: currentCard.metadata.aspectRatio,
+        aspectRatio: DECK_CARD_ASPECT_RATIO,
         providerOptions: imageProviderOptions
       }),
       generateWithRetry('personnage', {
@@ -172,7 +173,7 @@ export default defineEventHandler(async (event) => {
           text: foregroundPrompt,
           images: referenceBuffers
         },
-        aspectRatio: currentCard.metadata.aspectRatio,
+        aspectRatio: DECK_CARD_ASPECT_RATIO,
         providerOptions: imageProviderOptions
       })
     ])
@@ -198,7 +199,9 @@ export default defineEventHandler(async (event) => {
       generateFileKey(prefix, `foreground.${foregroundExtension}`),
       foregroundMediaType
     )
-    const finalBuffer = await renderCardImage(rawBuffer, currentCard.metadata, foregroundBuffer).catch((error) => {
+    const finalBuffer = await renderCardImage(rawBuffer, currentCard.metadata, foregroundBuffer, {
+      theme: deck.settings.colorTheme
+    }).catch((error) => {
       throw new Error(`Assemblage de la carte impossible: ${error instanceof Error ? error.message : 'erreur inconnue'}`)
     })
     const finalImageKey = generateFileKey(prefix, 'final.png')

@@ -1,17 +1,13 @@
 import JSZip from 'jszip'
 import { and, eq, isNotNull } from 'drizzle-orm'
-import {
-  renderCardBackFoilMaskFromArt,
-  renderSurgicalCardFoilMask,
-  upscaleToPrintCanvas
-} from '~~/server/utils/cardRenderer'
+import { upscaleToPrintCanvas } from '~~/server/utils/cardRenderer'
 import { db, deckCards, type DeckStyleSettings } from '~~/server/utils/db'
 import { generateFileKey, uploadFile } from '~~/server/utils/s3'
+import { getCardTheme } from '~~/shared/utils/cardThemes'
 import {
+  DECK_CARD_ASPECT_RATIO,
   PRINT_SPEC_SUMMARY,
-  getPrintCanvasPx,
-  getTrimMm,
-  type PrintAspectRatio
+  getPrintCanvasPx
 } from '~~/shared/utils/printSpec'
 
 async function readRemoteBuffer(url: string) {
@@ -40,7 +36,6 @@ export async function buildPrintExportZip(options: {
   deckTitle: string
   deckType: string
   settings: DeckStyleSettings
-  defaultAspectRatio: PrintAspectRatio
 }) {
   const cards = await db
     .select({
@@ -61,47 +56,25 @@ export async function buildPrintExportZip(options: {
 
   const zip = new JSZip()
   const faces = zip.folder('print/faces')
-  const foil = zip.folder('print/foil')
   const back = zip.folder('print/back')
 
-  if (!faces || !foil || !back) {
+  if (!faces || !back) {
     throw new Error('Impossible de préparer le ZIP')
   }
 
-  const pokerCanvas = getPrintCanvasPx('3:4')
-  const tarotCanvas = getPrintCanvasPx('9:16')
+  const theme = getCardTheme(options.settings.colorTheme)
+  const canvas = getPrintCanvasPx(DECK_CARD_ASPECT_RATIO)
 
   for (const card of cards) {
-    const aspectRatio = (card.metadata.aspectRatio || '3:4') as PrintAspectRatio
     const code = sanitizeCode(card.cardCode)
     const faceBuffer = await readRemoteBuffer(card.finalImageUrl!)
-    const printFace = await upscaleToPrintCanvas(faceBuffer, aspectRatio)
-    const foilMask = await renderSurgicalCardFoilMask({
-      card: {
-        label: card.metadata.label,
-        shortLabel: card.metadata.shortLabel,
-        rank: card.metadata.rank,
-        role: card.metadata.role,
-        suit: card.metadata.suit,
-        aspectRatio
-      },
-      faceImage: printFace,
-      profile: 'print',
-      // Chrome frames + painted gold on costume/jewelry.
-      includeChrome: true
-    })
-
-    faces.file(`${code}.png`, printFace)
-    foil.file(`${code}-foil.png`, foilMask)
+    faces.file(`${code}.png`, await upscaleToPrintCanvas(faceBuffer, theme.id))
   }
 
+  // One back for the whole deck: every card is printed with this same file.
   if (options.settings.cardBackImageUrl) {
     const backBuffer = await readRemoteBuffer(options.settings.cardBackImageUrl)
-    const printBack = await upscaleToPrintCanvas(backBuffer, options.defaultAspectRatio)
-    back.file('card-back.png', printBack)
-    // Surgical foil from gold painted in the back artwork (not geometric rectangles).
-    const sizedBackFoil = await renderCardBackFoilMaskFromArt(printBack)
-    back.file('card-back-foil.png', sizedBackFoil)
+    back.file('card-back.png', await upscaleToPrintCanvas(backBuffer, theme.id))
   }
 
   const spec = {
@@ -110,24 +83,14 @@ export async function buildPrintExportZip(options: {
       id: options.deckId,
       title: options.deckTitle,
       type: options.deckType,
+      colorTheme: theme.id,
       cardCount: cards.length,
       hasCardBack: Boolean(options.settings.cardBackImageUrl)
     },
-    canvases: {
-      '3:4': {
-        trimMm: getTrimMm('3:4'),
-        ...pokerCanvas
-      },
-      '9:16': {
-        trimMm: getTrimMm('9:16'),
-        ...tarotCanvas
-      }
-    },
+    canvas,
     instructions: [
-      'Foil faces: noir = dorure (or peint du costume + cadres chrome). Blanc = sans dorure.',
-      'Foil dos (card-back-foil.png): extraction chirurgicale de l’or peint dans le motif du dos.',
-      'Bleed: 3 mm inclus sur chaque côté. Ne pas recadrer avant validation BAT.',
-      'Tout le pipeline dorure est produit dans l’application — aucun masque Illustrator requis.'
+      'Toutes les cartes ont le même format et le même dos (print/back/card-back.png).',
+      'Bleed: 3 mm inclus sur chaque côté. Ne pas recadrer avant validation BAT.'
     ]
   }
 

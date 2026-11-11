@@ -1,3 +1,5 @@
+import type { CardThemeId } from '~~/shared/utils/cardThemes'
+
 export type DeckType = 'classic52' | 'tarot56' | 'tarot78'
 export type CardRolePromptKey = 'number' | 'ace' | 'jack' | 'knight' | 'queen' | 'king' | 'trump' | 'excuse'
 export type CardSuitPromptKey = 'hearts' | 'diamonds' | 'clubs' | 'spades' | 'trumps'
@@ -60,11 +62,10 @@ export type DeckDetails = {
       visualStyle: string
       rolePrompts?: Partial<Record<CardRolePromptKey, string>>
       suitPrompts?: Partial<Record<CardSuitPromptKey, string>>
+      colorTheme?: CardThemeId
       cardBackPrompt?: string
       cardBackImageUrl?: string | null
       cardBackImageKey?: string | null
-      cardBackFoilUrl?: string | null
-      cardBackFoilKey?: string | null
     }
   }
   cards: DeckCard[]

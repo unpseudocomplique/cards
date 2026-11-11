@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { DeckDetails } from '~/types/deck'
-import { PRINT_DPI, PRINT_BLEED_MM, POKER_TRIM_MM, TAROT_TRIM_MM } from '~~/shared/utils/printSpec'
+import { PRINT_DPI, PRINT_BLEED_MM, DECK_TRIM_MM } from '~~/shared/utils/printSpec'
 
 const props = defineProps<{
   deckId: string
@@ -25,13 +25,8 @@ watch(() => props.settings.cardBackPrompt, (value) => {
   backPromptDraft.value = value || ''
 })
 
-const trimLabel = computed(() => {
-  if (props.deckType === 'tarot78') {
-    return `${TAROT_TRIM_MM.width} × ${TAROT_TRIM_MM.height} mm (atouts 9:16)`
-  }
-
-  return `${POKER_TRIM_MM.width} × ${POKER_TRIM_MM.height} mm`
-})
+// Every card of the deck (trumps and Excuse included) shares this format and the same back.
+const trimLabel = `${DECK_TRIM_MM.width} × ${DECK_TRIM_MM.height} mm`
 
 async function saveBackPrompt() {
   isSavingBackPrompt.value = true
@@ -66,7 +61,6 @@ async function generateBack() {
   try {
     const result = await $fetch<{
       cardBackImageUrl: string
-      cardBackFoilUrl: string
       deck: { settings: DeckDetails['deck']['settings'] }
     }>(`/api/decks/${props.deckId}/back/generate`, {
       method: 'POST',
@@ -76,7 +70,7 @@ async function generateBack() {
     emit('deck-settings-updated', result.deck.settings)
     toast.add({
       title: 'Dos généré',
-      description: 'Aperçu + masque de dorure prêts.',
+      description: 'Le même dos est utilisé pour toutes les cartes du jeu.',
       color: 'success',
       icon: 'i-lucide-sparkles'
     })
@@ -117,7 +111,7 @@ async function exportPrintPack() {
     lastExportUrl.value = result.url
     toast.add({
       title: 'Pack impression prêt',
-      description: `${result.cardCount} face(s)${result.hasCardBack ? ' + dos' : ''} · dorures incluses.`,
+      description: `${result.cardCount} face(s)${result.hasCardBack ? ' + dos commun' : ''}.`,
       color: 'success',
       icon: 'i-lucide-package'
     })
@@ -143,10 +137,10 @@ async function exportPrintPack() {
     <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
       <div class="min-w-0">
         <p class="font-medium text-highlighted">
-          Impression & dorure
+          Dos & impression
         </p>
         <p class="mt-1 text-sm text-muted">
-          Pack print {{ PRINT_DPI }} DPI · fond perdu {{ PRINT_BLEED_MM }} mm · masques de dorure générés dans l’app.
+          Un seul dos pour tout le jeu · pack print {{ PRINT_DPI }} DPI · fond perdu {{ PRINT_BLEED_MM }} mm.
         </p>
       </div>
       <UBadge
@@ -169,10 +163,10 @@ async function exportPrintPack() {
       </div>
       <div class="rounded-lg bg-muted/50 p-3">
         <p class="font-medium text-highlighted">
-          Dorure
+          Dos
         </p>
         <p class="mt-1">
-          Or du costume + cadres (masque noir/blanc)
+          Identique sur toutes les cartes, même contour que les faces
         </p>
       </div>
       <div class="rounded-lg bg-muted/50 p-3">
@@ -180,7 +174,7 @@ async function exportPrintPack() {
           Export
         </p>
         <p class="mt-1">
-          ZIP faces · foil · dos · spec
+          ZIP faces · dos · spec
         </p>
       </div>
     </div>
@@ -189,13 +183,13 @@ async function exportPrintPack() {
       <div class="space-y-3">
         <UFormField
           label="Prompt du dos"
-          hint="Motif symétrique full-bleed. L’or du dessin devient le masque de dorure (pas de cadre rectangulaire ajouté)."
+          hint="Motif symétrique aux couleurs du thème, encadré comme les faces."
         >
           <UTextarea
             v-model="backPromptDraft"
             :rows="3"
             class="w-full"
-            placeholder="Ex. motif floral géométrique bleu nuit et or, symétrique, élégant…"
+            placeholder="Ex. rosace florale géométrique, fleurs de lys, symétrique, élégant…"
           />
         </UFormField>
 
@@ -258,12 +252,6 @@ async function exportPrintPack() {
           />
           <span class="text-xs text-muted">Pas encore de dos</span>
         </div>
-        <p
-          v-if="settings.cardBackFoilUrl"
-          class="mt-2 text-center text-[11px] text-muted"
-        >
-          card-back-foil = masque dorure (or du motif)
-        </p>
       </div>
     </div>
   </div>

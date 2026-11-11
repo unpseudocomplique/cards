@@ -1,6 +1,7 @@
 import type { DeckStyleSettings } from '~~/server/database/schema'
 import type { CardPromptRole, CardPromptSuit } from '~~/shared/utils/cardPromptPresets'
 import { cardPromptRoleValues, cardPromptSuitValues, mergeRolePrompts, mergeSuitPrompts } from '~~/shared/utils/cardPromptPresets'
+import { getCardTheme } from '~~/shared/utils/cardThemes'
 import { getTarotArcana, getTarotArcanaPromptHint } from '~~/shared/utils/tarotArcana'
 
 type PromptCard = {
@@ -58,6 +59,34 @@ function getSuitContext(card: PromptCard, settings: DeckStyleSettings) {
   return mergeSuitPrompts(settings.suitPrompts)[suit]
 }
 
+/** Suit accent expressed inside the deck palette (never a colour of its own). */
+function getSuitAccent(card: PromptCard, settings: DeckStyleSettings) {
+  const theme = getCardTheme(settings.colorTheme)
+
+  if (card.suit === 'hearts' || card.suit === 'diamonds') {
+    return `Suit accent: ${theme.warmAccent}, used sparingly within the deck palette.`
+  }
+
+  if (card.suit === 'clubs' || card.suit === 'spades') {
+    return `Suit accent: ${theme.coolAccent}, used sparingly within the deck palette.`
+  }
+
+  return null
+}
+
+/**
+ * Art direction shared by every image of the deck (scene, character, back).
+ * Same palette + same light on each layer is what makes the deck read as one set.
+ */
+function getDeckArtDirection(settings: DeckStyleSettings) {
+  const theme = getCardTheme(settings.colorTheme)
+
+  return [
+    `Deck colour theme: ${theme.palette}. Stay strictly inside this palette, no off-palette saturated colours.`,
+    `Lighting: ${theme.lighting}.`
+  ]
+}
+
 /** Always resolve Marseille arcana meaning from role/rank, even for older decks. */
 function getArcanaContext(card: PromptCard) {
   const arcana = getTarotArcana(card.role, card.rank)
@@ -102,7 +131,7 @@ function getExpressionDirection(card: PromptCard) {
 
 const sharedArtConstraints = [
   'No text, no letters, no numbers, no card index, no suit pips.',
-  'No painted frame, no gold or black border, no ornamental edge, no white margin, no passe-partout.',
+  'No painted frame, no border, no ornamental edge, no white margin, no passe-partout: the card frame is added afterwards.',
   'Full-bleed image to the edges.',
   'NOT cartoon, NOT comic-book, NOT cel-shaded, NOT thick black outlines, NOT manga or clip-art style.'
 ]
@@ -127,11 +156,13 @@ export function buildCardImagePrompt(card: PromptCard, settings: DeckStyleSettin
       getExpressionDirection(card),
       getRoleContext(card, settings),
       getSuitContext(card, settings),
+      getSuitAccent(card, settings),
       cardPrompt,
       'Soft background behind the figure, simple decor, few accessories, readable at a glance.'
     ],
     style: [
       settings.visualStyle,
+      ...getDeckArtDirection(settings),
       ...premiumIllustrationStyle,
       'cohesive premium card art, soft lighting, high detail on the face, quieter background'
     ],
@@ -153,11 +184,14 @@ export function buildCardScenePrompt(card: PromptCard, settings: DeckStyleSettin
       arcana ? `Evoke the symbolism and mood of ${arcana.name} through setting, light, and props only (${arcana.meaning}).` : null,
       getRoleContext(card, settings),
       getSuitContext(card, settings),
+      getSuitAccent(card, settings),
       cardPrompt,
-      'Soft depth, calm readable shapes, decor filling the whole frame, ready to sit behind a character cutout.'
+      'Soft depth, calm readable shapes, decor filling the whole frame, ready to sit behind a character cutout.',
+      'Keep the centre of the image calm and slightly darker or lighter than the figure will be, so the character stands out; detail stays in the background.'
     ],
     style: [
       settings.visualStyle,
+      ...getDeckArtDirection(settings),
       ...premiumIllustrationStyle,
       'gentle lighting, painterly background, edge-to-edge composition'
     ],
@@ -165,27 +199,30 @@ export function buildCardScenePrompt(card: PromptCard, settings: DeckStyleSettin
   })
 }
 
-/** Shared card back: full-bleed ornate pattern. Chrome frames are NOT overlaid (they cut motifs). */
+/**
+ * The single back shared by every card of the deck.
+ * Uses the deck colour theme so it matches the faces; the renderer adds the
+ * same outer contour as the faces around it.
+ */
 export function buildCardBackPrompt(settings: DeckStyleSettings, cardBackPrompt?: string | null) {
   return buildStructuredPrompt({
-    subject: 'A full-bleed ornate playing-card back design, perfectly centered, symmetrical, edge-to-edge, no people, no faces, no animals, no letters, no numbers.',
+    subject: 'A full-bleed ornamental playing-card back pattern, perfectly centered, symmetrical, edge-to-edge, no people, no faces, no animals, no letters, no numbers.',
     context: [
       settings.cardBackPrompt || cardBackPrompt,
-      'Luxury European card-back motif integrated to the edges: sacred geometry, filigree, fleurs-de-lis, or heraldic ornament.',
-      'Gold metallic accents must be part of the artwork itself (filigree, centers, corner ornaments), not a separate outer rectangle.',
-      'Balanced composition that works upside-down and right-side-up.'
+      'Classic European card-back motif: repeating or radial ornament (sacred geometry, filigree, fleurs-de-lis, foliage or heraldic pattern) that covers the whole surface evenly.',
+      'Exactly the same when rotated 180 degrees (point symmetry), so no card can be told apart from its back or its orientation.',
+      'Medium density pattern, no single large focal illustration, no scene, no horizon.'
     ],
     style: [
       settings.visualStyle,
-      ...premiumIllustrationStyle,
-      'rich but readable pattern, print-ready, cohesive with the deck faces'
+      ...getDeckArtDirection(settings),
+      'flat, even lighting on the pattern, crisp print-ready ornament, cohesive with the deck faces'
     ],
     constraints: [
       ...sharedArtConstraints,
       'No portraits, no photos, no logos, no QR codes.',
-      'No extra passe-partout, no thin rectangular guide line, no mockup frame, no isolated card on a gray background.',
-      'Do not draw a simple straight gold rectangle over the ornament — ornamentation must meet or form the border organically.',
-      'Symmetry preferred. Pattern fills the entire image to the edges.'
+      'No mockup, no isolated card on a background, no drop shadow, no rounded card corners drawn in the image.',
+      'Pattern fills the entire image to the edges.'
     ]
   })
 }
@@ -207,21 +244,23 @@ export function buildCardForegroundPrompt(card: PromptCard, settings: DeckStyleS
         : null,
       getRoleContext(card, settings),
       getSuitContext(card, settings),
+      getSuitAccent(card, settings),
       cardPrompt,
       'Use every provided reference photo to lock identity: face shape, age, hair, glasses, and distinctive features.',
       arcana
         ? 'Character in the foreground only, minimal props, theatrical Marseille-tarot presence without clutter. This is a major arcana, not a suit card.'
-        : 'Character in the foreground only, costume and pose matching the card role, minimal props.',
-      'Where the costume includes metallic gold trim, embroidery, jewelry, or filigree, paint it as polished gold so it can become a hot-foil stamp later — crisp gold accents on fabric, not muddy yellow.'
+        : 'Character in the foreground only, costume and pose matching the card role, minimal props.'
     ],
     style: [
       settings.visualStyle,
+      ...getDeckArtDirection(settings),
       ...premiumIllustrationStyle,
       'clean silhouette edges, studio cutout look, refined costume rendering'
     ],
     constraints: [
       'Mandatory background: flat pure chroma-key green #00FF00 only, edge-to-edge, uniform, no texture, no scenery, no gradient, no green cast shadow.',
       'Character fully opaque against that green. Hard clean silhouette edges. Absolutely no green halo, fringe, glow, outline, or green contamination on hair, skin, clothes, or props.',
+      'Never use bright or saturated green on the character (it would be keyed out): render any green of the palette as dark olive, bottle green or teal.',
       'Do not paint any card frame, border, number, letter, or suit pip.',
       'Leave empty green margin around the silhouette so cutout is easy.'
     ]

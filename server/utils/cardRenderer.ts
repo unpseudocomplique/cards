@@ -1,7 +1,10 @@
 import sharp from 'sharp'
+import type { Font, Path } from 'opentype.js'
 import { ensureIndexFont, getIndexFont } from '~~/server/utils/indexFont'
+import type { CardTheme, CardThemeId } from '~~/shared/utils/cardThemes'
+import { getCardTheme } from '~~/shared/utils/cardThemes'
 import type { RenderProfile } from '~~/shared/utils/printSpec'
-import { getCanvasPx } from '~~/shared/utils/printSpec'
+import { DECK_CARD_ASPECT_RATIO, getCanvasPx } from '~~/shared/utils/printSpec'
 
 type RenderCard = {
   label: string
@@ -9,10 +12,10 @@ type RenderCard = {
   rank?: string
   role?: string
   suit?: string
-  aspectRatio: '3:4' | '9:16'
+  aspectRatio?: '3:4' | '9:16'
 }
 
-type SceneFrame = {
+type Rect = {
   x: number
   y: number
   width: number
@@ -20,36 +23,39 @@ type SceneFrame = {
   radius: number
 }
 
+/**
+ * One layout for every card of a deck (faces AND back), so the contour,
+ * the frame and the index corners sit at exactly the same place everywhere.
+ * All sizes are derived from the trim width so screen and print match.
+ */
 type CardLayout = {
   width: number
   height: number
   bleed: number
-  contentX: number
-  contentY: number
   contentWidth: number
   contentHeight: number
   cardRadius: number
-  scene: SceneFrame
-  indexInset: number
-  indexWidth: number
-  indexHeight: number
-  outerStroke: number
-  frameGap: number
-  frameOuter: number
-  frameInner: number
+  /** Outer contour line, same on faces and back. */
+  contour: Rect
+  contourStroke: number
+  /** Illustration window (scene on faces, pattern on the back). */
+  window: Rect
+  frameStroke: number
+  hairlineStroke: number
+  hairlineGap: number
+  index: {
+    x: number
+    y: number
+    width: number
+    rankHeight: number
+    pipSize: number
+    gap: number
+    height: number
+  }
 }
 
 /** Crop AI-painted edge frames before fitting the scene window. */
 const SCENE_EDGE_CROP = 0.04
-
-/** Metallic gold for on-screen dorure (preview). Foil mask is separate for press. */
-const FOIL_GOLD = {
-  mid: '#c5a035',
-  light: '#f0d78c',
-  dark: '#8a6a1a'
-} as const
-
-const FOIL_MASK_BLACK = '#000000'
 
 // Thresholds use 0-255 channel values. Tuned aggressively against antialiased green fringes.
 const chromaGreenMinimum = 72
@@ -71,91 +77,84 @@ function clamp(value: number) {
   return Math.min(1, Math.max(0, value))
 }
 
-function getCardLayout(
-  aspectRatio: RenderCard['aspectRatio'],
-  profile: RenderProfile = 'screen'
-): CardLayout {
-  const canvas = getCanvasPx(aspectRatio, profile)
+function round(value: number) {
+  return Math.round(value * 100) / 100
+}
+
+function getCardLayout(profile: RenderProfile = 'screen'): CardLayout {
+  const canvas = getCanvasPx(DECK_CARD_ASPECT_RATIO, profile)
   const bleed = canvas.bleed
-  const contentWidth = canvas.width - bleed * 2
-  const contentHeight = canvas.height - bleed * 2
-  const isTarot = aspectRatio === '9:16'
-  // Layout proportions are relative to the trim/content box (not including bleed).
-  const indexInset = Math.round(contentWidth * 0.036)
-  const indexGap = Math.round(contentWidth * 0.014)
-  const indexWidth = Math.round(contentWidth * (isTarot ? 0.078 : 0.072))
-  const indexHeight = Math.round(contentHeight * (isTarot ? 0.078 : 0.09))
-  const marginX = indexInset + indexWidth + indexGap
-  const marginY = indexInset + indexHeight + indexGap
+  const cw = canvas.width - bleed * 2
+  const ch = canvas.height - bleed * 2
+  const unit = (ratio: number) => Math.round(cw * ratio)
+
+  const contourInset = unit(0.034)
+  const contourStroke = Math.max(2, unit(0.005))
+  const indexX = unit(0.058)
+  const indexY = unit(0.07)
+  const indexWidth = unit(0.088)
+  const rankHeight = unit(0.07)
+  const pipSize = unit(0.056)
+  const indexGap = unit(0.02)
+  const windowX = indexX + indexWidth + unit(0.024)
+  const windowY = indexY
 
   return {
     width: canvas.width,
     height: canvas.height,
     bleed,
-    contentX: bleed,
-    contentY: bleed,
-    contentWidth,
-    contentHeight,
-    // Classic playing-card corners (~2.5–3% of content width).
-    cardRadius: Math.round(contentWidth * 0.028),
-    scene: {
-      x: bleed + marginX,
-      y: bleed + marginY,
-      width: contentWidth - marginX * 2,
-      height: contentHeight - marginY * 2,
-      radius: Math.round(contentWidth * 0.014)
+    contentWidth: cw,
+    contentHeight: ch,
+    cardRadius: unit(0.05),
+    contour: {
+      x: bleed + contourInset,
+      y: bleed + contourInset,
+      width: cw - contourInset * 2,
+      height: ch - contourInset * 2,
+      radius: unit(0.03)
     },
-    indexInset: bleed + indexInset,
-    indexWidth,
-    indexHeight,
-    outerStroke: Math.max(2, Math.round(contentWidth * 0.004)),
-    frameGap: Math.max(3, Math.round(contentWidth * 0.005)),
-    frameOuter: Math.max(3, Math.round(contentWidth * 0.0055)),
-    frameInner: Math.max(2, Math.round(contentWidth * 0.0035))
+    contourStroke,
+    window: {
+      x: bleed + windowX,
+      y: bleed + windowY,
+      width: cw - windowX * 2,
+      height: ch - windowY * 2,
+      radius: unit(0.018)
+    },
+    frameStroke: Math.max(2, unit(0.006)),
+    hairlineStroke: Math.max(1, unit(0.0025)),
+    hairlineGap: Math.max(2, unit(0.01)),
+    index: {
+      x: bleed + indexX,
+      y: bleed + indexY,
+      width: indexWidth,
+      rankHeight,
+      pipSize,
+      gap: indexGap,
+      height: rankHeight + indexGap + pipSize
+    }
   }
 }
 
-function usesFoilChrome(card: RenderCard) {
-  return card.suit === 'trumps' || card.role === 'king' || card.role === 'queen'
+/** Back uses the same contour, with the pattern window just inside it. */
+function getBackWindow(layout: CardLayout): Rect {
+  const inset = Math.round(layout.contentWidth * 0.03)
+
+  return {
+    x: layout.contour.x + inset,
+    y: layout.contour.y + inset,
+    width: layout.contour.width - inset * 2,
+    height: layout.contour.height - inset * 2,
+    radius: layout.window.radius
+  }
 }
 
-function getCardColor(card: RenderCard) {
-  if (card.suit === 'hearts' || card.suit === 'diamonds') {
-    return '#b42318'
-  }
-
-  if (card.suit === 'trumps') {
-    return FOIL_GOLD.mid
-  }
-
-  return '#1c1917'
+function isRedSuit(card: RenderCard) {
+  return card.suit === 'hearts' || card.suit === 'diamonds'
 }
 
-function getFoilGradientDefs() {
-  return `
-    <linearGradient id="foilGold" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="${FOIL_GOLD.light}"/>
-      <stop offset="45%" stop-color="${FOIL_GOLD.mid}"/>
-      <stop offset="100%" stop-color="${FOIL_GOLD.dark}"/>
-    </linearGradient>
-  `
-}
-
-/** Frames / outer strokes use metallic gold for luxury cards; indices keep suit ink. */
-function getChromeFill(card: RenderCard) {
-  return usesFoilChrome(card) ? 'url(#foilGold)' : getCardColor(card)
-}
-
-function getIndexStrokeColor(card: RenderCard) {
-  if (usesFoilChrome(card)) {
-    return 'rgba(197, 160, 53, 0.28)'
-  }
-
-  if (card.suit === 'hearts' || card.suit === 'diamonds') {
-    return 'rgba(180, 35, 24, 0.18)'
-  }
-
-  return 'rgba(28, 25, 23, 0.16)'
+function getInk(card: RenderCard, theme: CardTheme) {
+  return isRedSuit(card) ? theme.colors.redInk : theme.colors.darkInk
 }
 
 function getRankLabel(card: RenderCard) {
@@ -174,8 +173,27 @@ function getRankLabel(card: RenderCard) {
   return rankMap[card.rank || ''] || card.rank || card.shortLabel
 }
 
-/** Real serif face → SVG paths (Sharp cannot rasterize <text> reliably). */
-function drawRank(label: string, x: number, y: number, width: number, height: number, color: string) {
+function rectSvg(rect: Rect, attrs: string, offset = 0) {
+  return `<rect x="${round(rect.x - offset)}" y="${round(rect.y - offset)}" width="${round(rect.width + offset * 2)}" height="${round(rect.height + offset * 2)}" rx="${round(Math.max(1, rect.radius + offset))}" ${attrs}/>`
+}
+
+/** Glyph outline + its tight bounding box at a given size. */
+function glyphOutline(font: Font, char: string, fontSize: number) {
+  const glyph = font.charToGlyph(char)
+  const path: Path = glyph.getPath(0, 0, fontSize)
+  const box = path.getBoundingBox()
+
+  return { path, box }
+}
+
+/**
+ * Index rank drawn from real font outlines (Sharp cannot rasterize <text> reliably).
+ * Every rank shares the same cap height on every card; glyphs are laid out
+ * from their real bounding boxes (not advance widths) so they are optically
+ * centred, and two-digit ranks ("10", "21") are tightened then condensed
+ * horizontally instead of being shrunk.
+ */
+function drawRank(label: string, centerX: number, top: number, maxWidth: number, capHeight: number, color: string) {
   const text = label.slice(0, 2).toUpperCase()
 
   if (!text) {
@@ -183,268 +201,140 @@ function drawRank(label: string, x: number, y: number, width: number, height: nu
   }
 
   const font = getIndexFont()
-  // Fit to the index box; slight side padding so glyphs don't kiss the edge.
-  let fontSize = height * 0.92
-  let advance = font.getAdvanceWidth(text, fontSize)
+  const reference = glyphOutline(font, 'H', 100)
+  const referenceHeight = reference.box.y2 - reference.box.y1 || 66
+  const fontSize = (capHeight / referenceHeight) * 100
+  const tracking = fontSize * 0.06
+  const glyphs = [...text].map(char => glyphOutline(font, char, fontSize))
+  const parts: string[] = []
+  let cursor = 0
 
-  if (advance > width * 0.98) {
-    fontSize *= (width * 0.98) / advance
-    advance = font.getAdvanceWidth(text, fontSize)
+  for (const { path, box } of glyphs) {
+    const dx = cursor - box.x1
+    parts.push(`<path transform="translate(${round(dx)} 0)" d="${path.toPathData(2)}"/>`)
+    cursor += box.x2 - box.x1 + tracking
   }
 
-  const baseline = y + height * 0.82
-  const textX = x + (width - advance) / 2
-  const path = font.getPath(text, textX, baseline, fontSize)
+  const totalWidth = cursor - tracking
+  const scaleX = totalWidth > maxWidth ? maxWidth / totalWidth : 1
+  const baseline = top + capHeight
+  const startX = centerX - (totalWidth * scaleX) / 2
 
-  return `<path d="${path.toPathData(1)}" fill="${color}"/>`
+  return `<g fill="${color}" transform="translate(${round(startX)} ${round(baseline)}) scale(${round(scaleX * 1000) / 1000} 1)">${parts.join('')}</g>`
 }
 
-function drawSuit(card: RenderCard, cx: number, cy: number, size: number, color: string, opacity = 1) {
+function drawSuit(suit: string | undefined, cx: number, cy: number, size: number, color: string) {
   const half = size / 2
   const quarter = size / 4
-  const fill = `fill="${color}" opacity="${opacity}"`
+  const fill = `fill="${color}"`
 
-  if (card.suit === 'hearts') {
+  if (suit === 'hearts') {
     const scale = size / 100
 
-    return `<path ${fill} transform="translate(${cx} ${cy + size * 0.06}) scale(${scale})" d="M 0 40 C -6 31 -43 8 -43 -21 C -43 -45 -17 -55 0 -32 C 17 -55 43 -45 43 -21 C 43 8 6 31 0 40 Z"/>`
+    return `<path ${fill} transform="translate(${round(cx)} ${round(cy + size * 0.06)}) scale(${round(scale * 1000) / 1000})" d="M 0 40 C -6 31 -43 8 -43 -21 C -43 -45 -17 -55 0 -32 C 17 -55 43 -45 43 -21 C 43 8 6 31 0 40 Z"/>`
   }
 
-  if (card.suit === 'diamonds') {
-    return `<polygon ${fill} points="${cx},${cy - half} ${cx + half * 0.72},${cy} ${cx},${cy + half} ${cx - half * 0.72},${cy}"/>`
+  if (suit === 'diamonds') {
+    return `<polygon ${fill} points="${round(cx)},${round(cy - half)} ${round(cx + half * 0.72)},${round(cy)} ${round(cx)},${round(cy + half)} ${round(cx - half * 0.72)},${round(cy)}"/>`
   }
 
-  if (card.suit === 'clubs') {
+  if (suit === 'clubs') {
     return [
-      `<circle ${fill} cx="${cx}" cy="${cy - quarter}" r="${quarter}"/>`,
-      `<circle ${fill} cx="${cx - quarter}" cy="${cy + quarter * 0.1}" r="${quarter}"/>`,
-      `<circle ${fill} cx="${cx + quarter}" cy="${cy + quarter * 0.1}" r="${quarter}"/>`,
-      `<path ${fill} d="M ${cx - quarter * 0.35} ${cy + quarter * 0.2} L ${cx + quarter * 0.35} ${cy + quarter * 0.2} L ${cx + quarter * 0.55} ${cy + half} L ${cx - quarter * 0.55} ${cy + half} Z"/>`
+      `<circle ${fill} cx="${round(cx)}" cy="${round(cy - quarter)}" r="${round(quarter)}"/>`,
+      `<circle ${fill} cx="${round(cx - quarter)}" cy="${round(cy + quarter * 0.1)}" r="${round(quarter)}"/>`,
+      `<circle ${fill} cx="${round(cx + quarter)}" cy="${round(cy + quarter * 0.1)}" r="${round(quarter)}"/>`,
+      `<path ${fill} d="M ${round(cx - quarter * 0.35)} ${round(cy + quarter * 0.2)} L ${round(cx + quarter * 0.35)} ${round(cy + quarter * 0.2)} L ${round(cx + quarter * 0.55)} ${round(cy + half)} L ${round(cx - quarter * 0.55)} ${round(cy + half)} Z"/>`
     ].join('')
   }
 
-  if (card.suit === 'spades') {
+  if (suit === 'spades') {
     return [
-      `<path ${fill} d="M ${cx} ${cy - half * 0.9} C ${cx - half * 0.45} ${cy - half * 0.45} ${cx - half * 0.9} ${cy - half * 0.18} ${cx - half * 0.86} ${cy + quarter * 0.38} C ${cx - half * 0.82} ${cy + quarter * 0.96} ${cx - quarter * 0.14} ${cy + quarter * 1.08} ${cx} ${cy + quarter * 0.2} C ${cx + quarter * 0.14} ${cy + quarter * 1.08} ${cx + half * 0.82} ${cy + quarter * 0.96} ${cx + half * 0.86} ${cy + quarter * 0.38} C ${cx + half * 0.9} ${cy - half * 0.18} ${cx + half * 0.45} ${cy - half * 0.45} ${cx} ${cy - half * 0.9} Z"/>`,
-      `<path ${fill} d="M ${cx - quarter * 0.22} ${cy + quarter * 0.12} C ${cx - quarter * 0.12} ${cy + quarter * 0.6} ${cx - quarter * 0.35} ${cy + half * 0.76} ${cx - quarter * 0.62} ${cy + half * 0.84} L ${cx + quarter * 0.62} ${cy + half * 0.84} C ${cx + quarter * 0.35} ${cy + half * 0.76} ${cx + quarter * 0.12} ${cy + quarter * 0.6} ${cx + quarter * 0.22} ${cy + quarter * 0.12} Z"/>`
+      `<path ${fill} d="M ${round(cx)} ${round(cy - half * 0.9)} C ${round(cx - half * 0.45)} ${round(cy - half * 0.45)} ${round(cx - half * 0.9)} ${round(cy - half * 0.18)} ${round(cx - half * 0.86)} ${round(cy + quarter * 0.38)} C ${round(cx - half * 0.82)} ${round(cy + quarter * 0.96)} ${round(cx - quarter * 0.14)} ${round(cy + quarter * 1.08)} ${round(cx)} ${round(cy + quarter * 0.2)} C ${round(cx + quarter * 0.14)} ${round(cy + quarter * 1.08)} ${round(cx + half * 0.82)} ${round(cy + quarter * 0.96)} ${round(cx + half * 0.86)} ${round(cy + quarter * 0.38)} C ${round(cx + half * 0.9)} ${round(cy - half * 0.18)} ${round(cx + half * 0.45)} ${round(cy - half * 0.45)} ${round(cx)} ${round(cy - half * 0.9)} Z"/>`,
+      `<path ${fill} d="M ${round(cx - quarter * 0.22)} ${round(cy + quarter * 0.12)} C ${round(cx - quarter * 0.12)} ${round(cy + quarter * 0.6)} ${round(cx - quarter * 0.35)} ${round(cy + half * 0.76)} ${round(cx - quarter * 0.62)} ${round(cy + half * 0.84)} L ${round(cx + quarter * 0.62)} ${round(cy + half * 0.84)} C ${round(cx + quarter * 0.35)} ${round(cy + half * 0.76)} ${round(cx + quarter * 0.12)} ${round(cy + quarter * 0.6)} ${round(cx + quarter * 0.22)} ${round(cy + quarter * 0.12)} Z"/>`
     ].join('')
   }
 
-  // Trumps / Excuse: no suit pip (avoids looking like diamonds).
   return ''
 }
 
-function drawIndex(card: RenderCard, layout: CardLayout, x: number, y: number, rotate: boolean, fill?: string) {
-  // Ink color for indices (red/black/gold). Foil mask passes black via `fill`.
-  const color = fill || getCardColor(card)
-  const rankLabel = getRankLabel(card)
-  const { indexWidth, indexHeight } = layout
-  const isTrumpIndex = card.suit === 'trumps'
-  const centerX = x + indexWidth / 2
-  const transform = rotate
-    ? ` transform="rotate(180 ${centerX} ${y + indexHeight / 2})"`
-    : ''
+/** Five-point star: the traditional Excuse index. */
+function drawStar(cx: number, cy: number, outerRadius: number, color: string) {
+  const innerRadius = outerRadius * 0.42
+  const points: string[] = []
 
-  // Rank sits in the top of the index column; suit sits clearly below with a gap.
-  const rankWidth = indexWidth * (rankLabel.length > 1 ? 0.98 : 0.86)
-  const rankHeight = isTrumpIndex
-    ? Math.round(indexHeight * 0.72)
-    : Math.round(indexHeight * 0.48)
-  const rankX = centerX - rankWidth / 2
-  const rankY = y + Math.round(indexWidth * 0.02)
-
-  if (isTrumpIndex) {
-    return `
-      <g${transform}>
-        ${drawRank(rankLabel, rankX, rankY, rankWidth, rankHeight, color)}
-      </g>
-    `
+  for (let i = 0; i < 10; i += 1) {
+    const radius = i % 2 === 0 ? outerRadius : innerRadius
+    const angle = -Math.PI / 2 + (i * Math.PI) / 5
+    points.push(`${round(cx + Math.cos(angle) * radius)},${round(cy + Math.sin(angle) * radius)}`)
   }
 
-  const suitSize = indexWidth * 0.62
-  const suitGap = Math.round(indexWidth * 0.14)
-  const suitCy = rankY + rankHeight + suitGap + suitSize * 0.45
+  return `<polygon fill="${color}" points="${points.join(' ')}"/>`
+}
 
+/** One index corner (rank over suit pip). The opposite corner is the same group rotated 180°. */
+function drawIndex(card: RenderCard, layout: CardLayout, theme: CardTheme) {
+  const color = getInk(card, theme)
+  const { index } = layout
+  const centerX = index.x + index.width / 2
+
+  if (card.role === 'excuse') {
+    return drawStar(centerX, index.y + index.rankHeight / 2, index.rankHeight * 0.62, color)
+  }
+
+  const rank = drawRank(getRankLabel(card), centerX, index.y, index.width, index.rankHeight, color)
+
+  if (card.suit === 'trumps' || !card.suit) {
+    return rank
+  }
+
+  const pipCy = index.y + index.rankHeight + index.gap + index.pipSize / 2
+
+  return rank + drawSuit(card.suit, centerX, pipCy, index.pipSize, color)
+}
+
+function paperGrainDefs() {
   return `
-    <g${transform}>
-      ${drawRank(rankLabel, rankX, rankY, rankWidth, rankHeight, color)}
-      ${drawSuit(card, centerX, suitCy, suitSize, color)}
-    </g>
+    <filter id="paperGrain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.5  0 0 0 0 0.45  0 0 0 0 0.4  0 0 0 0.05 0"/>
+    </filter>
   `
 }
 
-function buildSceneFrameOverlay(card: RenderCard, layout: CardLayout) {
-  const {
-    width,
-    height,
-    scene,
-    frameGap,
-    frameOuter,
-    frameInner
-  } = layout
-  const color = getCardColor(card)
-  const stroke = getChromeFill(card)
-  const accentStroke = getIndexStrokeColor(card)
-  const frameX = scene.x
-  const frameY = scene.y
-  const frameW = scene.width
-  const frameH = scene.height
-  const outerRx = Math.max(2, scene.radius)
-  const innerRx = Math.max(2, scene.radius - frameGap - frameOuter)
+/** Paper + outer contour, shared by faces and back. */
+function buildBaseLayer(layout: CardLayout, theme: CardTheme) {
+  const { width, height, contour, contourStroke } = layout
 
   return Buffer.from(`
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        ${getFoilGradientDefs()}
-        <filter id="sceneShadow" x="-10%" y="-8%" width="120%" height="120%">
-          <feDropShadow dx="0" dy="5" stdDeviation="10" flood-color="${color}" flood-opacity="0.12"/>
-        </filter>
-      </defs>
-
-      <rect
-        x="${frameX + 1}"
-        y="${frameY + 2}"
-        width="${frameW - 2}"
-        height="${frameH - 2}"
-        rx="${outerRx}"
-        fill="${color}"
-        opacity="0.04"
-        filter="url(#sceneShadow)"
-      />
-
-      <rect
-        x="${frameX}"
-        y="${frameY}"
-        width="${frameW}"
-        height="${frameH}"
-        rx="${outerRx}"
-        fill="none"
-        stroke="${stroke}"
-        stroke-opacity="0.88"
-        stroke-width="${frameOuter}"
-      />
-
-      <rect
-        x="${frameX + frameGap + frameOuter}"
-        y="${frameY + frameGap + frameOuter}"
-        width="${frameW - (frameGap + frameOuter) * 2}"
-        height="${frameH - (frameGap + frameOuter) * 2}"
-        rx="${innerRx}"
-        fill="none"
-        stroke="${accentStroke}"
-        stroke-width="${frameInner}"
-      />
+      <defs>${paperGrainDefs()}</defs>
+      <rect width="${width}" height="${height}" fill="${theme.colors.paper}"/>
+      <rect width="${width}" height="${height}" filter="url(#paperGrain)"/>
+      ${rectSvg(contour, `fill="none" stroke="${theme.colors.frame}" stroke-width="${contourStroke}"`)}
     </svg>
   `)
 }
 
-function buildChromeOverlay(card: RenderCard, layout: CardLayout) {
-  const {
-    width,
-    height,
-    contentX,
-    contentY,
-    contentWidth,
-    contentHeight,
-    cardRadius,
-    indexInset,
-    indexWidth,
-    indexHeight,
-    outerStroke
-  } = layout
-  const stroke = getChromeFill(card)
-  const outerInset = Math.round(contentWidth * 0.012)
-  const bottomIndexX = contentX + contentWidth - (indexInset - contentX) - indexWidth
-  const bottomIndexY = contentY + contentHeight - (indexInset - contentY) - indexHeight
+/** Frame around an illustration window: solid frame line + hairline just outside it. */
+function buildWindowFrame(layout: CardLayout, theme: CardTheme, window: Rect) {
+  const { width, height, frameStroke, hairlineStroke, hairlineGap } = layout
 
   return Buffer.from(`
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        ${getFoilGradientDefs()}
-        <filter id="paperGrain">
-          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/>
-          <feColorMatrix type="matrix" values="0 0 0 0 0.9  0 0 0 0 0.88  0 0 0 0 0.84  0 0 0 0.04 0"/>
-        </filter>
-      </defs>
-
-      <rect
-        x="${contentX + outerInset}"
-        y="${contentY + outerInset}"
-        width="${contentWidth - outerInset * 2}"
-        height="${contentHeight - outerInset * 2}"
-        rx="${Math.max(2, cardRadius - outerInset)}"
-        fill="none"
-        stroke="${stroke}"
-        stroke-opacity="0.35"
-        stroke-width="${outerStroke}"
-      />
-
-      <rect width="${width}" height="${height}" filter="url(#paperGrain)" opacity="1"/>
-
-      ${drawIndex(card, layout, indexInset, indexInset, false)}
-      ${drawIndex(card, layout, bottomIndexX, bottomIndexY, true)}
+      ${rectSvg(window, `fill="none" stroke="${theme.colors.frame}" stroke-width="${frameStroke}"`)}
+      ${rectSvg(window, `fill="none" stroke="${theme.colors.hairline}" stroke-width="${hairlineStroke}"`, hairlineGap)}
     </svg>
   `)
 }
 
-/** Hot-foil stamp mask: black = foil, white = no foil. Generated in-app for the printer. */
-function buildFoilMaskOverlay(card: RenderCard, layout: CardLayout) {
-  const {
-    width,
-    height,
-    contentX,
-    contentY,
-    contentWidth,
-    contentHeight,
-    cardRadius,
-    scene,
-    frameGap,
-    frameOuter,
-    frameInner,
-    outerStroke
-  } = layout
-  const outerInset = Math.round(contentWidth * 0.012)
-  const outerRx = Math.max(2, scene.radius)
-  const innerRx = Math.max(2, scene.radius - frameGap - frameOuter)
-  const foil = FOIL_MASK_BLACK
+function buildIndexLayer(card: RenderCard, layout: CardLayout, theme: CardTheme) {
+  const { width, height } = layout
+  const corner = drawIndex(card, layout, theme)
 
-  // Frames only — never indices or suit pips (those stay red/black ink).
   return Buffer.from(`
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-      <rect width="${width}" height="${height}" fill="#ffffff"/>
-
-      <rect
-        x="${contentX + outerInset}"
-        y="${contentY + outerInset}"
-        width="${contentWidth - outerInset * 2}"
-        height="${contentHeight - outerInset * 2}"
-        rx="${Math.max(2, cardRadius - outerInset)}"
-        fill="none"
-        stroke="${foil}"
-        stroke-width="${outerStroke}"
-      />
-
-      <rect
-        x="${scene.x}"
-        y="${scene.y}"
-        width="${scene.width}"
-        height="${scene.height}"
-        rx="${outerRx}"
-        fill="none"
-        stroke="${foil}"
-        stroke-width="${frameOuter}"
-      />
-
-      <rect
-        x="${scene.x + frameGap + frameOuter}"
-        y="${scene.y + frameGap + frameOuter}"
-        width="${scene.width - (frameGap + frameOuter) * 2}"
-        height="${scene.height - (frameGap + frameOuter) * 2}"
-        rx="${innerRx}"
-        fill="none"
-        stroke="${foil}"
-        stroke-width="${Math.max(1, frameInner)}"
-      />
+      <g>${corner}</g>
+      <g transform="rotate(180 ${width / 2} ${height / 2})">${corner}</g>
     </svg>
   `)
 }
@@ -475,7 +365,7 @@ async function cropSceneSource(source: Buffer) {
     .toBuffer()
 }
 
-async function buildSceneImage(source: Buffer, width: number, height: number, radius: number) {
+async function buildSceneImage(source: Buffer, width: number, height: number, radius: number, position: 'attention' | 'centre' = 'attention') {
   const cropped = await cropSceneSource(source)
   const mask = Buffer.from(`
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
@@ -484,7 +374,7 @@ async function buildSceneImage(source: Buffer, width: number, height: number, ra
   `)
 
   return sharp(cropped)
-    .resize(width, height, { fit: 'cover', position: 'attention' })
+    .resize(width, height, { fit: 'cover', position })
     .composite([{ input: mask, blend: 'dest-in' }])
     .png()
     .toBuffer()
@@ -628,23 +518,41 @@ function morphologyMax(source: Float32Array, width: number, height: number) {
 }
 
 /**
- * Build a transparent character layer sized to the full card.
- * Slightly inset so the figure can overlap the scene frame without covering indices.
+ * Character layer: cutout fitted to the scene window, standing on its bottom
+ * edge. It may rise above the top frame line (pop-out) but is clipped to the
+ * window horizontally and at the bottom, so it never covers the index corners
+ * or the outer contour.
  */
-async function buildForegroundImage(source: Buffer, width: number, height: number) {
+async function buildForegroundImage(source: Buffer, layout: CardLayout) {
+  const { width, height, window, frameStroke } = layout
   const cutout = await removeChromaGreen(source)
-  const targetHeight = Math.round(height * 0.92)
-  const targetWidth = Math.round(width * 0.88)
-  const resized = await sharp(cutout)
-    .resize(targetWidth, targetHeight, {
-      fit: 'contain',
-      background: { r: 0, g: 0, b: 0, alpha: 0 }
-    })
+  const trimmed = await sharp(cutout)
+    .trim({ threshold: 1 })
     .png()
     .toBuffer()
+    .catch(() => cutout)
 
-  const left = Math.round((width - targetWidth) / 2)
-  const top = Math.round(height * 0.06)
+  const clipLeft = window.x + frameStroke
+  const clipRight = window.x + window.width - frameStroke
+  const clipBottom = window.y + window.height - frameStroke
+  const popOut = Math.round((window.y - layout.bleed) * 0.8)
+  const boxWidth = Math.round((clipRight - clipLeft) * 0.94)
+  const boxHeight = Math.round(window.height * 0.94 + popOut)
+  const resized = await sharp(trimmed)
+    .resize(boxWidth, boxHeight, {
+      fit: 'inside',
+      withoutEnlargement: false
+    })
+    .png()
+    .toBuffer({ resolveWithObject: true })
+
+  const left = Math.round(window.x + (window.width - resized.info.width) / 2)
+  const top = Math.round(clipBottom - resized.info.height)
+  const clip = Buffer.from(`
+    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+      <rect x="${clipLeft}" y="0" width="${clipRight - clipLeft}" height="${clipBottom}" fill="#ffffff"/>
+    </svg>
+  `)
 
   return sharp({
     create: {
@@ -654,7 +562,10 @@ async function buildForegroundImage(source: Buffer, width: number, height: numbe
       background: { r: 0, g: 0, b: 0, alpha: 0 }
     }
   })
-    .composite([{ input: resized, left, top }])
+    .composite([
+      { input: resized.data, left, top },
+      { input: clip, blend: 'dest-in' }
+    ])
     .png()
     .toBuffer()
 }
@@ -672,44 +583,39 @@ async function applyCardCornerMask(image: Buffer, width: number, height: number,
     .toBuffer()
 }
 
+type RenderOptions = {
+  profile?: RenderProfile
+  theme?: CardThemeId | string | null
+}
+
 /**
- * Assemble card from two distinct AI images:
- * 1) scene/background (clipped into the vignette)
- * 2) character cutout (transparent, drawn above the frame)
- * then overlay indices and outer chrome.
+ * Assemble a face from two AI images, always with the same deck layout:
+ * paper + contour → scene window + frame → character → indices.
  */
 export async function renderCardImage(
   source: Buffer,
   card: RenderCard,
   foreground?: Buffer,
-  profile: RenderProfile = 'screen'
+  options: RenderOptions = {}
 ) {
   await ensureIndexFont()
-  const layout = getCardLayout(card.aspectRatio, profile)
-  const { width, height, bleed, contentWidth, contentHeight, cardRadius, scene } = layout
-  const sceneImage = await buildSceneImage(source, scene.width, scene.height, scene.radius)
-  const foregroundImage = foreground
-    ? await buildForegroundImage(foreground, contentWidth, contentHeight)
-    : null
-  const layers = [
-    { input: sceneImage, top: scene.y, left: scene.x },
-    { input: buildSceneFrameOverlay(card, layout), top: 0, left: 0 }
+  const profile = options.profile || 'screen'
+  const theme = getCardTheme(options.theme)
+  const layout = getCardLayout(profile)
+  const { width, height, cardRadius, window } = layout
+  const sceneImage = await buildSceneImage(source, window.width, window.height, window.radius)
+  const layers: sharp.OverlayOptions[] = [
+    { input: sceneImage, top: window.y, left: window.x },
+    { input: buildWindowFrame(layout, theme, window), top: 0, left: 0 }
   ]
 
-  if (foregroundImage) {
-    layers.push({ input: foregroundImage, top: bleed, left: bleed })
+  if (foreground) {
+    layers.push({ input: await buildForegroundImage(foreground, layout), top: 0, left: 0 })
   }
 
-  layers.push({ input: buildChromeOverlay(card, layout), top: 0, left: 0 })
+  layers.push({ input: buildIndexLayer(card, layout, theme), top: 0, left: 0 })
 
-  const flat = await sharp({
-    create: {
-      width,
-      height,
-      channels: 4,
-      background: { r: 250, g: 248, b: 244, alpha: 1 }
-    }
-  })
+  const flat = await sharp(buildBaseLayer(layout, theme))
     .composite(layers)
     .png()
     .toBuffer()
@@ -722,70 +628,25 @@ export async function renderCardImage(
   return applyCardCornerMask(flat, width, height, cardRadius)
 }
 
-/** Black-on-white foil stamp plate for hot-foil printing (generated in-app). */
-export async function renderCardFoilMask(card: RenderCard, profile: RenderProfile = 'print') {
-  await ensureIndexFont()
-  const layout = getCardLayout(card.aspectRatio, profile)
-
-  return sharp(buildFoilMaskOverlay(card, layout))
-    .png()
-    .toBuffer()
-}
-
 /**
- * Surgical face foil: painted gold in the artwork (costume trim, jewelry…)
- * optionally unioned with geometric chrome foil (frames only — never suit pips / indices).
+ * The deck's single card back: same paper, same contour and same frame as the
+ * faces, with the generated pattern inside. Rendered once per deck and reused
+ * for every card, so all backs are strictly identical.
  */
-export async function renderSurgicalCardFoilMask(options: {
-  card: RenderCard
-  faceImage: Buffer
-  profile?: RenderProfile
-  includeChrome?: boolean
-}) {
-  const { clearIndexCornersFromFoilMask, extractGoldFoilMask, foilOptionsCostume, unionFoilMasks } = await import('~~/server/utils/foilMask')
-  const profile = options.profile || 'print'
-  const layout = getCardLayout(options.card.aspectRatio, profile)
-  let surgical = await extractGoldFoilMask(options.faceImage, foilOptionsCostume)
-  surgical = await sharp(surgical)
-    .resize(layout.width, layout.height, { fit: 'fill' })
-    .png()
-    .toBuffer()
-  // Keep R / suit pips as ink: wipe foil noise from index corners.
-  surgical = await clearIndexCornersFromFoilMask(surgical, layout)
-
-  if (options.includeChrome === false) {
-    return surgical
-  }
-
-  const chrome = await renderCardFoilMask(options.card, profile)
-  return unionFoilMasks(surgical, chrome)
-}
-
-type CardBackOptions = {
-  aspectRatio: RenderCard['aspectRatio']
-  profile?: RenderProfile
-  withFoilChrome?: boolean
-}
-
-/** Full-bleed card back — no overlaid geometric chrome (it cuts ornate motifs). */
-export async function renderCardBackImage(source: Buffer, options: CardBackOptions) {
+export async function renderCardBackImage(source: Buffer, options: RenderOptions = {}) {
   const profile = options.profile || 'screen'
-  const layout = getCardLayout(options.aspectRatio, profile)
-  const { width, height, bleed, contentWidth, contentHeight, cardRadius } = layout
-  const art = await sharp(source)
-    .resize(contentWidth, contentHeight, { fit: 'cover', position: 'attention' })
-    .png()
-    .toBuffer()
+  const theme = getCardTheme(options.theme)
+  const layout = getCardLayout(profile)
+  const { width, height, cardRadius } = layout
+  const window = getBackWindow(layout)
+  // Centre crop: an attention crop would break the pattern's symmetry.
+  const art = await buildSceneImage(source, window.width, window.height, window.radius, 'centre')
 
-  const flat = await sharp({
-    create: {
-      width,
-      height,
-      channels: 4,
-      background: { r: 250, g: 248, b: 244, alpha: 1 }
-    }
-  })
-    .composite([{ input: art, top: bleed, left: bleed }])
+  const flat = await sharp(buildBaseLayer(layout, theme))
+    .composite([
+      { input: art, top: window.y, left: window.x },
+      { input: buildWindowFrame(layout, theme, window), top: 0, left: 0 }
+    ])
     .png()
     .toBuffer()
 
@@ -797,32 +658,11 @@ export async function renderCardBackImage(source: Buffer, options: CardBackOptio
 }
 
 /**
- * Foil mask for the card back: surgical extraction of painted gold in the artwork.
- * Falls back to empty (all white) if no gold is detected.
- */
-export async function renderCardBackFoilMaskFromArt(art: Buffer) {
-  const { extractGoldFoilMask, foilOptionsOrnament } = await import('~~/server/utils/foilMask')
-  return extractGoldFoilMask(art, foilOptionsOrnament)
-}
-
-/** @deprecated Prefer renderCardBackFoilMaskFromArt — geometric frames cut motifs. */
-export async function renderCardBackFoilMask(aspectRatio: RenderCard['aspectRatio'], profile: RenderProfile = 'print') {
-  const layout = getCardLayout(aspectRatio, profile)
-  const svg = Buffer.from(`
-    <svg width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}" xmlns="http://www.w3.org/2000/svg">
-      <rect width="${layout.width}" height="${layout.height}" fill="#ffffff"/>
-    </svg>
-  `)
-
-  return sharp(svg).png().toBuffer()
-}
-
-/**
  * Upscale a screen-resolution final PNG to the print canvas (trim + bleed).
- * Prefer re-compositing from scene+foreground when available; this is the fallback.
+ * Bleed is filled with the theme paper colour so the margin continues to the cut.
  */
-export async function upscaleToPrintCanvas(source: Buffer, aspectRatio: RenderCard['aspectRatio']) {
-  const layout = getCardLayout(aspectRatio, 'print')
+export async function upscaleToPrintCanvas(source: Buffer, theme?: CardThemeId | string | null) {
+  const layout = getCardLayout('print')
   const { width, height, bleed, contentWidth, contentHeight } = layout
   const resized = await sharp(source)
     .resize(contentWidth, contentHeight, { fit: 'fill', kernel: sharp.kernel.lanczos3 })
@@ -834,7 +674,7 @@ export async function upscaleToPrintCanvas(source: Buffer, aspectRatio: RenderCa
       width,
       height,
       channels: 4,
-      background: { r: 250, g: 248, b: 244, alpha: 1 }
+      background: getCardTheme(theme).colors.paper
     }
   })
     .composite([{ input: resized, top: bleed, left: bleed }])
