@@ -102,6 +102,8 @@ const faceUrlMap = computed(() => {
 })
 
 const backUrl = computed(() => textures.manifest.value?.backUrl ?? null)
+/** Card width / height of the deck format (tarot 61 × 112 mm or poker). */
+const cardRatio = computed(() => textures.manifest.value?.cardRatio ?? 2 / 3)
 
 const sceneRoot = ref<HTMLElement | null>(null)
 const sceneSize = shallowRef({ width: 0, height: 0 })
@@ -236,8 +238,8 @@ function onFlightDone(card: CardId) {
 function spawnSeatFlight(seat: number, card: CardId) {
   const { width, height } = measureScene()
   const anchor = seatAnchor(seat, localSeat.value, props.publicState.playerCount, width, height)
-  const cardW = 56
   const cardH = 84
+  const cardW = Math.round(cardH * cardRatio.value)
   enqueueFlight({
     card,
     faceUrl: faceUrlFor(card),
@@ -253,8 +255,8 @@ function spawnSeatFlight(seat: number, card: CardId) {
 
 function onHandPlay(card: CardId, origin?: DOMRect) {
   const scene = measureScene()
-  const fallbackWidth = 70
   const fallbackHeight = 105
+  const fallbackWidth = Math.round(fallbackHeight * cardRatio.value)
   const rect = origin && origin.width > 8
     ? origin
     : new DOMRect(
@@ -511,6 +513,7 @@ function onLoop({ delta }: { delta: number }) {
   <div
     ref="sceneRoot"
     class="relative h-full w-full overflow-hidden bg-[#0c0908]"
+    :style="{ '--table-card-ratio': cardRatio }"
   >
     <ClientOnly>
       <TresCanvas
@@ -572,6 +575,7 @@ function onLoop({ delta }: { delta: number }) {
           :local-seat="localSeat"
           :player-count="publicState.playerCount"
           :get-back="textures.getBack"
+          :card-ratio="cardRatio"
         />
       </TresCanvas>
     </ClientOnly>
@@ -624,6 +628,7 @@ function onLoop({ delta }: { delta: number }) {
           :face-urls="faceUrlMap"
           :back-url="backUrl"
           :dim-unplayable="canInteractHand"
+          :prompt="canInteractHand ? 'À vous de jouer' : null"
           @play="(card, origin) => onHandPlay(card, origin)"
         />
       </div>
@@ -665,7 +670,7 @@ function onLoop({ delta }: { delta: number }) {
           <div class="h-16 w-11 rounded-sm bg-gradient-to-b from-[#6b2d4a] to-[#3f1d2e] shadow-lg ring-1 ring-[#e0c06a]/40" />
         </div>
         <div class="text-center">
-          <p class="font-serif text-lg tracking-wide text-[#e8d5a8]">
+          <p class="font-display text-lg tracking-wide text-[#e8d5a8]">
             Préparation de la table
           </p>
           <p class="mt-1 text-xs text-white/45">

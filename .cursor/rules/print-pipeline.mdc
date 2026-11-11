@@ -1,6 +1,6 @@
 ---
 description: Card rendering, colour themes, single card back and print pipeline for personalized decks. Do not regress deck uniformity or reintroduce foil.
-globs: server/utils/cardRenderer.ts,server/utils/cardPromptBuilder.ts,server/utils/printExport.ts,shared/utils/printSpec.ts,shared/utils/cardThemes.ts,server/api/decks/**/exports/**,server/api/decks/**/back/**,app/components/deck/DeckPrintPanel.vue
+globs: server/utils/cardRenderer.ts,server/utils/cardPromptBuilder.ts,server/utils/printExport.ts,shared/utils/printSpec.ts,shared/utils/cardThemes.ts,server/api/decks/**/exports/**,server/api/decks/**/back/**,app/pages/decks/[id]/impression.vue
 alwaysApply: false
 ---
 
@@ -10,7 +10,7 @@ Reference: `docs/print-pipeline.md`.
 
 ## Deck uniformity
 
-- **One format per deck**: `DECK_CARD_ASPECT_RATIO` (3:4) for every card, trumps and Excuse included. Never reintroduce per-card formats: backs must be indistinguishable.
+- **One format per deck**: `settings.cardFormat` (`CARD_FORMATS` in `shared/utils/printSpec.ts`) for every card, trumps and Excuse included, and the back. `tarot` = 61 × 112 mm (new tarot decks), `poker` = 63.5 × 88.9 mm (classic decks and decks without `cardFormat`). Never reintroduce per-card formats: backs must be indistinguishable. Faces keep the format they were rendered in (`metadata.format`); faces in another format than the deck are not exported nor used at the table.
 - **One colour theme per deck**: `settings.colorTheme` → `getCardTheme()`. It feeds every prompt (scene, character, back) AND every rendered colour. Don't hard-code colours in prompts or renderer.
 - **One layout**: `getCardLayout()` is shared by faces and back (same contour, same frame language). No per-role chrome (no special gold frame for kings/trumps).
 - **One back**: `renderCardBackImage()` → `settings.cardBackImageUrl`, reused for every card in play and print.
@@ -25,6 +25,6 @@ Abandoned. Do not add foil masks, gold extraction, or "paint polished gold for h
 
 ## Print specs
 
-`shared/utils/printSpec.ts`: 300 DPI, 3 mm bleed, trim 63.5 × 88.9 mm. Do not change without updating `README.md` and `docs/print-pipeline.md`.
+`shared/utils/printSpec.ts`: 300 DPI, 3 mm bleed, trim 61 × 112 mm (tarot) or 63.5 × 88.9 mm (poker). Tarot layout keeps contour, indices and frame outside the 3 mm safe zone (`PRINT_SAFE_MM`, `getCardLayoutRatios`). Do not change without updating `README.md` and `docs/print-pipeline.md`.
 
 ZIP: `print/faces/{cardCode}.png`, `print/back/card-back.png`, `print/print-spec.json`.

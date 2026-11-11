@@ -1,4 +1,5 @@
 import type { CardThemeId } from '~~/shared/utils/cardThemes'
+import type { CardFormatId } from '~~/shared/utils/printSpec'
 
 export type DeckType = 'classic52' | 'tarot56' | 'tarot78'
 export type CardRolePromptKey = 'number' | 'ace' | 'jack' | 'knight' | 'queen' | 'king' | 'trump' | 'excuse'
@@ -14,6 +15,9 @@ export type DeckSummary = {
   readyCardCount: number
   createdAt: string
   updatedAt: string
+  /** Up to three ready faces picked for the deck cover (list endpoint only). */
+  coverUrls?: string[]
+  settings?: DeckSettings
 }
 
 export type DeckCard = {
@@ -31,6 +35,8 @@ export type DeckCard = {
     sortOrder: number
     aspectRatio: '3:4' | '9:16'
     promptHint: string
+    /** Format the stored face was rendered in (absent = poker). */
+    format?: CardFormatId
   }
   prompt: string | null
   rawImageUrl: string | null
@@ -55,18 +61,24 @@ export type DeckPerson = {
   photos: DeckPhoto[]
 }
 
+export type DeckSettings = {
+  allowPhotoReuse: boolean
+  visualStyle: string
+  rolePrompts?: Partial<Record<CardRolePromptKey, string>>
+  suitPrompts?: Partial<Record<CardSuitPromptKey, string>>
+  colorTheme?: CardThemeId
+  cardBackPrompt?: string
+  cardBackImageUrl?: string | null
+  cardBackImageKey?: string | null
+  /** Deck card format (absent on decks created before formats = poker). */
+  cardFormat?: CardFormatId
+  /** Format the current back was rendered in (absent = poker). */
+  cardBackFormat?: CardFormatId
+}
+
 export type DeckDetails = {
   deck: DeckSummary & {
-    settings: {
-      allowPhotoReuse: boolean
-      visualStyle: string
-      rolePrompts?: Partial<Record<CardRolePromptKey, string>>
-      suitPrompts?: Partial<Record<CardSuitPromptKey, string>>
-      colorTheme?: CardThemeId
-      cardBackPrompt?: string
-      cardBackImageUrl?: string | null
-      cardBackImageKey?: string | null
-    }
+    settings: DeckSettings
   }
   cards: DeckCard[]
   persons: DeckPerson[]

@@ -1,147 +1,127 @@
 <script setup lang="ts">
+import * as z from 'zod'
+import type { AuthFormField, FormSubmitEvent } from '@nuxt/ui'
 import { getRequestErrorMessage } from '~/utils/request-error'
 
 definePageMeta({
-  layout: 'default'
+  layout: 'auth'
 })
 
 useSeoMeta({
-  title: 'Inscription',
+  title: 'Créer un compte',
   robots: 'noindex, nofollow'
 })
 
 const route = useRoute()
 const toast = useToast()
 const { loggedIn, fetch: fetchSession } = useUserSession()
-const registerLoading = ref(false)
-const registerState = reactive({
-  username: '',
-  email: '',
-  password: '',
-  confirmPassword: ''
-})
+const redirectCookie = useCookie<string | null>('auth-redirect', { maxAge: 60 * 5 })
 
 if (loggedIn.value) {
   await navigateTo('/dashboard')
 }
 
-const redirectTo = route.query.redirect as string | undefined
-if (redirectTo) {
-  const redirectCookie = useCookie('auth-redirect', { maxAge: 60 * 5 })
-  redirectCookie.value = redirectTo
+if (typeof route.query.redirect === 'string') {
+  redirectCookie.value = route.query.redirect
 }
 
-async function registerWithEmail() {
-  registerLoading.value = true
+const schema = z.object({
+  username: z.string().trim().min(2, 'Au moins 2 caractères').max(30, 'Pseudo trop long'),
+  email: z.email('Adresse email invalide'),
+  password: z.string().min(8, 'Au moins 8 caractères').max(128),
+  confirmPassword: z.string()
+}).refine(value => value.password === value.confirmPassword, {
+  message: 'Les mots de passe ne correspondent pas',
+  path: ['confirmPassword']
+})
 
+type Schema = z.output<typeof schema>
+
+const fields: AuthFormField[] = [{
+  name: 'username',
+  type: 'text',
+  label: 'Pseudo',
+  placeholder: 'Comment vous appeler à la table',
+  autocomplete: 'nickname',
+  required: true
+}, {
+  name: 'email',
+  type: 'email',
+  label: 'Email',
+  placeholder: 'vous@exemple.com',
+  autocomplete: 'email',
+  required: true
+}, {
+  name: 'password',
+  type: 'password',
+  label: 'Mot de passe',
+  placeholder: '8 caractères minimum',
+  autocomplete: 'new-password',
+  required: true
+}, {
+  name: 'confirmPassword',
+  type: 'password',
+  label: 'Confirmation',
+  placeholder: 'Le même, encore une fois',
+  autocomplete: 'new-password',
+  required: true
+}]
+
+const providers = [{
+  label: 'S’inscrire avec Google',
+  icon: 'i-simple-icons-google',
+  to: '/auth/google',
+  external: true,
+  color: 'neutral' as const,
+  variant: 'subtle' as const
+}]
+
+const loading = shallowRef(false)
+
+async function onSubmit(event: FormSubmitEvent<Schema>) {
+  loading.value = true
   try {
     await $fetch('/api/auth/register', {
       method: 'POST',
-      body: registerState
+      body: event.data
     })
-
     await fetchSession()
-
-    toast.add({
-      title: 'Compte créé',
-      description: 'Bienvenue !',
-      color: 'success'
-    })
-
-    const redirect = useCookie('auth-redirect').value || '/dashboard'
-    useCookie('auth-redirect').value = null
-    await navigateTo(redirect)
-  } catch (error: unknown) {
+    toast.add({ title: 'Compte créé', description: 'Bienvenue !', color: 'success', icon: 'i-lucide-party-popper' })
+    const next = redirectCookie.value || '/dashboard'
+    redirectCookie.value = null
+    await navigateTo(next)
+  } catch (error) {
     toast.add({
       title: 'Inscription impossible',
       description: getRequestErrorMessage(error, 'Impossible de créer votre compte'),
-      color: 'error'
+      color: 'error',
+      icon: 'i-lucide-circle-alert'
     })
   } finally {
-    registerLoading.value = false
+    loading.value = false
   }
 }
 </script>
 
 <template>
-  <AuthPanel
+  <UAuthForm
+    :schema="schema"
+    :fields="fields"
+    :providers="providers"
+    :loading="loading"
     title="Créer un compte"
-    description="Un compte pour garder vos decks et rejoindre une table."
+    separator="ou avec votre email"
+    :submit="{ label: 'Créer mon compte', block: true }"
+    @submit="onSubmit"
   >
-        <form
-          class="space-y-4"
-          @submit.prevent="registerWithEmail"
-        >
-          <UFormField
-            label="Nom d'utilisateur"
-            required
-          >
-            <UInput
-              v-model="registerState.username"
-              placeholder="Votre pseudo"
-              autocomplete="username"
-              class="w-full"
-            />
-          </UFormField>
-
-          <UFormField
-            label="Email"
-            required
-          >
-            <UInput
-              v-model="registerState.email"
-              type="email"
-              placeholder="vous@exemple.com"
-              autocomplete="email"
-              class="w-full"
-            />
-          </UFormField>
-
-          <UFormField
-            label="Mot de passe"
-            required
-          >
-            <UInput
-              v-model="registerState.password"
-              type="password"
-              placeholder="8 caractères minimum"
-              autocomplete="new-password"
-              class="w-full"
-            />
-          </UFormField>
-
-          <UFormField
-            label="Confirmer le mot de passe"
-            required
-          >
-            <UInput
-              v-model="registerState.confirmPassword"
-              type="password"
-              placeholder="Retapez votre mot de passe"
-              autocomplete="new-password"
-              class="w-full"
-            />
-          </UFormField>
-
-          <UButton
-            type="submit"
-            block
-            size="lg"
-            class="justify-center"
-            :loading="registerLoading"
-          >
-            Créer mon compte
-          </UButton>
-        </form>
-
-        <div class="mt-5 text-center text-sm text-muted">
-          Déjà inscrit ?
-          <NuxtLink
-            to="/auth/login"
-            class="text-primary hover:underline"
-          >
-            Se connecter
-          </NuxtLink>
-        </div>
-  </AuthPanel>
+    <template #description>
+      Déjà inscrit ?
+      <ULink
+        to="/auth/login"
+        class="font-medium text-primary"
+      >
+        Se connecter
+      </ULink>
+    </template>
+  </UAuthForm>
 </template>

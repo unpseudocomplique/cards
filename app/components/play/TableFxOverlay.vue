@@ -131,7 +131,7 @@ function subtitleClass(event: TableFxEvent) {
           >
             {{ eyebrow(event.kind) }}
           </p>
-          <p class="mt-1 font-serif text-2xl font-semibold tracking-wide sm:text-3xl">
+          <p class="mt-1 font-display text-2xl font-semibold tracking-wide sm:text-3xl">
             {{ event.title }}
           </p>
           <p

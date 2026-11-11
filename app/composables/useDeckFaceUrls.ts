@@ -32,6 +32,8 @@ export function useDeckFaceUrls(code: Ref<string> | string) {
   })
 
   const backUrl = computed(() => data.value?.backUrl ?? null)
+  /** Card width / height of the deck format (2:3 until the manifest loads). */
+  const cardRatio = computed(() => data.value?.cardRatio ?? 2 / 3)
 
   function faceUrlFor(cardCode: string): string | null {
     return faceUrls.value.get(cardCode) ?? null
@@ -40,6 +42,7 @@ export function useDeckFaceUrls(code: Ref<string> | string) {
   return {
     faceUrls,
     backUrl,
+    cardRatio,
     faceUrlFor,
     pending,
     error,

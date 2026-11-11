@@ -3,8 +3,8 @@ import type { Font, Path } from 'opentype.js'
 import { ensureIndexFont, getIndexFont } from '~~/server/utils/indexFont'
 import type { CardTheme, CardThemeId } from '~~/shared/utils/cardThemes'
 import { getCardTheme } from '~~/shared/utils/cardThemes'
-import type { RenderProfile } from '~~/shared/utils/printSpec'
-import { DECK_CARD_ASPECT_RATIO, getCanvasPx } from '~~/shared/utils/printSpec'
+import type { CardFormat, CardFormatId, RenderProfile } from '~~/shared/utils/printSpec'
+import { getCanvasPx, getCardFormat, getCardLayoutRatios } from '~~/shared/utils/printSpec'
 
 type RenderCard = {
   label: string
@@ -12,7 +12,6 @@ type RenderCard = {
   rank?: string
   role?: string
   suit?: string
-  aspectRatio?: '3:4' | '9:16'
 }
 
 type Rect = {
@@ -28,7 +27,7 @@ type Rect = {
  * the frame and the index corners sit at exactly the same place everywhere.
  * All sizes are derived from the trim width so screen and print match.
  */
-type CardLayout = {
+export type CardLayout = {
   width: number
   height: number
   bleed: number
@@ -52,6 +51,8 @@ type CardLayout = {
     gap: number
     height: number
   }
+  /** Highest point the character may reach (it must never cover an index). */
+  foregroundTop: number
 }
 
 /** Crop AI-painted edge frames before fitting the scene window. */
@@ -81,23 +82,35 @@ function round(value: number) {
   return Math.round(value * 100) / 100
 }
 
-function getCardLayout(profile: RenderProfile = 'screen'): CardLayout {
-  const canvas = getCanvasPx(DECK_CARD_ASPECT_RATIO, profile)
+export function getCardLayout(format: CardFormat, profile: RenderProfile = 'screen'): CardLayout {
+  const canvas = getCanvasPx(format, profile)
+  const ratios = getCardLayoutRatios(format)
   const bleed = canvas.bleed
   const cw = canvas.width - bleed * 2
   const ch = canvas.height - bleed * 2
   const unit = (ratio: number) => Math.round(cw * ratio)
 
-  const contourInset = unit(0.034)
-  const contourStroke = Math.max(2, unit(0.005))
-  const indexX = unit(0.058)
-  const indexY = unit(0.07)
-  const indexWidth = unit(0.088)
-  const rankHeight = unit(0.07)
-  const pipSize = unit(0.056)
-  const indexGap = unit(0.02)
-  const windowX = indexX + indexWidth + unit(0.024)
-  const windowY = indexY
+  const contourInset = unit(ratios.contourInset)
+  const contourStroke = Math.max(2, unit(ratios.contourStroke))
+  const indexX = unit(ratios.indexX)
+  const indexY = unit(ratios.indexY)
+  const indexWidth = unit(ratios.indexWidth)
+  const rankHeight = unit(ratios.rankHeight)
+  const pipSize = unit(ratios.pipSize)
+  const indexGap = unit(ratios.indexGap)
+  const indexHeight = rankHeight + indexGap + pipSize
+
+  // Side: indices in a column beside the window (wide poker cards).
+  // Band: indices above / below the window, which then spans almost the full
+  // width — on a 61 × 112 mm tarot card a side column would leave a sliver.
+  const band = ratios.layout === 'band'
+  const windowX = band ? unit(ratios.windowX) : indexX + indexWidth + unit(ratios.windowGap)
+  const windowY = band ? indexY + indexHeight + unit(ratios.windowGap) : indexY
+  // Side: the character may rise up to the card edge area (pop-out).
+  // Band: it may rise into the band, but stays below the index row.
+  const foregroundTop = band
+    ? bleed + indexY + indexHeight + unit(ratios.foregroundGap)
+    : bleed + Math.round(windowY * 0.2)
 
   return {
     width: canvas.width,
@@ -105,13 +118,13 @@ function getCardLayout(profile: RenderProfile = 'screen'): CardLayout {
     bleed,
     contentWidth: cw,
     contentHeight: ch,
-    cardRadius: unit(0.05),
+    cardRadius: unit(ratios.cardRadius),
     contour: {
       x: bleed + contourInset,
       y: bleed + contourInset,
       width: cw - contourInset * 2,
       height: ch - contourInset * 2,
-      radius: unit(0.03)
+      radius: unit(ratios.contourRadius)
     },
     contourStroke,
     window: {
@@ -119,11 +132,11 @@ function getCardLayout(profile: RenderProfile = 'screen'): CardLayout {
       y: bleed + windowY,
       width: cw - windowX * 2,
       height: ch - windowY * 2,
-      radius: unit(0.018)
+      radius: unit(ratios.windowRadius)
     },
-    frameStroke: Math.max(2, unit(0.006)),
-    hairlineStroke: Math.max(1, unit(0.0025)),
-    hairlineGap: Math.max(2, unit(0.01)),
+    frameStroke: Math.max(2, unit(ratios.frameStroke)),
+    hairlineStroke: Math.max(1, unit(ratios.hairlineStroke)),
+    hairlineGap: Math.max(2, unit(ratios.hairlineGap)),
     index: {
       x: bleed + indexX,
       y: bleed + indexY,
@@ -131,8 +144,9 @@ function getCardLayout(profile: RenderProfile = 'screen'): CardLayout {
       rankHeight,
       pipSize,
       gap: indexGap,
-      height: rankHeight + indexGap + pipSize
-    }
+      height: indexHeight
+    },
+    foregroundTop
   }
 }
 
@@ -535,7 +549,7 @@ async function buildForegroundImage(source: Buffer, layout: CardLayout) {
   const clipLeft = window.x + frameStroke
   const clipRight = window.x + window.width - frameStroke
   const clipBottom = window.y + window.height - frameStroke
-  const popOut = Math.round((window.y - layout.bleed) * 0.8)
+  const popOut = Math.max(0, window.y - layout.foregroundTop)
   const boxWidth = Math.round((clipRight - clipLeft) * 0.94)
   const boxHeight = Math.round(window.height * 0.94 + popOut)
   const resized = await sharp(trimmed)
@@ -550,7 +564,7 @@ async function buildForegroundImage(source: Buffer, layout: CardLayout) {
   const top = Math.round(clipBottom - resized.info.height)
   const clip = Buffer.from(`
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-      <rect x="${clipLeft}" y="0" width="${clipRight - clipLeft}" height="${clipBottom}" fill="#ffffff"/>
+      <rect x="${clipLeft}" y="${layout.foregroundTop}" width="${clipRight - clipLeft}" height="${clipBottom - layout.foregroundTop}" fill="#ffffff"/>
     </svg>
   `)
 
@@ -586,6 +600,8 @@ async function applyCardCornerMask(image: Buffer, width: number, height: number,
 type RenderOptions = {
   profile?: RenderProfile
   theme?: CardThemeId | string | null
+  /** Deck card format; defaults to poker (decks created before formats existed). */
+  format?: CardFormatId | null
 }
 
 /**
@@ -601,7 +617,7 @@ export async function renderCardImage(
   await ensureIndexFont()
   const profile = options.profile || 'screen'
   const theme = getCardTheme(options.theme)
-  const layout = getCardLayout(profile)
+  const layout = getCardLayout(getCardFormat(options.format), profile)
   const { width, height, cardRadius, window } = layout
   const sceneImage = await buildSceneImage(source, window.width, window.height, window.radius)
   const layers: sharp.OverlayOptions[] = [
@@ -636,7 +652,7 @@ export async function renderCardImage(
 export async function renderCardBackImage(source: Buffer, options: RenderOptions = {}) {
   const profile = options.profile || 'screen'
   const theme = getCardTheme(options.theme)
-  const layout = getCardLayout(profile)
+  const layout = getCardLayout(getCardFormat(options.format), profile)
   const { width, height, cardRadius } = layout
   const window = getBackWindow(layout)
   // Centre crop: an attention crop would break the pattern's symmetry.
@@ -661,8 +677,12 @@ export async function renderCardBackImage(source: Buffer, options: RenderOptions
  * Upscale a screen-resolution final PNG to the print canvas (trim + bleed).
  * Bleed is filled with the theme paper colour so the margin continues to the cut.
  */
-export async function upscaleToPrintCanvas(source: Buffer, theme?: CardThemeId | string | null) {
-  const layout = getCardLayout('print')
+export async function upscaleToPrintCanvas(
+  source: Buffer,
+  theme?: CardThemeId | string | null,
+  format?: CardFormatId | null
+) {
+  const layout = getCardLayout(getCardFormat(format), 'print')
   const { width, height, bleed, contentWidth, contentHeight } = layout
   const resized = await sharp(source)
     .resize(contentWidth, contentHeight, { fit: 'fill', kernel: sharp.kernel.lanczos3 })

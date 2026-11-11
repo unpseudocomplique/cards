@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import * as z from 'zod'
+import type { AuthFormField, FormSubmitEvent } from '@nuxt/ui'
 import { getRequestErrorMessage } from '~/utils/request-error'
 
 definePageMeta({
-  layout: 'default'
+  layout: 'auth'
 })
 
 useSeoMeta({
@@ -12,32 +14,39 @@ useSeoMeta({
 
 const route = useRoute()
 const toast = useToast()
-const loading = ref(false)
-const submittedEmail = ref('')
-const state = reactive({
-  email: typeof route.query.email === 'string' ? route.query.email : ''
+const loading = shallowRef(false)
+const submittedEmail = shallowRef('')
+
+const schema = z.object({
+  email: z.email('Adresse email invalide')
 })
 
-async function requestResetLink() {
-  loading.value = true
+type Schema = z.output<typeof schema>
 
+const fields: AuthFormField[] = [{
+  name: 'email',
+  type: 'email',
+  label: 'Email',
+  placeholder: 'vous@exemple.com',
+  autocomplete: 'email',
+  defaultValue: typeof route.query.email === 'string' ? route.query.email : undefined,
+  required: true
+}]
+
+async function onSubmit(event: FormSubmitEvent<Schema>) {
+  loading.value = true
   try {
     await $fetch('/api/auth/forgot-password', {
       method: 'POST',
-      body: state
+      body: event.data
     })
-
-    submittedEmail.value = state.email
-    toast.add({
-      title: 'Demande envoyée',
-      description: 'Si un compte existe, un lien de réinitialisation vient d’être envoyé.',
-      color: 'success'
-    })
-  } catch (error: unknown) {
+    submittedEmail.value = event.data.email
+  } catch (error) {
     toast.add({
       title: 'Envoi impossible',
-      description: getRequestErrorMessage(error, 'Impossible de demander le lien de réinitialisation'),
-      color: 'error'
+      description: getRequestErrorMessage(error, 'Impossible d’envoyer le lien'),
+      color: 'error',
+      icon: 'i-lucide-circle-alert'
     })
   } finally {
     loading.value = false
@@ -46,81 +55,36 @@ async function requestResetLink() {
 </script>
 
 <template>
-  <AuthPanel
-    :title="submittedEmail ? 'Regardez votre boîte mail' : 'Mot de passe oublié'"
-    :description="submittedEmail
-      ? 'Un lien de récupération a été préparé si le compte existe.'
-      : 'Entrez votre e-mail pour recevoir un lien, même si vous utilisez Google.'"
+  <UEmpty
+    v-if="submittedEmail"
+    icon="i-lucide-mail-check"
+    title="Regardez votre boîte mail"
+    :description="`Si un compte existe pour ${submittedEmail}, un lien valable 30 minutes vient de partir.`"
+    variant="naked"
+    :actions="[
+      { label: 'Retour à la connexion', to: '/auth/login' },
+      { label: 'Renvoyer', color: 'neutral', variant: 'subtle', onClick: () => { submittedEmail = '' } }
+    ]"
+  />
+
+  <UAuthForm
+    v-else
+    :schema="schema"
+    :fields="fields"
+    :loading="loading"
+    icon="i-lucide-key-round"
+    title="Mot de passe oublié"
+    description="Recevez un lien pour en choisir un nouveau, même si vous utilisez Google."
+    :submit="{ label: 'Envoyer le lien', block: true }"
+    @submit="onSubmit"
   >
-        <div
-          v-if="submittedEmail"
-          class="space-y-5"
-        >
-          <div class="rounded-lg border border-default bg-muted/40 p-4 text-sm leading-6 text-toned">
-            Un e-mail a été préparé pour
-            <span class="font-semibold text-highlighted">{{ submittedEmail }}</span>.
-            Si le compte existe, le lien sera valable 30 minutes.
-          </div>
-
-          <div class="grid gap-3 sm:grid-cols-2">
-            <UButton
-              color="primary"
-              size="lg"
-              class="justify-center"
-              @click="submittedEmail = ''"
-            >
-              Réessayer
-            </UButton>
-
-            <UButton
-              to="/auth/login"
-              color="neutral"
-              variant="outline"
-              size="lg"
-              class="justify-center"
-            >
-              Retour à la connexion
-            </UButton>
-          </div>
-        </div>
-
-        <form
-          v-else
-          class="space-y-4"
-          @submit.prevent="requestResetLink"
-        >
-          <UFormField
-            label="Email"
-            required
-          >
-            <UInput
-              v-model="state.email"
-              type="email"
-              placeholder="vous@exemple.com"
-              autocomplete="email"
-              class="w-full"
-            />
-          </UFormField>
-
-          <UButton
-            type="submit"
-            block
-            size="lg"
-            class="justify-center"
-            :loading="loading"
-          >
-            Envoyer le lien de récupération
-          </UButton>
-        </form>
-
-        <div class="mt-5 text-center text-sm text-muted">
-          Vous vous souvenez de votre mot de passe ?
-          <NuxtLink
-            to="/auth/login"
-            class="text-primary hover:underline"
-          >
-            Revenir à la connexion
-          </NuxtLink>
-        </div>
-  </AuthPanel>
+    <template #footer>
+      <ULink
+        to="/auth/login"
+        class="text-sm text-muted hover:text-default"
+      >
+        ← Revenir à la connexion
+      </ULink>
+    </template>
+  </UAuthForm>
 </template>

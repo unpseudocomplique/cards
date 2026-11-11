@@ -1,199 +1,120 @@
 <script setup lang="ts">
+import * as z from 'zod'
+import type { AuthFormField, FormSubmitEvent } from '@nuxt/ui'
 import { getRequestErrorMessage } from '~/utils/request-error'
 
 definePageMeta({
-  layout: 'default'
+  layout: 'auth'
 })
 
 useSeoMeta({
-  title: 'Réinitialiser le mot de passe',
+  title: 'Nouveau mot de passe',
   robots: 'noindex, nofollow'
 })
 
 const route = useRoute()
 const toast = useToast()
 const token = computed(() => typeof route.query.token === 'string' ? route.query.token : '')
-const validationState = ref<'checking' | 'invalid' | 'valid'>('checking')
-const validationMessage = ref('')
-const resetComplete = ref(false)
-const resetLoading = ref(false)
-const passwordState = reactive({
-  newPassword: '',
-  confirmPassword: ''
+const state = shallowRef<'checking' | 'invalid' | 'valid' | 'done'>('checking')
+const invalidMessage = shallowRef('')
+const loading = shallowRef(false)
+
+const schema = z.object({
+  newPassword: z.string().min(8, 'Au moins 8 caractères').max(128),
+  confirmPassword: z.string()
+}).refine(value => value.newPassword === value.confirmPassword, {
+  message: 'Les mots de passe ne correspondent pas',
+  path: ['confirmPassword']
 })
 
-async function validateToken() {
+type Schema = z.output<typeof schema>
+
+const fields: AuthFormField[] = [{
+  name: 'newPassword',
+  type: 'password',
+  label: 'Nouveau mot de passe',
+  placeholder: '8 caractères minimum',
+  autocomplete: 'new-password',
+  required: true
+}, {
+  name: 'confirmPassword',
+  type: 'password',
+  label: 'Confirmation',
+  autocomplete: 'new-password',
+  required: true
+}]
+
+onMounted(async () => {
   if (!token.value) {
-    validationState.value = 'invalid'
-    validationMessage.value = 'Le lien de réinitialisation est incomplet.'
+    state.value = 'invalid'
+    invalidMessage.value = 'Le lien de réinitialisation est incomplet.'
     return
   }
-
   try {
-    await $fetch('/api/auth/reset-password/validate', {
-      query: {
-        token: token.value
-      }
-    })
-
-    validationState.value = 'valid'
-    validationMessage.value = ''
-  } catch (error: unknown) {
-    validationState.value = 'invalid'
-    validationMessage.value = getRequestErrorMessage(error, 'Le lien de réinitialisation est invalide ou a expiré.')
+    await $fetch('/api/auth/reset-password/validate', { query: { token: token.value } })
+    state.value = 'valid'
+  } catch (error) {
+    state.value = 'invalid'
+    invalidMessage.value = getRequestErrorMessage(error, 'Le lien est invalide ou a expiré.')
   }
-}
+})
 
-async function resetPassword() {
-  resetLoading.value = true
-
+async function onSubmit(event: FormSubmitEvent<Schema>) {
+  loading.value = true
   try {
     await $fetch('/api/auth/reset-password', {
       method: 'POST',
-      body: {
-        token: token.value,
-        ...passwordState
-      }
+      body: { token: token.value, ...event.data }
     })
-
-    resetComplete.value = true
-    toast.add({
-      title: 'Mot de passe mis à jour',
-      description: 'Vous pouvez maintenant vous reconnecter avec votre nouveau mot de passe.',
-      color: 'success'
-    })
-  } catch (error: unknown) {
+    state.value = 'done'
+  } catch (error) {
     toast.add({
       title: 'Réinitialisation impossible',
       description: getRequestErrorMessage(error, 'Impossible de modifier le mot de passe'),
-      color: 'error'
+      color: 'error',
+      icon: 'i-lucide-circle-alert'
     })
   } finally {
-    resetLoading.value = false
+    loading.value = false
   }
 }
-
-onMounted(() => {
-  validateToken()
-})
 </script>
 
 <template>
-  <AuthPanel
-    :title="resetComplete ? 'Mot de passe mis à jour' : 'Réinitialisation du mot de passe'"
-    :description="resetComplete
-      ? 'Votre nouveau mot de passe est prêt.'
-      : 'Choisissez un nouveau mot de passe pour reprendre la main.'"
-  >
-        <div
-          v-if="validationState === 'checking'"
-          class="space-y-4 text-center"
-        >
-          <UIcon
-            name="i-lucide-loader-circle"
-            class="mx-auto size-7 animate-spin text-primary"
-          />
-          <p class="text-sm text-muted">
-            Vérification du lien en cours...
-          </p>
-        </div>
+  <UEmpty
+    v-if="state === 'checking'"
+    loading
+    title="Vérification du lien…"
+    variant="naked"
+  />
 
-        <div
-          v-else-if="validationState === 'invalid'"
-          class="space-y-5"
-        >
-          <UAlert
-            color="error"
-            icon="i-lucide-alert-circle"
-            title="Lien invalide"
-            :description="validationMessage"
-          />
+  <UEmpty
+    v-else-if="state === 'invalid'"
+    icon="i-lucide-link-2-off"
+    title="Lien inutilisable"
+    :description="invalidMessage"
+    variant="naked"
+    :actions="[{ label: 'Demander un nouveau lien', to: '/auth/forgot-password' }]"
+  />
 
-          <div class="grid gap-3 sm:grid-cols-2">
-            <UButton
-              to="/auth/forgot-password"
-              color="primary"
-              size="lg"
-              class="justify-center"
-            >
-              Demander un nouveau lien
-            </UButton>
+  <UEmpty
+    v-else-if="state === 'done'"
+    icon="i-lucide-circle-check"
+    title="Mot de passe mis à jour"
+    description="Vous pouvez vous reconnecter avec votre nouveau mot de passe."
+    variant="naked"
+    :actions="[{ label: 'Se connecter', to: '/auth/login' }]"
+  />
 
-            <UButton
-              to="/auth/login"
-              color="neutral"
-              variant="outline"
-              size="lg"
-              class="justify-center"
-            >
-              Retour à la connexion
-            </UButton>
-          </div>
-        </div>
-
-        <div
-          v-else-if="resetComplete"
-          class="space-y-5"
-        >
-          <UAlert
-            color="success"
-            icon="i-lucide-check-circle"
-            title="C’est prêt"
-            description="Votre mot de passe a été réinitialisé. Vous pouvez vous reconnecter."
-          />
-
-          <UButton
-            to="/auth/login"
-            block
-            color="primary"
-            size="lg"
-            class="justify-center"
-          >
-            Se connecter
-          </UButton>
-        </div>
-
-        <form
-          v-else
-          class="space-y-4"
-          @submit.prevent="resetPassword"
-        >
-          <UFormField
-            label="Nouveau mot de passe"
-            required
-          >
-            <UInput
-              v-model="passwordState.newPassword"
-              type="password"
-              placeholder="8 caractères minimum"
-              autocomplete="new-password"
-              class="w-full"
-            />
-          </UFormField>
-
-          <UFormField
-            label="Confirmer le mot de passe"
-            required
-          >
-            <UInput
-              v-model="passwordState.confirmPassword"
-              type="password"
-              placeholder="Retapez votre mot de passe"
-              autocomplete="new-password"
-              class="w-full"
-            />
-          </UFormField>
-
-          <UButton
-            type="submit"
-            block
-            color="primary"
-            size="lg"
-            class="justify-center"
-            :loading="resetLoading"
-          >
-            Enregistrer le nouveau mot de passe
-          </UButton>
-        </form>
-  </AuthPanel>
+  <UAuthForm
+    v-else
+    :schema="schema"
+    :fields="fields"
+    :loading="loading"
+    icon="i-lucide-lock-keyhole"
+    title="Nouveau mot de passe"
+    description="Choisissez un mot de passe d’au moins 8 caractères."
+    :submit="{ label: 'Enregistrer', block: true }"
+    @submit="onSubmit"
+  />
 </template>

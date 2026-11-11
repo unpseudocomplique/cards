@@ -3,6 +3,7 @@ import { defaultRolePrompts, defaultSuitPrompts } from '~~/shared/utils/cardProm
 import { cardThemeIds, defaultCardThemeId } from '~~/shared/utils/cardThemes'
 import { getCardCatalog } from '~~/server/utils/cardCatalog'
 import { db, deckCards, decks } from '~~/server/utils/db'
+import { defaultCardFormatForDeckType } from '~~/shared/utils/printSpec'
 
 const createDeckSchema = z.object({
   title: z.string().min(3).max(100),
@@ -42,6 +43,7 @@ export default defineEventHandler(async (event) => {
           allowPhotoReuse: input.allowPhotoReuse,
           visualStyle: input.visualStyle,
           colorTheme: input.colorTheme,
+          cardFormat: defaultCardFormatForDeckType(input.type),
           rolePrompts: defaultRolePrompts,
           suitPrompts: defaultSuitPrompts
         }

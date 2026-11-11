@@ -1,6 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
-  modules: ['@nuxt/eslint', '@nuxt/image', '@nuxt/ui', '@nuxt/content', '@vueuse/nuxt', 'nuxt-auth-utils', 'nuxt-og-image', 'motion-v/nuxt', '@tresjs/nuxt'],
+  modules: ['@nuxt/eslint', '@nuxt/image', '@nuxt/ui', '@vueuse/nuxt', 'nuxt-auth-utils', 'motion-v/nuxt', '@tresjs/nuxt'],
 
   devtools: {
     enabled: true
@@ -12,7 +12,6 @@ export default defineNuxtConfig({
         lang: 'fr'
       },
       meta: [
-        { name: 'theme-color', content: '#1c1612' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' }
       ]
     }
@@ -23,12 +22,6 @@ export default defineNuxtConfig({
   colorMode: {
     preference: 'dark',
     fallback: 'dark'
-  },
-
-  content: {
-    experimental: {
-      sqliteConnector: 'native'
-    }
   },
 
   runtimeConfig: {
@@ -91,10 +84,12 @@ export default defineNuxtConfig({
       }
     ],
     prerender: {
+      // Only the public landing page is static. Crawling would bake the
+      // auth-guarded pages (/dashboard, /play…) as redirects to the login.
       routes: [
         '/'
       ],
-      crawlLinks: true,
+      crawlLinks: false,
       ignore: ['/auth/**', '/play/salon-cast']
     }
   },
@@ -122,9 +117,5 @@ export default defineNuxtConfig({
         braceStyle: '1tbs'
       }
     }
-  },
-
-  ogImage: {
-    zeroRuntime: true
   }
 })

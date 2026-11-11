@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import type { CardId } from '~~/shared/tarot'
+import { countPoigneeTrumps, poigneeTiers } from '~~/shared/tarot'
 
 definePageMeta({
   middleware: 'auth',
   layout: 'play',
+  colorMode: 'dark'
 })
 
 const route = useRoute()
@@ -11,10 +13,10 @@ const config = useRuntimeConfig()
 const toast = useToast()
 const { user } = useUserSession()
 
-const code = computed(() => String(route.params.code ?? ''))
+const code = computed(() => String(route.params.code ?? '').toUpperCase())
 
 useSeoMeta({
-  title: () => `Partie ${code.value}`,
+  title: () => `Table ${code.value}`
 })
 
 const {
@@ -24,164 +26,116 @@ const {
   error,
   publicSyncDegraded,
   sendIntent,
-  join,
+  join
 } = useTarotGame(code)
 
-const { faceUrlFor } = useDeckFaceUrls(code)
+const { faceUrlFor, cardRatio } = useDeckFaceUrls(code)
 
+/* Seating */
 const joined = shallowRef(false)
-
 const alreadySeated = computed(() => {
   const userId = user.value?.id
-  if (!userId || !publicState.value) {
-    return false
-  }
-  return publicState.value.seats.some(seat => seat.userId === userId)
+  return Boolean(userId && publicState.value?.seats.some(seat => seat.userId === userId))
 })
 
-function tryJoin() {
+watch([connected, publicState, privateState], () => {
   if (!connected.value || joined.value) {
     return
   }
-  // Host is seated at table create; only guests need join.
+  // The host is seated when the table is created; only guests need to join.
   if (alreadySeated.value || privateState.value) {
     joined.value = true
     return
   }
-  if (!publicState.value) {
-    return
+  if (publicState.value) {
+    join()
+    joined.value = true
   }
-  join()
-  joined.value = true
-}
-
-watch([connected, publicState, privateState], () => {
-  tryJoin()
 })
 
-const inviteUrl = computed(() => {
-  const base = String(config.public.siteUrl).replace(/\/$/, '')
-  return `${base}/play/${code.value}`
-})
-
+const inviteUrl = computed(() => `${String(config.public.siteUrl).replace(/\/$/, '')}/play/${code.value}`)
 const isLobby = computed(() => publicState.value?.phase === 'Lobby')
+const isHost = computed(() => Boolean(user.value && publicState.value?.seats[0]?.userId === user.value.id))
+const localSeat = computed(() => privateState.value?.seat ?? null)
+const phase = computed(() => publicState.value?.phase)
 
-const hostSeatId = computed(() => 0)
-
-const isHost = computed(() => {
-  if (!publicState.value || !user.value) {
-    return false
-  }
-  const hostSeat = publicState.value.seats[hostSeatId.value]
-  return hostSeat?.userId === user.value.id
-})
-
-const allSeatsFilled = computed(() =>
-  publicState.value?.seats.every(seat => seat.userId !== null) ?? false,
-)
-
-const isMyTurn = computed(() => {
-  if (!publicState.value || privateState.value === null) {
-    return false
-  }
-  return publicState.value.currentSeat === privateState.value.seat
-})
-
-const isTaker = computed(() =>
-  privateState.value !== null
-  && publicState.value?.bid?.seat === privateState.value.seat,
-)
+const myTurn = computed(() => localSeat.value !== null && publicState.value?.currentSeat === localSeat.value)
+const isTaker = computed(() => localSeat.value !== null && publicState.value?.bid?.seat === localSeat.value)
 
 const needsKingCall = computed(() =>
   publicState.value?.playerCount === 5
   && isTaker.value
   && !publicState.value.calledKing
-  && (publicState.value.phase === 'DogEcarta' || publicState.value.phase === 'ReadyToPlay'),
+  && (phase.value === 'DogEcarta' || phase.value === 'ReadyToPlay')
 )
 
-const kingOptions = ['hearts-k', 'diamonds-k', 'clubs-k', 'spades-k'] as const
+const discardSize = computed<3 | 6>(() => publicState.value?.playerCount === 5 ? 3 : 6)
+const canDiscard = computed(() => phase.value === 'DogEcarta' && isTaker.value && Boolean(privateState.value) && !needsKingCall.value)
+const showSummary = computed(() => phase.value === 'Scoring' || phase.value === 'MatchOver')
 
-const discardSize = computed(() => {
-  const count = publicState.value?.playerCount ?? 4
-  return count === 5 ? 3 : 6
-})
-
-const canDiscard = computed(() =>
-  publicState.value?.phase === 'DogEcarta'
-  && isTaker.value
-  && !!privateState.value
-  && !needsKingCall.value,
-)
-
-const debugGfx = computed(() => String(route.query.debugGfx ?? '') === '1')
-
-const tableActive = computed(() => Boolean(publicState.value) && !isLobby.value)
-const { isPhonePortrait, tryLockLandscape } = usePlayOrientation(tableActive)
-
-const tableNeedsLandscape = computed(() => tableActive.value && isPhonePortrait.value)
-
-const showPlayHand = computed(() =>
-  !!privateState.value?.hand?.length
+const showHand = computed(() =>
+  Boolean(privateState.value?.hand?.length)
   && !canDiscard.value
   && !needsKingCall.value
-  && publicState.value?.phase !== 'Scoring'
-  && publicState.value?.phase !== 'MatchOver'
-  && publicState.value?.phase !== 'Dealing',
+  && !showSummary.value
+  && phase.value !== 'Dealing'
 )
 
-const selectedDiscard = shallowRef<CardId[]>([])
+/* Poignée — only before the first card of the deal. */
+const poigneeTier = computed(() => {
+  if (phase.value !== 'ReadyToPlay' || publicState.value?.poigneeShown || !privateState.value) {
+    return null
+  }
+  const count = countPoigneeTrumps(privateState.value.hand)
+  const eligible = poigneeTiers(publicState.value!.playerCount).filter(tier => count >= tier)
+  return eligible.at(-1) ?? null
+})
 
-function toggleDiscard(card: CardId) {
-  const next = [...selectedDiscard.value]
-  const index = next.indexOf(card)
-  if (index >= 0) {
-    next.splice(index, 1)
+const poigneeLabels = ['Simple', 'Double', 'Triple']
+const poigneeName = computed(() => {
+  if (!poigneeTier.value || !publicState.value) {
+    return ''
   }
-  else if (next.length < discardSize.value) {
-    next.push(card)
+  const index = poigneeTiers(publicState.value.playerCount).indexOf(poigneeTier.value)
+  return `${poigneeLabels[index] ?? ''} poignée (${poigneeTier.value} atouts)`
+})
+
+/* Orientation */
+const debugGfx = computed(() => String(route.query.debugGfx ?? '') === '1')
+const tableActive = computed(() => Boolean(publicState.value) && !isLobby.value)
+const { isPhonePortrait, tryLockLandscape } = usePlayOrientation(tableActive)
+const needsLandscape = computed(() => tableActive.value && isPhonePortrait.value)
+
+/* Errors as toasts rather than banners covering the table. */
+watch(error, (message) => {
+  if (message) {
+    toast.add({ title: message, color: 'error', icon: 'i-lucide-circle-alert', duration: 5000 })
   }
-  selectedDiscard.value = next
+})
+
+/* Leave */
+const leaveOpen = shallowRef(false)
+
+function leaveTable() {
+  leaveOpen.value = false
+  return navigateTo('/play')
 }
 
-watch(
-  () => publicState.value?.phase,
-  (phase) => {
-    if (phase !== 'DogEcarta') {
-      selectedDiscard.value = []
-    }
-  },
-)
-
-async function copyInviteLink() {
-  try {
-    await navigator.clipboard.writeText(inviteUrl.value)
-    toast.add({
-      title: 'Lien copié',
-      description: inviteUrl.value,
-      color: 'success',
-      icon: 'i-lucide-check',
-    })
-  } catch {
-    toast.add({
-      title: 'Copie impossible',
-      description: 'Copiez le lien manuellement.',
-      color: 'error',
-      icon: 'i-lucide-alert-circle',
-    })
-  }
+function play(card: CardId) {
+  sendIntent({ type: 'playCard', card })
 }
 </script>
 
 <template>
   <PlayRotatePrompt
-    v-if="tableNeedsLandscape"
+    v-if="needsLandscape"
     @retry="tryLockLandscape"
   />
 
-  <!-- Immersive table -->
   <div
     v-else-if="publicState && !isLobby"
-    class="relative h-dvh w-full overflow-hidden overscroll-none bg-ink-950"
+    class="relative h-dvh w-full overflow-hidden overscroll-none bg-neutral-950"
+    :style="{ '--table-card-ratio': cardRatio }"
   >
     <PlayTresTableScene
       class="absolute inset-0"
@@ -189,297 +143,104 @@ async function copyInviteLink() {
       :public-state="publicState"
       :private-state="privateState"
       :debug-gfx="debugGfx"
-      :show-hand="showPlayHand"
-      @play="sendIntent({ type: 'playCard', card: $event })"
+      :show-hand="showHand"
+      @play="play"
     />
 
-    <div class="pointer-events-none absolute inset-x-0 top-0 z-40 flex flex-col p-3 sm:p-4">
-      <div class="pointer-events-auto mx-auto w-full max-w-5xl space-y-2">
-        <div class="flex items-start justify-between gap-3">
-          <PlayScoreBanner
-            :state="publicState"
-            compact
-            class="min-w-0 flex-1"
-          />
-          <UButton
-            to="/play"
-            color="neutral"
-            variant="soft"
-            icon="i-lucide-x"
-            class="shrink-0 border border-white/10 bg-black/40 text-white backdrop-blur-md"
-            aria-label="Quitter la table"
-          />
-        </div>
-
-        <PlayBidPanel
-          v-if="publicState.phase === 'Bidding'"
-          compact
-          :disabled="!isMyTurn"
+    <!-- HUD -->
+    <div class="pointer-events-none absolute inset-0 z-40 flex flex-col px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4">
+      <div class="pointer-events-auto mx-auto w-full max-w-5xl">
+        <PlayHudBar
           :state="publicState"
-          @bid="sendIntent({ type: 'bid', bid: $event })"
-        />
-
-        <UAlert
-          v-if="error"
-          color="error"
-          variant="subtle"
-          icon="i-lucide-alert-circle"
-          :title="error"
-        />
-        <UAlert
-          v-if="publicSyncDegraded"
-          color="warning"
-          variant="subtle"
-          icon="i-lucide-wifi-off"
-          title="Sync publique dégradée"
-          description="La partie continue via le serveur de jeu."
+          :local-seat="localSeat"
+          :degraded="publicSyncDegraded"
+          @leave="leaveOpen = true"
         />
       </div>
 
       <div
-        v-if="needsKingCall || canDiscard || publicState.phase === 'Scoring' || publicState.phase === 'MatchOver'"
-        class="pointer-events-auto mx-auto mt-auto w-full max-w-3xl space-y-3"
-        :class="showPlayHand ? 'mb-[min(30vh,240px)] sm:mb-[min(36vh,300px)]' : ''"
+        v-if="phase === 'Bidding'"
+        class="pointer-events-auto mt-3 w-full"
       >
+        <PlayBidDock
+          :state="publicState"
+          :my-turn="myTurn"
+          :local-seat="localSeat"
+          @bid="sendIntent({ type: 'bid', bid: $event })"
+        />
+      </div>
 
-        <div
+      <div
+        v-if="poigneeTier"
+        class="pointer-events-auto mx-auto mt-3"
+      >
+        <UButton
+          :label="`Annoncer : ${poigneeName}`"
+          icon="i-lucide-hand"
+          color="warning"
+          variant="solid"
+          class="rounded-full shadow-lg"
+          @click="sendIntent({ type: 'announcePoignee', tier: poigneeTier })"
+        />
+      </div>
+
+      <div
+        v-if="needsKingCall || canDiscard || showSummary"
+        class="pointer-events-auto m-auto w-full max-w-2xl py-3"
+      >
+        <PlayKingCallPanel
           v-if="needsKingCall"
-          class="rounded-2xl border border-white/10 bg-black/55 p-4 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md"
-        >
-          <p class="font-semibold text-amber-50">
-            Appel au roi
-          </p>
-          <p class="mt-1 text-sm text-white/60">
-            Choisissez le roi partenaire.
-          </p>
-          <div class="mt-3 flex flex-wrap gap-2">
-            <button
-              v-for="king in kingOptions"
-              :key="king"
-              type="button"
-              class="rounded-xl transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 hover:-translate-y-0.5"
-              @click="sendIntent({ type: 'callKing', king })"
-            >
-              <PlayDeckCard
-                :card-id="king"
-                :face-url="faceUrlFor(king)"
-                size="sm"
-              />
-            </button>
-          </div>
-        </div>
-
-        <div
-          v-if="canDiscard"
-          class="rounded-2xl border border-white/10 bg-black/60 p-4 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md"
-        >
-          <p class="font-semibold text-amber-50">
-            Écart
-          </p>
-          <p class="mt-1 text-sm text-white/60">
-            {{ selectedDiscard.length }} / {{ discardSize }} cartes
-          </p>
-          <div class="mt-3 flex max-h-48 flex-wrap justify-center gap-2 overflow-y-auto">
-            <button
-              v-for="card in privateState!.hand"
-              :key="`discard-${card}`"
-              type="button"
-              class="rounded-xl transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
-              :class="selectedDiscard.includes(card)
-                ? 'ring-2 ring-amber-300 -translate-y-1'
-                : 'opacity-90 hover:-translate-y-0.5'"
-              @click="toggleDiscard(card)"
-            >
-              <PlayDeckCard
-                :card-id="card"
-                :face-url="faceUrlFor(card)"
-                size="sm"
-                :highlighted="selectedDiscard.includes(card)"
-              />
-            </button>
-          </div>
-          <div class="mt-3 flex justify-end">
-            <UButton
-              color="primary"
-              icon="i-lucide-check"
-              :disabled="selectedDiscard.length !== discardSize"
-              @click="sendIntent({ type: 'discard', cards: selectedDiscard })"
-            >
-              Valider l'écart
-            </UButton>
-          </div>
-        </div>
-
-        <div
-          v-if="publicState.phase === 'Scoring'"
-          class="rounded-2xl border border-white/10 bg-black/60 p-4 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md"
-        >
-          <p class="font-semibold text-amber-50">
-            Marquage de la donne
-          </p>
-          <div
-            v-if="publicState.lastDeltas"
-            class="mt-3 grid gap-2 sm:grid-cols-2"
-          >
-            <div
-              v-for="(delta, seat) in publicState.lastDeltas"
-              :key="seat"
-              class="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
-            >
-              <span class="text-white/60">{{ publicState.seats[Number(seat)]?.name || `Siège ${Number(seat) + 1}` }}</span>
-              <span
-                class="font-semibold tabular-nums"
-                :class="Number(delta) >= 0 ? 'text-emerald-300' : 'text-rose-300'"
-              >
-                {{ Number(delta) > 0 ? `+${delta}` : delta }}
-              </span>
-            </div>
-          </div>
-          <div class="mt-3 flex justify-end">
-            <UButton
-              color="primary"
-              icon="i-lucide-arrow-right"
-              @click="sendIntent({ type: 'continue' })"
-            >
-              {{ publicState.matchShouldEnd ? 'Voir le résultat' : 'Donne suivante' }}
-            </UButton>
-          </div>
-        </div>
-
-        <div
-          v-else-if="publicState.phase === 'MatchOver'"
-          class="rounded-2xl border border-amber-200/20 bg-black/65 p-4 text-center text-white backdrop-blur-md"
-        >
-          <p class="text-lg font-semibold text-amber-50">
-            Partie terminée
-          </p>
-          <UButton
-            to="/play"
-            class="mt-3"
-            color="primary"
-          >
-            Nouvelle table
-          </UButton>
-        </div>
+          :face-url-for="faceUrlFor"
+          @call="sendIntent({ type: 'callKing', king: $event })"
+        />
+        <PlayDiscardPanel
+          v-else-if="canDiscard && privateState"
+          :hand="privateState.hand"
+          :size="discardSize"
+          :face-url-for="faceUrlFor"
+          @discard="sendIntent({ type: 'discard', cards: $event })"
+        />
+        <PlayDealSummary
+          v-else-if="showSummary"
+          :state="publicState"
+          :local-seat="localSeat"
+          @continue="sendIntent({ type: 'continue' })"
+        />
       </div>
     </div>
-  </div>
 
-  <!-- Lobby / loading -->
-  <div
-    v-else
-    class="mx-auto min-h-dvh max-w-xl px-4 py-8 pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-6"
-  >
-    <div class="mb-8">
-      <NuxtLink
-        to="/play"
-        class="text-sm text-gold-200/70 hover:text-gold-100"
-      >
-        Retour aux tables
-      </NuxtLink>
-      <p class="mt-4 text-xs tracking-[0.2em] text-gold-400/80 uppercase">
-        Tarot
-      </p>
-      <h1 class="mt-1 font-serif text-3xl text-gold-50">
-        Partie {{ code }}
-      </h1>
-      <p class="mt-1 text-sm text-white/50">
-        {{ connected ? 'Connecté au salon' : 'Connexion en cours…' }}
-      </p>
-    </div>
-
-    <UAlert
-      v-if="error"
-      color="error"
-      variant="subtle"
-      icon="i-lucide-alert-circle"
-      :title="error"
-      class="mb-4"
-    />
-
-    <UAlert
-      v-if="publicSyncDegraded"
-      color="warning"
-      variant="subtle"
-      icon="i-lucide-wifi-off"
-      title="Sync publique dégradée"
-      description="Le serveur de synchro Yjs est indisponible. La partie continue via le serveur de jeu."
-      class="mb-4"
-    />
-
-    <div
-      v-if="!publicState"
-      class="space-y-3"
+    <UModal
+      v-model:open="leaveOpen"
+      title="Quitter la table ?"
+      description="La partie continue sans vous. Vous pourrez revenir avec le même lien."
+      :ui="{ footer: 'justify-end' }"
     >
-      <USkeleton class="h-10 rounded-lg" />
-      <USkeleton class="h-40 rounded-xl" />
-    </div>
-
-    <template v-else>
-      <UCard class="mb-4 border-white/10 bg-white/5">
-        <template #header>
-          <p class="font-semibold text-amber-50">
-            Code de la partie
-          </p>
-        </template>
-
-        <div class="flex flex-wrap items-center gap-3">
-          <code class="rounded-lg bg-black/40 px-3 py-2 text-lg font-semibold tracking-widest text-amber-50">
-            {{ code }}
-          </code>
-          <UButton
-            color="neutral"
-            variant="soft"
-            icon="i-lucide-copy"
-            @click="copyInviteLink"
-          >
-            Copier le lien d'invitation
-          </UButton>
-        </div>
-        <p class="mt-3 break-all text-sm text-white/50">
-          {{ inviteUrl }}
-        </p>
-      </UCard>
-
-      <UCard class="border-white/10 bg-white/5">
-        <template #header>
-          <p class="font-semibold text-amber-50">
-            Joueurs
-          </p>
-          <p class="text-sm text-white/50">
-            {{ publicState.seats.filter(seat => seat.userId).length }} / {{ publicState.playerCount }}
-          </p>
-        </template>
-
-        <PlaySeatList
-          :seats="publicState.seats"
-          :host-seat-id="hostSeatId"
-          :show-host-controls="isHost"
-          @remove-bot="sendIntent({ type: 'removeBot', seat: $event })"
+      <template #footer="{ close }">
+        <UButton
+          label="Rester"
+          color="neutral"
+          variant="ghost"
+          @click="close"
         />
-
-        <div
-          v-if="isHost"
-          class="mt-4 flex flex-wrap gap-2"
-        >
-          <UButton
-            color="neutral"
-            variant="soft"
-            icon="i-lucide-bot"
-            @click="sendIntent({ type: 'addBot' })"
-          >
-            Ajouter un bot
-          </UButton>
-          <UButton
-            color="primary"
-            icon="i-lucide-play"
-            :disabled="!allSeatsFilled"
-            @click="sendIntent({ type: 'start' })"
-          >
-            Lancer
-          </UButton>
-        </div>
-      </UCard>
-    </template>
+        <UButton
+          label="Quitter"
+          color="error"
+          icon="i-lucide-log-out"
+          @click="leaveTable"
+        />
+      </template>
+    </UModal>
   </div>
+
+  <PlayLobby
+    v-else
+    :code="code"
+    :state="publicState"
+    :connected="connected"
+    :is-host="isHost"
+    :invite-url="inviteUrl"
+    @add-bot="sendIntent({ type: 'addBot' })"
+    @remove-bot="sendIntent({ type: 'removeBot', seat: $event })"
+    @start="sendIntent({ type: 'start' })"
+  />
 </template>

@@ -5,9 +5,13 @@ import { db, deckCards, type DeckStyleSettings } from '~~/server/utils/db'
 import { generateFileKey, uploadFile } from '~~/server/utils/s3'
 import { getCardTheme } from '~~/shared/utils/cardThemes'
 import {
-  DECK_CARD_ASPECT_RATIO,
-  PRINT_SPEC_SUMMARY,
-  getPrintCanvasPx
+  PRINT_BLEED_MM,
+  PRINT_SAFE_MM,
+  formatTrimLabel,
+  getPrintCanvasPx,
+  getPrintSpecSummary,
+  resolveCardImageFormat,
+  resolveDeckCardFormat
 } from '~~/shared/utils/printSpec'
 
 async function readRemoteBuffer(url: string) {
@@ -37,7 +41,7 @@ export async function buildPrintExportZip(options: {
   deckType: string
   settings: DeckStyleSettings
 }) {
-  const cards = await db
+  const rows = await db
     .select({
       cardCode: deckCards.cardCode,
       metadata: deckCards.metadata,
@@ -47,12 +51,23 @@ export async function buildPrintExportZip(options: {
     .where(and(
       eq(deckCards.deckId, options.deckId),
       eq(deckCards.userId, options.userId),
+      eq(deckCards.status, 'ready'),
       isNotNull(deckCards.finalImageUrl)
     ))
 
+  const format = resolveDeckCardFormat(options.settings)
+  // A deck is printed in one format only: faces left over from a previous
+  // format must be regenerated before they can be exported.
+  const cards = rows.filter(card => resolveCardImageFormat(card.metadata).id === format.id)
+
   if (!cards.length) {
-    throw new Error('Aucune carte prête à exporter')
+    throw new Error(`Aucune carte prête au format ${formatTrimLabel(format)} à exporter`)
   }
+
+  const backUrl = options.settings.cardBackImageUrl
+    && resolveDeckCardFormat({ cardFormat: options.settings.cardBackFormat }).id === format.id
+    ? options.settings.cardBackImageUrl
+    : null
 
   const zip = new JSZip()
   const faces = zip.folder('print/faces')
@@ -63,34 +78,37 @@ export async function buildPrintExportZip(options: {
   }
 
   const theme = getCardTheme(options.settings.colorTheme)
-  const canvas = getPrintCanvasPx(DECK_CARD_ASPECT_RATIO)
+  const canvas = getPrintCanvasPx(format)
 
   for (const card of cards) {
     const code = sanitizeCode(card.cardCode)
     const faceBuffer = await readRemoteBuffer(card.finalImageUrl!)
-    faces.file(`${code}.png`, await upscaleToPrintCanvas(faceBuffer, theme.id))
+    faces.file(`${code}.png`, await upscaleToPrintCanvas(faceBuffer, theme.id, format.id))
   }
 
   // One back for the whole deck: every card is printed with this same file.
-  if (options.settings.cardBackImageUrl) {
-    const backBuffer = await readRemoteBuffer(options.settings.cardBackImageUrl)
-    back.file('card-back.png', await upscaleToPrintCanvas(backBuffer, theme.id))
+  if (backUrl) {
+    const backBuffer = await readRemoteBuffer(backUrl)
+    back.file('card-back.png', await upscaleToPrintCanvas(backBuffer, theme.id, format.id))
   }
 
   const spec = {
-    ...PRINT_SPEC_SUMMARY,
+    ...getPrintSpecSummary(format),
     deck: {
       id: options.deckId,
       title: options.deckTitle,
       type: options.deckType,
       colorTheme: theme.id,
       cardCount: cards.length,
-      hasCardBack: Boolean(options.settings.cardBackImageUrl)
+      hasCardBack: Boolean(backUrl)
     },
     canvas,
     instructions: [
       'Toutes les cartes ont le même format et le même dos (print/back/card-back.png).',
-      'Bleed: 3 mm inclus sur chaque côté. Ne pas recadrer avant validation BAT.'
+      `Fond perdu : ${PRINT_BLEED_MM} mm inclus de chaque côté, à couper au format ${formatTrimLabel(format)}. Ne pas recadrer avant validation du BAT.`,
+      format.layout === 'band'
+        ? `Zone de sécurité : contour, index et cadre sont à ${PRINT_SAFE_MM} mm ou plus de la ligne de coupe.`
+        : 'Format poker : le contour est à environ 2 mm de la coupe, prévoir une coupe précise.'
     ]
   }
 
@@ -109,6 +127,6 @@ export async function buildPrintExportZip(options: {
     key,
     url,
     cardCount: cards.length,
-    hasCardBack: Boolean(options.settings.cardBackImageUrl)
+    hasCardBack: Boolean(backUrl)
   }
 }

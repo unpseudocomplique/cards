@@ -9,7 +9,7 @@ import { db, decks } from '~~/server/utils/db'
 import { assertCanGenerate } from '~~/server/utils/generationAccess'
 import { normalizeGenerationError } from '~~/server/utils/generationErrors'
 import { generateFileKey, uploadFile } from '~~/server/utils/s3'
-import { DECK_CARD_ASPECT_RATIO } from '~~/shared/utils/printSpec'
+import { resolveDeckCardFormat } from '~~/shared/utils/printSpec'
 
 const bodySchema = z.object({
   prompt: z.string().trim().max(1600).optional()
@@ -53,7 +53,8 @@ export default defineEventHandler(async (event) => {
     cardBackPrompt: promptOverride || deck.settings.cardBackPrompt
   }
   // One back for the whole deck, in the single deck format.
-  const aspectRatio = DECK_CARD_ASPECT_RATIO
+  const format = resolveDeckCardFormat(deck.settings)
+  const aspectRatio = format.backAspectRatio
 
   try {
     let lastError: unknown
@@ -96,7 +97,8 @@ export default defineEventHandler(async (event) => {
 
     const finalBuffer = await renderCardBackImage(rawBuffer, {
       profile: 'screen',
-      theme: settings.colorTheme
+      theme: settings.colorTheme,
+      format: format.id
     })
     const finalKey = generateFileKey(prefix, 'final.png')
     const finalUrl = await uploadFile(finalBuffer, finalKey, 'image/png')
@@ -108,6 +110,7 @@ export default defineEventHandler(async (event) => {
           ...settings,
           cardBackPrompt: settings.cardBackPrompt || undefined,
           cardBackImageUrl: finalUrl,
+          cardBackFormat: format.id,
           cardBackImageKey: finalKey
         },
         updatedAt: new Date()

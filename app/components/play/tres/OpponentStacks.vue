@@ -6,6 +6,8 @@ const props = defineProps<{
   localSeat: number
   playerCount: 3 | 4 | 5
   getBack: () => Texture | null
+  /** Card width / height of the deck format. */
+  cardRatio?: number
 }>()
 
 function stackForSeat(seat: number) {
@@ -45,6 +47,7 @@ function seatPose(seat: number): { position: [number, number, number], yaw: numb
         :face="null"
         :back="getBack()"
         :face-up="false"
+        :ratio="cardRatio"
         :position="[(layer - 4) * 0.018, layer * 0.007, layer * 0.004]"
         :rotation="[0, 0, (layer - 4) * 0.015]"
       />

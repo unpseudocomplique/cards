@@ -11,12 +11,15 @@ const props = withDefaults(defineProps<{
   rotation?: [number, number, number]
   interactive?: boolean
   lifted?: boolean
+  /** Card width / height of the deck format. */
+  ratio?: number
 }>(), {
   faceUp: true,
   position: () => [0, 0, 0],
   rotation: () => [0, 0, 0],
   interactive: false,
   lifted: false,
+  ratio: 2 / 3,
 })
 
 const emit = defineEmits<{
@@ -25,7 +28,7 @@ const emit = defineEmits<{
 
 /** Slim playing-card proportions (world units). */
 const CARD_W = 0.52
-const CARD_H = 0.78
+const CARD_H = computed(() => CARD_W / props.ratio)
 const CARD_D = 0.006
 
 const liftY = computed(() => (props.lifted ? 0.05 : 0))

@@ -3,7 +3,7 @@ import {
   getTarotArcanaLabel,
   getTarotArcanaPromptHint
 } from '~~/shared/utils/tarotArcana'
-import { DECK_CARD_ASPECT_RATIO } from '~~/shared/utils/printSpec'
+import { defaultCardFormatForDeckType } from '~~/shared/utils/printSpec'
 
 export type DeckType = 'classic52' | 'tarot56' | 'tarot78'
 export type CardSuit = 'hearts' | 'diamonds' | 'clubs' | 'spades' | 'trumps'
@@ -68,7 +68,7 @@ function buildSuitCards(ranks: typeof classicRanks, startOrder: number): CardDef
     label: `${rank.label} de ${suit.label}`,
     shortLabel: `${rank.shortLabel}${suit.symbol}`,
     sortOrder: startOrder + suitIndex * ranks.length + rankIndex,
-    aspectRatio: DECK_CARD_ASPECT_RATIO,
+    aspectRatio: '3:4' as const,
     promptHint: rolePromptHints[rank.role as Exclude<CardRole, 'trump' | 'excuse'>]
   })))
 }
@@ -86,7 +86,7 @@ function buildTrumpCards(startOrder: number): CardDefinition[] {
       label: getTarotArcanaLabel(arcana),
       shortLabel: String(number),
       sortOrder: startOrder + index,
-      aspectRatio: DECK_CARD_ASPECT_RATIO,
+      aspectRatio: '3:4' as const,
       promptHint: getTarotArcanaPromptHint(arcana)
     }
   })
@@ -102,13 +102,13 @@ function buildTrumpCards(startOrder: number): CardDefinition[] {
       label: getTarotArcanaLabel(excuse),
       shortLabel: 'EX',
       sortOrder: startOrder + 21,
-      aspectRatio: DECK_CARD_ASPECT_RATIO,
+      aspectRatio: '3:4' as const,
       promptHint: getTarotArcanaPromptHint(excuse)
     }
   ]
 }
 
-export function getCardCatalog(type: DeckType): CardDefinition[] {
+function buildCatalog(type: DeckType): CardDefinition[] {
   if (type === 'classic52') {
     return buildSuitCards(classicRanks, 0)
   }
@@ -123,6 +123,13 @@ export function getCardCatalog(type: DeckType): CardDefinition[] {
     ...minorArcana,
     ...buildTrumpCards(minorArcana.length)
   ]
+}
+
+export function getCardCatalog(type: DeckType): CardDefinition[] {
+  // Legacy metadata hint only: the real format lives in the deck settings.
+  const aspectRatio = defaultCardFormatForDeckType(type) === 'tarot' ? '9:16' : '3:4'
+
+  return buildCatalog(type).map(card => ({ ...card, aspectRatio }))
 }
 
 export const deckTypeLabels: Record<DeckType, string> = {

@@ -11,7 +11,7 @@ import { db, deckCards, deckPhotos, decks } from '~~/server/utils/db'
 import { assertCanGenerate } from '~~/server/utils/generationAccess'
 import { normalizeGenerationError } from '~~/server/utils/generationErrors'
 import { generateFileKey, uploadFile } from '~~/server/utils/s3'
-import { DECK_CARD_ASPECT_RATIO } from '~~/shared/utils/printSpec'
+import { resolveDeckCardFormat } from '~~/shared/utils/printSpec'
 
 function mediaTypeToExtension(mediaType?: string) {
   const extensions: Record<string, string> = {
@@ -121,6 +121,7 @@ export default defineEventHandler(async (event) => {
     const referenceBuffers = await Promise.all(
       referencePhotos.map(photo => readPhotoBuffer(photo.url))
     )
+    const format = resolveDeckCardFormat(deck.settings)
     const scenePrompt = buildCardScenePrompt(currentCard.metadata, deck.settings, currentCard.prompt)
     const foregroundPrompt = buildCardForegroundPrompt(currentCard.metadata, deck.settings, currentCard.prompt)
     const imageProviderOptions = {
@@ -164,7 +165,7 @@ export default defineEventHandler(async (event) => {
       generateWithRetry('décor', {
         model: aiImageModel,
         prompt: scenePrompt,
-        aspectRatio: DECK_CARD_ASPECT_RATIO,
+        aspectRatio: format.artAspectRatio,
         providerOptions: imageProviderOptions
       }),
       generateWithRetry('personnage', {
@@ -173,7 +174,7 @@ export default defineEventHandler(async (event) => {
           text: foregroundPrompt,
           images: referenceBuffers
         },
-        aspectRatio: DECK_CARD_ASPECT_RATIO,
+        aspectRatio: format.artAspectRatio,
         providerOptions: imageProviderOptions
       })
     ])
@@ -200,7 +201,8 @@ export default defineEventHandler(async (event) => {
       foregroundMediaType
     )
     const finalBuffer = await renderCardImage(rawBuffer, currentCard.metadata, foregroundBuffer, {
-      theme: deck.settings.colorTheme
+      theme: deck.settings.colorTheme,
+      format: format.id
     }).catch((error) => {
       throw new Error(`Assemblage de la carte impossible: ${error instanceof Error ? error.message : 'erreur inconnue'}`)
     })
@@ -215,6 +217,8 @@ export default defineEventHandler(async (event) => {
         rawImageUrl,
         finalImageKey,
         finalImageUrl,
+        // Remember the format this face was rendered in (decks can change format).
+        metadata: { ...currentCard.metadata, format: format.id },
         errorMessage: null,
         updatedAt: new Date()
       })

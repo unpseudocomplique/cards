@@ -147,7 +147,7 @@ function setView(next: typeof view.value) {
           <p class="text-[11px] uppercase tracking-[0.22em] text-[#e0c06a]/80">
             Salon cast
           </p>
-          <h1 class="mt-1 font-serif text-3xl tracking-tight text-[#f2e6c8]">
+          <h1 class="mt-1 font-display text-3xl tracking-tight text-[#f2e6c8]">
             {{ spec.displayName }}
           </h1>
           <p class="mt-1 max-w-sm text-sm text-white/55">

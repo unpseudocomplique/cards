@@ -10,6 +10,7 @@ import {
   unique
 } from 'drizzle-orm/pg-core'
 import type { CardThemeId } from '../../shared/utils/cardThemes'
+import type { CardFormatId } from '../../shared/utils/printSpec'
 
 const id = () => text('id').primaryKey().$defaultFn(() => crypto.randomUUID())
 
@@ -32,6 +33,10 @@ export type DeckStyleSettings = {
   cardBackPrompt?: string
   cardBackImageUrl?: string | null
   cardBackImageKey?: string | null
+  /** Card format of the deck (see shared/utils/printSpec.ts). Absent on old decks = poker. */
+  cardFormat?: CardFormatId
+  /** Format the current back was rendered in. Absent = poker. */
+  cardBackFormat?: CardFormatId
 }
 
 export type DeckCardMetadata = {
@@ -41,9 +46,11 @@ export type DeckCardMetadata = {
   rank?: string
   role?: string
   sortOrder: number
-  /** Always '3:4' for new decks; '9:16' may remain on old trump rows and is ignored. */
+  /** Legacy hint, ignored by the renderer: use `format` and the deck's cardFormat. */
   aspectRatio: '3:4' | '9:16'
   promptHint: string
+  /** Format the stored face was rendered in. Absent on faces generated before formats = poker. */
+  format?: CardFormatId
 }
 
 export const users = pgTable('users', {

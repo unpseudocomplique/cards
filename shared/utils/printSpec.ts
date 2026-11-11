@@ -6,60 +6,130 @@
  * - `README.md` (section Impression)
  * - `docs/print-pipeline.md`
  *
- * Physical sizes match common European / poker stock.
+ * A deck has exactly one card format: every face (figures, numerals, trumps,
+ * Excuse) and its single back share the same size and contour.
  * All print exports use 300 DPI + 3 mm bleed.
  */
 
 export const PRINT_DPI = 300
 export const PRINT_BLEED_MM = 3
-
-/** Poker / enseignes (classic 52, tarot 56, minor arcana): 63.5 × 88.9 mm */
-export const POKER_TRIM_MM = { width: 63.5, height: 88.9 } as const
-
 /**
- * Legacy 9:16 trim (former major-arcana format). Kept for old card metadata only:
- * every card of a deck is now rendered in DECK_CARD_ASPECT_RATIO.
+ * Safe zone inside the trim: the cut can drift by about a millimetre, so the
+ * contour line, the indices and the illustration frame stay at least this far
+ * from the cut line (applies to the tarot layout; see getCardLayoutRatios).
  */
-export const TAROT_TRIM_MM = { width: 70, height: 124.4 } as const
+export const PRINT_SAFE_MM = 3
 
-/** Screen preview canvases (fast UI / regenerate). Not for press. */
-export const SCREEN_POKER_PX = { width: 900, height: 1200 } as const
-export const SCREEN_TAROT_PX = { width: 900, height: 1600 } as const
+export const cardFormatIds = ['poker', 'tarot'] as const
+export type CardFormatId = typeof cardFormatIds[number]
 
-export type PrintAspectRatio = '3:4' | '9:16'
+/** Ratios the image model accepts (Gemini image generation). */
+export type ArtAspectRatio = '2:3' | '3:4' | '9:16'
+
 export type RenderProfile = 'screen' | 'print'
 
 /**
- * Single card format for every card of every deck (faces, trumps, Excuse and back).
- * A deck must be uniform: same size, same contour, one identical back for all cards.
+ * - `side`: index corners in a column beside the illustration (wide cards).
+ * - `band`: index corners above / below the illustration (tall tarot cards),
+ *   so the illustration keeps a usable width.
  */
-export const DECK_CARD_ASPECT_RATIO = '3:4' as const satisfies PrintAspectRatio
-export const DECK_TRIM_MM = POKER_TRIM_MM
+export type CardLayoutKind = 'side' | 'band'
+
+export type CardFormat = {
+  id: CardFormatId
+  label: string
+  /** Finished card size after cutting. */
+  trimMm: { width: number, height: number }
+  /** Screen render canvas (app, 3D table). Not for press. */
+  screenPx: { width: number, height: number }
+  /** Ratio asked to the image model for the scene and the character. */
+  artAspectRatio: ArtAspectRatio
+  /** Ratio asked to the image model for the back pattern. */
+  backAspectRatio: ArtAspectRatio
+  layout: CardLayoutKind
+}
+
+export const CARD_FORMATS: Record<CardFormatId, CardFormat> = {
+  /** European poker stock. Classic 52-card decks, and decks created before tarot formats existed. */
+  poker: {
+    id: 'poker',
+    label: 'Poker',
+    trimMm: { width: 63.5, height: 88.9 },
+    // Historical 3:4 screen canvas, kept so existing faces stay valid.
+    screenPx: { width: 900, height: 1200 },
+    artAspectRatio: '3:4',
+    backAspectRatio: '3:4',
+    layout: 'side'
+  },
+  /** French tarot stock (61 × 112 mm). Tarot 56 and tarot 78 decks. */
+  tarot: {
+    id: 'tarot',
+    label: 'Tarot français',
+    trimMm: { width: 61, height: 112 },
+    // Same proportions as the trim: 900 / 1652 ≈ 61 / 112.
+    screenPx: { width: 900, height: 1652 },
+    artAspectRatio: '2:3',
+    backAspectRatio: '9:16',
+    layout: 'band'
+  }
+}
+
+export function isCardFormatId(value: unknown): value is CardFormatId {
+  return typeof value === 'string' && (cardFormatIds as readonly string[]).includes(value)
+}
+
+export function getCardFormat(id?: string | null): CardFormat {
+  return CARD_FORMATS[isCardFormatId(id) ? id : 'poker']
+}
+
+/** Format given to a new deck of this type. */
+export function defaultCardFormatForDeckType(deckType: string): CardFormatId {
+  return deckType === 'classic52' ? 'poker' : 'tarot'
+}
+
+/** Formats a deck of this type may use. */
+export function allowedCardFormatsForDeckType(deckType: string): CardFormatId[] {
+  return deckType === 'classic52' ? ['poker'] : ['tarot', 'poker']
+}
+
+/** Format a deck renders in. Decks created before formats existed have none and stay poker. */
+export function resolveDeckCardFormat(settings?: { cardFormat?: string | null } | null): CardFormat {
+  return getCardFormat(settings?.cardFormat)
+}
+
+/** Format a stored face was rendered in. Faces generated before formats existed are poker. */
+export function resolveCardImageFormat(metadata?: { format?: string | null } | null): CardFormat {
+  return getCardFormat(metadata?.format)
+}
+
+/** Width / height of a format, for previews. */
+export function cardFormatRatio(format: CardFormat) {
+  return format.screenPx.width / format.screenPx.height
+}
+
+export function formatTrimLabel(format: CardFormat) {
+  const mm = (value: number) => String(value).replace('.', ',')
+  return `${mm(format.trimMm.width)} × ${mm(format.trimMm.height)} mm`
+}
 
 export function mmToPx(mm: number, dpi = PRINT_DPI) {
   return Math.round((mm / 25.4) * dpi)
-}
-
-export function getTrimMm(aspectRatio: PrintAspectRatio) {
-  return aspectRatio === '9:16' ? TAROT_TRIM_MM : POKER_TRIM_MM
 }
 
 export function getBleedPx(dpi = PRINT_DPI) {
   return mmToPx(PRINT_BLEED_MM, dpi)
 }
 
-export function getTrimPx(aspectRatio: PrintAspectRatio, dpi = PRINT_DPI) {
-  const trim = getTrimMm(aspectRatio)
-
+export function getTrimPx(format: CardFormat, dpi = PRINT_DPI) {
   return {
-    width: mmToPx(trim.width, dpi),
-    height: mmToPx(trim.height, dpi)
+    width: mmToPx(format.trimMm.width, dpi),
+    height: mmToPx(format.trimMm.height, dpi)
   }
 }
 
 /** Full press canvas = trim + bleed on every side. */
-export function getPrintCanvasPx(aspectRatio: PrintAspectRatio, dpi = PRINT_DPI) {
-  const trim = getTrimPx(aspectRatio, dpi)
+export function getPrintCanvasPx(format: CardFormat, dpi = PRINT_DPI) {
+  const trim = getTrimPx(format, dpi)
   const bleed = getBleedPx(dpi)
 
   return {
@@ -72,31 +142,104 @@ export function getPrintCanvasPx(aspectRatio: PrintAspectRatio, dpi = PRINT_DPI)
   }
 }
 
-export function getScreenCanvasPx(aspectRatio: PrintAspectRatio) {
-  return aspectRatio === '9:16' ? SCREEN_TAROT_PX : SCREEN_POKER_PX
-}
-
-export function getCanvasPx(aspectRatio: PrintAspectRatio, profile: RenderProfile) {
+export function getCanvasPx(format: CardFormat, profile: RenderProfile) {
   if (profile === 'print') {
-    const canvas = getPrintCanvasPx(aspectRatio)
+    const canvas = getPrintCanvasPx(format)
 
     return { width: canvas.width, height: canvas.height, bleed: canvas.bleed }
   }
 
-  const screen = getScreenCanvasPx(aspectRatio)
-
-  return { width: screen.width, height: screen.height, bleed: 0 }
+  return { width: format.screenPx.width, height: format.screenPx.height, bleed: 0 }
 }
 
-export const PRINT_SPEC_SUMMARY = {
-  dpi: PRINT_DPI,
-  bleedMm: PRINT_BLEED_MM,
-  aspectRatio: DECK_CARD_ASPECT_RATIO,
-  trimMm: DECK_TRIM_MM,
-  colorSpace: 'sRGB PNG (convert to CMYK at the printer if required)',
-  files: {
-    faces: 'print/faces/{cardCode}.png',
-    back: 'print/back/card-back.png',
-    spec: 'print/print-spec.json'
+/**
+ * Card anatomy as fractions of the trim width, shared by the server renderer
+ * (server/utils/cardRenderer.ts) and the CSS preview (app/components/CardArt.vue)
+ * so both draw the same card.
+ */
+export type CardLayoutRatios = {
+  layout: CardLayoutKind
+  /** Outer contour line, same on faces and back. */
+  contourInset: number
+  contourStroke: number
+  contourRadius: number
+  /** Screen corner radius (print keeps square bleed edges). */
+  cardRadius: number
+  indexX: number
+  indexY: number
+  indexWidth: number
+  rankHeight: number
+  pipSize: number
+  indexGap: number
+  /** Side: gap between the index column and the window. Band: gap under the index block. */
+  windowGap: number
+  /** Band only: left / right inset of the window. */
+  windowX: number
+  windowRadius: number
+  frameStroke: number
+  hairlineStroke: number
+  hairlineGap: number
+  /** Band only: how far below the index block the character may rise. */
+  foregroundGap: number
+}
+
+const sideLayoutRatios: CardLayoutRatios = {
+  layout: 'side',
+  contourInset: 0.034,
+  contourStroke: 0.005,
+  contourRadius: 0.03,
+  cardRadius: 0.05,
+  indexX: 0.058,
+  indexY: 0.07,
+  indexWidth: 0.088,
+  rankHeight: 0.07,
+  pipSize: 0.056,
+  indexGap: 0.02,
+  windowGap: 0.024,
+  windowX: 0,
+  windowRadius: 0.018,
+  frameStroke: 0.006,
+  hairlineStroke: 0.0025,
+  hairlineGap: 0.01,
+  foregroundGap: 0
+}
+
+export function getCardLayoutRatios(format: CardFormat): CardLayoutRatios {
+  // Poker keeps its historical layout so existing decks stay homogeneous.
+  if (format.layout === 'side') {
+    return sideLayoutRatios
   }
-} as const
+
+  // Tarot: placed in millimetres from the cut, outside the safe zone.
+  const mm = (value: number) => value / format.trimMm.width
+  const contourInset = mm(PRINT_SAFE_MM + 0.5)
+  const indexX = contourInset + mm(1.4)
+
+  return {
+    ...sideLayoutRatios,
+    layout: 'band',
+    contourInset,
+    indexX,
+    indexY: contourInset + mm(1.8),
+    windowX: indexX,
+    windowGap: mm(2.4),
+    foregroundGap: mm(0.7)
+  }
+}
+
+export function getPrintSpecSummary(format: CardFormat) {
+  return {
+    dpi: PRINT_DPI,
+    bleedMm: PRINT_BLEED_MM,
+    // Only formats with a safe-zone layout (tarot) guarantee it.
+    safeZoneMm: format.layout === 'band' ? PRINT_SAFE_MM : null,
+    format: format.id,
+    trimMm: format.trimMm,
+    colorSpace: 'sRGB PNG (convert to CMYK at the printer if required)',
+    files: {
+      faces: 'print/faces/{cardCode}.png',
+      back: 'print/back/card-back.png',
+      spec: 'print/print-spec.json'
+    }
+  } as const
+}

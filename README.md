@@ -97,76 +97,31 @@ Règle agent : [`.cursor/rules/print-pipeline.mdc`](.cursor/rules/print-pipeline
 |---------|--------|
 | DPI | 300 |
 | Fond perdu | 3 mm |
-| Format | **Un seul format par jeu** : 63,5 × 88,9 mm (3:4), atouts et Excuse compris |
+| Format | **Un seul format par jeu**, atouts et Excuse compris : **61 × 112 mm** (tarot 56 / 78) ou 63,5 × 88,9 mm (jeu classique, et anciens decks) — changeable dans *Dos & impression* |
 | Thème de couleurs | Palette des prompts + couleurs du cadre et des index, commun à tout le jeu |
 | Dos | Un seul dos par jeu, même contour que les faces |
 | Export | `POST /api/decks/:id/exports/print` → ZIP `faces` / `back` / `print-spec.json` |
 
-UI : panneaux **Ambiance du jeu** (thème) et **Dos & impression** sur la page d’un deck.
+UI : onglets **Style** (thème, style des illustrations) et **Dos & impression** de l’atelier d’un deck (`/decks/:id/style`, `/decks/:id/impression`). Les aperçus de cartes suivent le format du deck (`cardFormatRatio`).
 
 **Ne pas changer ces specs à la légère** : elles sont alignées avec le renderer, l’export et la doc imprimeur.
 
----
+## Interface
 
-# Nuxt Portfolio Template
+Nuxt 4 + Nuxt UI 4, thème `violet` / `zinc` (`app/app.config.ts`), polices Geist et Instrument Serif.
 
-[![Nuxt UI](https://img.shields.io/badge/Made%20with-Nuxt%20UI-00DC82?logo=nuxt&labelColor=020420)](https://ui.nuxt.com)
+| Zone | Layout | Pages |
+|------|--------|-------|
+| Public | `default` (UHeader / UFooter) | `/` |
+| Authentification | `auth` (formulaire + illustration) | `/auth/*` |
+| Atelier | `dashboard` (UDashboardSidebar) | `/dashboard`, `/decks/new`, `/decks/:id/*`, `/play` |
+| Table | `play` (plein écran, sombre) | `/play/:code` (salle d’attente puis table 3D) |
 
-Use this template to create your own portfolio with [Nuxt UI](https://ui.nuxt.com).
+L’atelier d’un deck partage ses données entre onglets via `provideDeckWorkspace` / `useDeckWorkspace` (`app/composables/useDeckWorkspace.ts`), y compris la file de génération qui continue quand on change d’onglet.
 
-- [Live demo](https://portfolio-template.nuxt.dev/)
-- [Documentation](https://ui.nuxt.com/docs/getting-started/installation/nuxt)
-
-<a href="https://portfolio-template.nuxt.dev/" target="_blank">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://ui.nuxt.com/assets/templates/nuxt/portfolio-dark.png">
-    <source media="(prefers-color-scheme: light)" srcset="https://ui.nuxt.com/assets/templates/nuxt/portfolio-light.png">
-    <img alt="Nuxt Portfolio Template" src="https://ui.nuxt.com/assets/templates/nuxt/portfolio-light.png">
-  </picture>
-</a>
-
-## Quick Start
-
-```bash [Terminal]
-npm create nuxt@latest -- -t ui/portfolio
-```
-
-## Deploy your own
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-name=portfolio&repository-url=https%3A%2F%2Fgithub.com%2Fnuxt-ui-templates%2Fportfolio&demo-image=https%3A%2F%2Fui.nuxt.com%2Fassets%2Ftemplates%2Fnuxt%2Fportfolio-dark.png&demo-url=https%3A%2F%2Fportfolio-template.nuxt.dev%2F&demo-title=Nuxt%20Portfolio%20Template&demo-description=A%20sleek%20portfolio%20template%20to%20showcase%20your%20work%2C%20skills%20and%20blog%20powered%20by%20Nuxt%20Content.)
-
-## Setup
-
-Make sure to install the dependencies:
+## Développement
 
 ```bash
 pnpm install
-```
-
-## Development Server
-
-Start the development server on `http://localhost:3000`:
-
-```bash
 pnpm dev
 ```
-
-## Production
-
-Build the application for production:
-
-```bash
-pnpm build
-```
-
-Locally preview production build:
-
-```bash
-pnpm preview
-```
-
-Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
-
-## Renovate integration
-
-Install [Renovate GitHub app](https://github.com/apps/renovate/installations/select_target) on your repository and you are good to go.

@@ -45,11 +45,13 @@ export default defineEventHandler(async (event) => {
 
   return buildDeckTextureManifest({
     deckId: deck.id,
+    format: deck.settings.cardFormat,
     backUrl: deck.settings.cardBackImageUrl ?? null,
+    backFormat: deck.settings.cardBackFormat,
     cards: rows.map(row => ({
       cardCode: row.cardCode,
       finalImageUrl: row.finalImageUrl,
-      aspectRatio: (row.metadata as DeckCardMetadata | null)?.aspectRatio,
+      format: (row.metadata as DeckCardMetadata | null)?.format,
     })),
   })
 })

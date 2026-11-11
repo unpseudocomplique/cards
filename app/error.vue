@@ -1,65 +1,58 @@
 <script setup lang="ts">
 import type { NuxtError } from '#app'
+import { fr } from '@nuxt/ui/locale'
 
-const props = defineProps({
-  error: {
-    type: Object as PropType<NuxtError>,
-    required: true
-  }
-})
+const props = defineProps<{
+  error: NuxtError
+}>()
 
-const isNotFound = computed(() => props.error.statusCode === 404)
+const notFound = computed(() => props.error.statusCode === 404)
 
 useHead({
-  htmlAttrs: {
-    lang: 'fr'
-  }
+  htmlAttrs: { lang: 'fr' }
 })
 
 useSeoMeta({
-  title: isNotFound.value ? 'Page introuvable' : 'Erreur',
-  description: isNotFound.value
-    ? 'Cette page n’existe pas.'
-    : 'Une erreur est survenue.'
+  title: notFound.value ? 'Page introuvable' : 'Erreur'
 })
 
-const handleError = () => clearError({ redirect: '/' })
+function home() {
+  return clearError({ redirect: '/' })
+}
 </script>
 
 <template>
-  <div class="salon-wash flex min-h-dvh flex-col">
-    <AppHeader :links="navLinks" />
-    <main class="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center px-4 pt-[calc(var(--ui-header-height)+2rem)] pb-16">
-      <p class="text-xs tracking-[0.2em] text-primary uppercase">
-        {{ error.statusCode }}
-      </p>
-      <h1 class="mt-3 font-serif text-4xl tracking-tight text-highlighted">
-        {{ isNotFound ? 'Cette carte n’est pas dans le jeu' : 'Quelque chose s’est mal passé' }}
-      </h1>
-      <p class="mt-3 text-pretty text-muted">
-        {{ isNotFound
-          ? 'La page demandée n’existe pas. Revenez à l’accueil ou ouvrez une table.'
-          : (error.statusMessage || 'Réessayez, ou revenez à l’accueil.') }}
-      </p>
-      <div class="mt-8 flex flex-col gap-3 sm:flex-row">
-        <UButton
-          icon="i-lucide-house"
-          class="justify-center"
-          @click="handleError"
-        >
-          Retour à l’accueil
-        </UButton>
-        <UButton
-          to="/play"
-          color="neutral"
-          variant="outline"
-          icon="i-lucide-spade"
-          class="justify-center"
-        >
-          Jouer au tarot
-        </UButton>
+  <UApp :locale="fr">
+    <div class="flex min-h-dvh flex-col items-center justify-center px-6 text-center">
+      <AppLogo class="mb-12" />
+      <div class="w-28">
+        <CardArt
+          :glyph="notFound ? '?' : '!'"
+          :index="String(error.statusCode)"
+          class="-rotate-6 shadow-xl"
+        />
       </div>
-    </main>
-    <AppFooter />
-  </div>
+      <h1 class="mt-10 font-display text-4xl text-highlighted sm:text-5xl">
+        {{ notFound ? 'Cette carte n’est pas dans le jeu' : 'La donne a mal tourné' }}
+      </h1>
+      <p class="mt-3 max-w-md text-pretty text-muted">
+        {{ notFound
+          ? 'La page demandée n’existe pas ou plus.'
+          : (error.statusMessage || error.message || 'Une erreur inattendue est survenue. Réessayez dans un instant.') }}
+      </p>
+      <div class="mt-8 flex flex-col gap-2 sm:flex-row">
+        <UButton
+          label="Retour à l’accueil"
+          icon="i-lucide-house"
+          @click="home"
+        />
+        <UButton
+          label="Mes decks"
+          color="neutral"
+          variant="subtle"
+          @click="clearError({ redirect: '/dashboard' })"
+        />
+      </div>
+    </div>
+  </UApp>
 </template>

@@ -1,251 +1,207 @@
 <script setup lang="ts">
-import type { DeckCard, DeckDetails, DeckPhoto } from '~/types/deck'
-import { patchDeckSettings, patchDeckWithCard } from '~/utils/deckState'
+import type { DropdownMenuItem, NavigationMenuItem } from '@nuxt/ui'
+import { deckStatusMeta, deckTypeLabels } from '~/utils/deckLabels'
 
 definePageMeta({
+  layout: 'dashboard',
   middleware: 'auth'
 })
 
 const route = useRoute()
-const router = useRouter()
 const toast = useToast()
 const deckId = computed(() => String(route.params.id))
-const requestFetch = useRequestFetch()
-const isDeletingDeck = shallowRef(false)
+const workspace = provideDeckWorkspace(deckId)
+const { deck, stats, persons, job, error, status, refresh, stopGeneration } = workspace
 
-const { data, pending, refresh } = await useAsyncData(
-  () => `deck-${deckId.value}`,
-  () => requestFetch<DeckDetails>(`/api/decks/${deckId.value}`)
-)
-
-const readyPercent = computed(() => {
-  if (!data.value?.deck.cardCount) {
-    return 0
-  }
-
-  return Math.round((data.value.deck.readyCardCount / data.value.deck.cardCount) * 100)
-})
-
-const deckTypeLabels: Record<string, string> = {
-  classic52: 'Jeu classique (52 cartes)',
-  tarot56: 'Tarot enseignes (56 cartes)',
-  tarot78: 'Tarot complet (78 cartes)'
-}
-
-const deckStatusLabels: Record<string, string> = {
-  draft: 'En préparation',
-  queued: 'En file',
-  generating: 'Génération en cours',
-  ready: 'Terminé',
-  failed: 'À reprendre'
-}
-
-const deckStatusColors = {
-  draft: 'neutral',
-  queued: 'info',
-  generating: 'warning',
-  ready: 'success',
-  failed: 'error'
-} as const
+await workspace.request
 
 useSeoMeta({
-  title: () => data.value?.deck.title || 'Deck'
+  title: () => deck.value?.title ?? 'Deck'
 })
 
-async function handlePhotoUploaded(_photos: DeckPhoto[]) {
-  await refresh()
-}
+const base = computed(() => `/decks/${deckId.value}`)
 
-function handleCardUpdated(card: DeckCard) {
-  if (!data.value) {
-    return
-  }
+const tabs = computed<NavigationMenuItem[]>(() => [{
+  label: 'Cartes',
+  icon: 'i-lucide-gallery-vertical-end',
+  to: base.value,
+  exact: true,
+  badge: stats.value.total ? `${stats.value.ready}/${stats.value.total}` : undefined
+}, {
+  label: 'Personnes',
+  icon: 'i-lucide-users-round',
+  to: `${base.value}/personnes`,
+  badge: persons.value.length || undefined
+}, {
+  label: 'Style',
+  icon: 'i-lucide-palette',
+  to: `${base.value}/style`
+}, {
+  label: 'Dos & impression',
+  icon: 'i-lucide-printer',
+  to: `${base.value}/impression`
+}])
 
-  data.value = patchDeckWithCard(data.value, card)
-}
+const percent = computed(() => stats.value.total ? Math.round((stats.value.ready / stats.value.total) * 100) : 0)
 
-function handleDeckSettingsUpdated(settings: Partial<DeckDetails['deck']['settings']>) {
-  if (!data.value) {
-    return
-  }
+const deleteOpen = shallowRef(false)
+const deleting = shallowRef(false)
 
-  data.value = patchDeckSettings(data.value, settings)
-}
+const menu = computed<DropdownMenuItem[][]>(() => [[
+  ...(deck.value?.type === 'tarot78'
+    ? [{ label: 'Jouer avec ce deck', icon: 'i-lucide-spade', to: { path: '/play', query: { deck: deckId.value } } }]
+    : []),
+  { label: 'Rafraîchir', icon: 'i-lucide-refresh-cw', onSelect: () => refresh() }
+], [
+  { label: 'Supprimer le deck', icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: () => { deleteOpen.value = true } }
+]])
 
 async function deleteDeck() {
-  if (!data.value?.deck || isDeletingDeck.value) {
-    return
-  }
-
-  const confirmed = window.confirm(`Supprimer le deck "${data.value.deck.title}" ?`)
-
-  if (!confirmed) {
-    return
-  }
-
-  isDeletingDeck.value = true
-
+  deleting.value = true
   try {
-    await $fetch(`/api/decks/${data.value.deck.id}`, {
-      method: 'DELETE'
-    })
-    toast.add({
-      title: 'Deck supprimé',
-      description: 'Le deck a été retiré de votre dashboard.',
-      color: 'success',
-      icon: 'i-lucide-check'
-    })
-    await router.push('/dashboard')
-  } catch (error) {
-    toast.add({
-      title: 'Suppression impossible',
-      description: error instanceof Error ? error.message : 'Veuillez réessayer.',
-      color: 'error',
-      icon: 'i-lucide-alert-circle'
-    })
+    await $fetch(`/api/decks/${deckId.value}`, { method: 'DELETE' })
+    await refreshNuxtData('decks')
+    toast.add({ title: 'Deck supprimé', color: 'success', icon: 'i-lucide-check' })
+    await navigateTo('/dashboard')
+  } catch (err) {
+    toast.add({ title: 'Suppression impossible', description: getApiErrorMessage(err), color: 'error', icon: 'i-lucide-circle-alert' })
   } finally {
-    isDeletingDeck.value = false
+    deleting.value = false
+    deleteOpen.value = false
   }
 }
 </script>
 
 <template>
-  <div>
-    <header class="mb-6 border-b border-default/70 pb-6">
-      <UButton
-        to="/dashboard"
-        color="neutral"
-        variant="ghost"
-        icon="i-lucide-arrow-left"
-        class="-ml-2"
-      >
-        Retour
-      </UButton>
-      <h1 class="mt-3 font-serif text-3xl tracking-tight text-highlighted sm:text-4xl">
-        {{ data?.deck.title || 'Deck' }}
-      </h1>
-      <p class="mt-2 max-w-[46ch] text-pretty text-muted">
-        {{ data?.deck.description || 'Ajoutez vos photos, assignez les personnes, puis créez les visuels.' }}
-      </p>
-    </header>
+  <UDashboardPanel id="deck">
+    <template #header>
+      <UDashboardNavbar :ui="{ title: 'min-w-0' }">
+        <template #leading>
+          <UDashboardSidebarCollapse />
+        </template>
 
-    <div
-      v-if="pending"
-      class="space-y-4"
-    >
-      <USkeleton class="h-28 rounded-2xl" />
-      <USkeleton class="h-64 rounded-2xl" />
-    </div>
-
-    <div
-      v-else-if="data"
-      class="space-y-6 sm:space-y-8"
-    >
-        <div class="grid gap-3 sm:grid-cols-[1fr_14rem] md:grid-cols-[1fr_18rem]">
-          <div class="rounded-2xl border border-default/80 bg-elevated/30 p-4">
-            <div class="flex items-center justify-between gap-3">
-              <div class="min-w-0">
-                <p class="text-sm text-muted">
-                  Cartes prêtes
-                </p>
-                <p class="text-2xl font-bold text-highlighted">
-                  {{ data.deck.readyCardCount }} / {{ data.deck.cardCount }}
-                </p>
-              </div>
-              <UBadge
-                :color="deckStatusColors[data.deck.status]"
-                variant="subtle"
-                class="shrink-0"
-              >
-                {{ deckStatusLabels[data.deck.status] || data.deck.status }}
-              </UBadge>
-            </div>
-            <UProgress
-              class="mt-4"
-              :model-value="readyPercent"
+        <template #title>
+          <div class="flex min-w-0 items-center gap-2">
+            <ULink
+              to="/dashboard"
+              class="hidden shrink-0 text-muted hover:text-default sm:inline"
+            >
+              Mes decks
+            </ULink>
+            <UIcon
+              name="i-lucide-chevron-right"
+              class="hidden size-4 shrink-0 text-dimmed sm:block"
+            />
+            <span class="truncate">{{ deck?.title ?? 'Deck' }}</span>
+            <UBadge
+              v-if="deck"
+              :label="deckTypeLabels[deck.type]"
+              color="neutral"
+              variant="subtle"
+              size="sm"
+              class="hidden shrink-0 md:inline-flex"
             />
           </div>
+        </template>
 
-          <div class="rounded-2xl border border-default/80 bg-elevated/30 p-4">
-            <p class="text-sm text-muted">
-              Format
-            </p>
-            <p class="mt-1 font-semibold text-highlighted">
-              {{ deckTypeLabels[data.deck.type] || data.deck.type }}
-            </p>
-            <p class="mt-3 text-sm text-muted">
-              {{ data.deck.settings.allowPhotoReuse ? 'Une personne peut illustrer plusieurs cartes' : 'Chaque personne n’illustre qu’une carte' }}
-            </p>
+        <template #right>
+          <div
+            v-if="job"
+            class="flex items-center gap-2 rounded-full bg-primary/10 py-1 pr-1 pl-3 text-sm text-primary"
+          >
+            <UIcon
+              name="i-lucide-loader-circle"
+              class="size-4 animate-spin"
+            />
+            <span class="tabular-nums">{{ job.completed }}/{{ job.total }}</span>
+            <UButton
+              :label="job.stopping ? 'Arrêt…' : 'Arrêter'"
+              size="xs"
+              color="primary"
+              variant="soft"
+              class="rounded-full"
+              :disabled="job.stopping"
+              @click="stopGeneration"
+            />
           </div>
-        </div>
+          <div
+            v-else-if="deck"
+            class="hidden items-center gap-2 sm:flex"
+          >
+            <UProgress
+              :model-value="percent"
+              size="xs"
+              class="w-24"
+              :color="percent === 100 ? 'success' : 'primary'"
+            />
+            <UBadge
+              :label="deckStatusMeta[deck.status]?.label"
+              :color="deckStatusMeta[deck.status]?.color"
+              variant="subtle"
+              size="sm"
+            />
+          </div>
+          <UDropdownMenu
+            :items="menu"
+            :content="{ align: 'end' }"
+          >
+            <UButton
+              icon="i-lucide-ellipsis"
+              color="neutral"
+              variant="ghost"
+              square
+              aria-label="Actions du deck"
+            />
+          </UDropdownMenu>
+        </template>
+      </UDashboardNavbar>
 
-        <DeckPhotoUploader
-          :deck-id="data.deck.id"
-          :persons="data.persons"
-          @uploaded="handlePhotoUploaded"
+      <UDashboardToolbar
+        v-if="deck"
+        class="overflow-x-auto"
+      >
+        <UNavigationMenu
+          :items="tabs"
+          highlight
+          class="-mx-1 flex-1"
+          :ui="{ linkTrailingBadge: 'font-mono tabular-nums' }"
         />
+      </UDashboardToolbar>
+    </template>
 
-        <DeckPhotoStrip
-          :deck-id="data.deck.id"
-          :persons="data.persons"
-          @renamed="refresh()"
-        />
+    <template #body>
+      <UEmpty
+        v-if="error || (!deck && status !== 'pending')"
+        icon="i-lucide-file-question"
+        title="Deck introuvable"
+        description="Il a peut-être été supprimé, ou il appartient à un autre compte."
+        :actions="[{ label: 'Retour à mes decks', to: '/dashboard' }]"
+        class="mx-auto mt-10 max-w-md"
+      />
+      <NuxtPage v-else-if="deck" />
 
-        <DeckPhotoAssigner
-          :deck-id="data.deck.id"
-          :cards="data.cards"
-          :persons="data.persons"
-          @assigned="refresh()"
-        />
-
-        <DeckGenerationPanel
-          :deck-id="data.deck.id"
-          :visual-style="data.deck.settings.visualStyle"
-          :color-theme="data.deck.settings.colorTheme"
-          :role-prompts="data.deck.settings.rolePrompts"
-          :suit-prompts="data.deck.settings.suitPrompts"
-          :cards="data.cards"
-          @card-updated="handleCardUpdated"
-          @deck-settings-updated="handleDeckSettingsUpdated"
-        />
-
-        <DeckPrintPanel
-          :deck-id="data.deck.id"
-          :deck-type="data.deck.type"
-          :settings="data.deck.settings"
-          :ready-card-count="data.deck.readyCardCount"
-          :card-count="data.deck.cardCount"
-          @deck-settings-updated="handleDeckSettingsUpdated"
-        />
-
-        <div class="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">
+      <UModal
+        v-model:open="deleteOpen"
+        title="Supprimer ce deck ?"
+        :description="`« ${deck?.title} » et ses cartes générées ne seront plus accessibles.`"
+        :ui="{ footer: 'justify-end' }"
+      >
+        <template #footer="{ close }">
           <UButton
+            label="Annuler"
             color="neutral"
-            variant="subtle"
-            class="w-full justify-center sm:w-auto"
-            icon="i-lucide-refresh-cw"
-            @click="refresh()"
-          >
-            Rafraîchir
-          </UButton>
+            variant="ghost"
+            @click="close"
+          />
           <UButton
+            label="Supprimer"
             color="error"
-            variant="subtle"
-            class="w-full justify-center sm:w-auto"
             icon="i-lucide-trash-2"
-            :loading="isDeletingDeck"
+            :loading="deleting"
             @click="deleteDeck"
-          >
-            Supprimer le deck
-          </UButton>
-        </div>
-
-        <DeckCardGrid
-          :deck-id="data.deck.id"
-          :cards="data.cards"
-          :persons="data.persons"
-          @card-updated="handleCardUpdated"
-        />
-      </div>
-  </div>
+          />
+        </template>
+      </UModal>
+    </template>
+  </UDashboardPanel>
 </template>

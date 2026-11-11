@@ -1,28 +1,44 @@
 export default defineAppConfig({
-  global: {
+  app: {
     name: 'Cartes personnalisées',
-    email: 'bonjour@cartes.app'
+    shortName: 'Cartes',
+    tagline: 'Le tarot à vos visages'
   },
   ui: {
     colors: {
-      primary: 'gold',
-      neutral: 'ink'
+      primary: 'violet',
+      neutral: 'zinc'
     },
     button: {
       slots: {
-        base: 'active:scale-[0.96] transition-transform'
+        base: 'transition-[transform,background-color,color,box-shadow] active:translate-y-px'
+      }
+    },
+    card: {
+      slots: {
+        root: 'rounded-xl'
+      }
+    },
+    dashboardPanel: {
+      slots: {
+        body: 'sm:p-6 lg:p-8'
+      }
+    },
+    dashboardNavbar: {
+      slots: {
+        title: 'font-semibold'
       }
     },
     pageHero: {
       slots: {
-        container: 'py-16 sm:py-24 lg:py-28',
-        title: 'font-serif font-medium tracking-tight text-pretty text-4xl sm:text-5xl lg:text-6xl',
-        description: 'mt-4 max-w-[42rem] text-pretty text-base sm:text-lg text-muted'
+        title: 'font-display text-5xl sm:text-6xl lg:text-7xl text-balance',
+        description: 'text-pretty'
+      }
+    },
+    pageSection: {
+      slots: {
+        title: 'font-display text-4xl sm:text-5xl text-balance'
       }
     }
-  },
-  footer: {
-    credits: `Cartes personnalisées · ${new Date().getFullYear()}`,
-    colorMode: true
   }
 })
