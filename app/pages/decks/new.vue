@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { DeckSummary, DeckType } from '~/types/deck'
+import type { CardThemeId } from '~~/shared/utils/cardThemes'
+import { defaultCardThemeId } from '~~/shared/utils/cardThemes'
 
 definePageMeta({
   middleware: 'auth'
@@ -16,7 +18,8 @@ const form = reactive({
   description: '',
   type: 'classic52' as DeckType,
   allowPhotoReuse: true,
-  visualStyle: 'illustration royale contemporaine, couleurs riches, rendu premium'
+  visualStyle: 'illustration royale contemporaine, couleurs riches, rendu premium',
+  colorTheme: defaultCardThemeId as CardThemeId
 })
 
 async function createDeck() {
@@ -89,6 +92,13 @@ async function createDeck() {
 
         <UFormField label="Format">
           <DeckTypePicker v-model="form.type" />
+        </UFormField>
+
+        <UFormField
+          label="Thème de couleurs"
+          hint="Appliqué à toutes les cartes et au dos."
+        >
+          <DeckThemePicker v-model="form.colorTheme" />
         </UFormField>
 
         <UFormField label="Style visuel">

@@ -9,6 +9,7 @@ import {
   timestamp,
   unique
 } from 'drizzle-orm/pg-core'
+import type { CardThemeId } from '../../shared/utils/cardThemes'
 
 const id = () => text('id').primaryKey().$defaultFn(() => crypto.randomUUID())
 
@@ -26,11 +27,11 @@ export type DeckStyleSettings = {
   visualStyle: string
   rolePrompts?: Partial<Record<'number' | 'ace' | 'jack' | 'knight' | 'queen' | 'king' | 'trump' | 'excuse', string>>
   suitPrompts?: Partial<Record<'hearts' | 'diamonds' | 'clubs' | 'spades' | 'trumps', string>>
+  /** Deck colour theme (see shared/utils/cardThemes.ts). Drives prompts + frame colours. */
+  colorTheme?: CardThemeId
   cardBackPrompt?: string
   cardBackImageUrl?: string | null
   cardBackImageKey?: string | null
-  cardBackFoilUrl?: string | null
-  cardBackFoilKey?: string | null
 }
 
 export type DeckCardMetadata = {
@@ -40,6 +41,7 @@ export type DeckCardMetadata = {
   rank?: string
   role?: string
   sortOrder: number
+  /** Always '3:4' for new decks; '9:16' may remain on old trump rows and is ignored. */
   aspectRatio: '3:4' | '9:16'
   promptHint: string
 }

@@ -201,6 +201,7 @@ async function deleteDeck() {
         <DeckGenerationPanel
           :deck-id="data.deck.id"
           :visual-style="data.deck.settings.visualStyle"
+          :color-theme="data.deck.settings.colorTheme"
           :role-prompts="data.deck.settings.rolePrompts"
           :suit-prompts="data.deck.settings.suitPrompts"
           :cards="data.cards"

@@ -3,12 +3,13 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { aiImageModel } from '~~/server/utils/ai'
 import { buildCardBackPrompt } from '~~/server/utils/cardPromptBuilder'
-import { renderCardBackFoilMaskFromArt, renderCardBackImage } from '~~/server/utils/cardRenderer'
+import { renderCardBackImage } from '~~/server/utils/cardRenderer'
 import { requireOwnedDeck } from '~~/server/utils/deckAccess'
 import { db, decks } from '~~/server/utils/db'
 import { assertCanGenerate } from '~~/server/utils/generationAccess'
 import { normalizeGenerationError } from '~~/server/utils/generationErrors'
 import { generateFileKey, uploadFile } from '~~/server/utils/s3'
+import { DECK_CARD_ASPECT_RATIO } from '~~/shared/utils/printSpec'
 
 const bodySchema = z.object({
   prompt: z.string().trim().max(1600).optional()
@@ -42,11 +43,17 @@ export default defineEventHandler(async (event) => {
   }
 
   const promptOverride = parsed.data?.prompt?.trim() || null
+  // Drop keys of the abandoned foil feature still stored on older decks.
+  const { cardBackFoilUrl: _foilUrl, cardBackFoilKey: _foilKey, ...storedSettings } = deck.settings as typeof deck.settings & {
+    cardBackFoilUrl?: string | null
+    cardBackFoilKey?: string | null
+  }
   const settings = {
-    ...deck.settings,
+    ...storedSettings,
     cardBackPrompt: promptOverride || deck.settings.cardBackPrompt
   }
-  const aspectRatio = deck.type === 'tarot78' ? '9:16' as const : '3:4' as const
+  // One back for the whole deck, in the single deck format.
+  const aspectRatio = DECK_CARD_ASPECT_RATIO
 
   try {
     let lastError: unknown
@@ -88,15 +95,11 @@ export default defineEventHandler(async (event) => {
     await uploadFile(rawBuffer, rawKey, mediaType)
 
     const finalBuffer = await renderCardBackImage(rawBuffer, {
-      aspectRatio,
-      profile: 'screen'
+      profile: 'screen',
+      theme: settings.colorTheme
     })
-    // Surgical foil from painted gold in the artwork (filigree, moon, ornaments).
-    const foilBuffer = await renderCardBackFoilMaskFromArt(finalBuffer)
     const finalKey = generateFileKey(prefix, 'final.png')
-    const foilKey = generateFileKey(prefix, 'foil.png')
     const finalUrl = await uploadFile(finalBuffer, finalKey, 'image/png')
-    const foilUrl = await uploadFile(foilBuffer, foilKey, 'image/png')
 
     const [updatedDeck] = await db
       .update(decks)
@@ -105,9 +108,7 @@ export default defineEventHandler(async (event) => {
           ...settings,
           cardBackPrompt: settings.cardBackPrompt || undefined,
           cardBackImageUrl: finalUrl,
-          cardBackImageKey: finalKey,
-          cardBackFoilUrl: foilUrl,
-          cardBackFoilKey: foilKey
+          cardBackImageKey: finalKey
         },
         updatedAt: new Date()
       })
@@ -116,8 +117,7 @@ export default defineEventHandler(async (event) => {
 
     return {
       deck: updatedDeck,
-      cardBackImageUrl: finalUrl,
-      cardBackFoilUrl: foilUrl
+      cardBackImageUrl: finalUrl
     }
   } catch (error) {
     const normalized = normalizeGenerationError(error)

@@ -3,6 +3,7 @@ import {
   getTarotArcanaLabel,
   getTarotArcanaPromptHint
 } from '~~/shared/utils/tarotArcana'
+import { DECK_CARD_ASPECT_RATIO } from '~~/shared/utils/printSpec'
 
 export type DeckType = 'classic52' | 'tarot56' | 'tarot78'
 export type CardSuit = 'hearts' | 'diamonds' | 'clubs' | 'spades' | 'trumps'
@@ -67,7 +68,7 @@ function buildSuitCards(ranks: typeof classicRanks, startOrder: number): CardDef
     label: `${rank.label} de ${suit.label}`,
     shortLabel: `${rank.shortLabel}${suit.symbol}`,
     sortOrder: startOrder + suitIndex * ranks.length + rankIndex,
-    aspectRatio: '3:4',
+    aspectRatio: DECK_CARD_ASPECT_RATIO,
     promptHint: rolePromptHints[rank.role as Exclude<CardRole, 'trump' | 'excuse'>]
   })))
 }
@@ -85,7 +86,7 @@ function buildTrumpCards(startOrder: number): CardDefinition[] {
       label: getTarotArcanaLabel(arcana),
       shortLabel: String(number),
       sortOrder: startOrder + index,
-      aspectRatio: '9:16' as const,
+      aspectRatio: DECK_CARD_ASPECT_RATIO,
       promptHint: getTarotArcanaPromptHint(arcana)
     }
   })
@@ -101,7 +102,7 @@ function buildTrumpCards(startOrder: number): CardDefinition[] {
       label: getTarotArcanaLabel(excuse),
       shortLabel: 'EX',
       sortOrder: startOrder + 21,
-      aspectRatio: '9:16',
+      aspectRatio: DECK_CARD_ASPECT_RATIO,
       promptHint: getTarotArcanaPromptHint(excuse)
     }
   ]

@@ -24,9 +24,10 @@ describe('buildDeckTextureManifest', () => {
 
     const trump = manifest.cards.find(card => card.cardCode === 'trump-21')
     expect(trump?.faceUrl).toBeNull()
-    expect(trump?.aspectRatio).toBe('9:16')
+    // One format for the whole deck, so a single back fits every card.
+    expect(trump?.aspectRatio).toBe('3:4')
 
     const excuse = manifest.cards.find(card => card.cardCode === 'excuse')
-    expect(excuse?.aspectRatio).toBe('9:16')
+    expect(excuse?.aspectRatio).toBe('3:4')
   })
 })

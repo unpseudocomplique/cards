@@ -4,7 +4,7 @@
  * DO NOT change these without updating:
  * - `.cursor/rules/print-pipeline.mdc`
  * - `README.md` (section Impression)
- * - foil mask geometry in `server/utils/cardRenderer.ts`
+ * - `docs/print-pipeline.md`
  *
  * Physical sizes match common European / poker stock.
  * All print exports use 300 DPI + 3 mm bleed.
@@ -17,8 +17,8 @@ export const PRINT_BLEED_MM = 3
 export const POKER_TRIM_MM = { width: 63.5, height: 88.9 } as const
 
 /**
- * Major arcana / Excuse (9:16): 70 × 124.4 mm (exact 9:16 of 70 mm width).
- * Confirm with the printer before a large run.
+ * Legacy 9:16 trim (former major-arcana format). Kept for old card metadata only:
+ * every card of a deck is now rendered in DECK_CARD_ASPECT_RATIO.
  */
 export const TAROT_TRIM_MM = { width: 70, height: 124.4 } as const
 
@@ -28,6 +28,13 @@ export const SCREEN_TAROT_PX = { width: 900, height: 1600 } as const
 
 export type PrintAspectRatio = '3:4' | '9:16'
 export type RenderProfile = 'screen' | 'print'
+
+/**
+ * Single card format for every card of every deck (faces, trumps, Excuse and back).
+ * A deck must be uniform: same size, same contour, one identical back for all cards.
+ */
+export const DECK_CARD_ASPECT_RATIO = '3:4' as const satisfies PrintAspectRatio
+export const DECK_TRIM_MM = POKER_TRIM_MM
 
 export function mmToPx(mm: number, dpi = PRINT_DPI) {
   return Math.round((mm / 25.4) * dpi)
@@ -84,15 +91,12 @@ export function getCanvasPx(aspectRatio: PrintAspectRatio, profile: RenderProfil
 export const PRINT_SPEC_SUMMARY = {
   dpi: PRINT_DPI,
   bleedMm: PRINT_BLEED_MM,
-  pokerTrimMm: POKER_TRIM_MM,
-  tarotTrimMm: TAROT_TRIM_MM,
+  aspectRatio: DECK_CARD_ASPECT_RATIO,
+  trimMm: DECK_TRIM_MM,
   colorSpace: 'sRGB PNG (convert to CMYK at the printer if required)',
-  foilMask: 'Black = hot-foil stamp area; white = no foil. Separate PNG per card.',
   files: {
     faces: 'print/faces/{cardCode}.png',
-    foil: 'print/foil/{cardCode}-foil.png',
     back: 'print/back/card-back.png',
-    backFoil: 'print/back/card-back-foil.png',
     spec: 'print/print-spec.json'
   }
 } as const

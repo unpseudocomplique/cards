@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { mergeRolePrompts, mergeSuitPrompts } from '~~/shared/utils/cardPromptPresets'
+import { cardThemeIds } from '~~/shared/utils/cardThemes'
 import { requireOwnedDeck } from '~~/server/utils/deckAccess'
 import { db, decks } from '~~/server/utils/db'
 
@@ -27,8 +28,9 @@ const updateDeckPromptSchema = z.object({
   visualStyle: promptTextSchema.optional(),
   rolePrompts: rolePromptsSchema.optional(),
   suitPrompts: suitPromptsSchema.optional(),
-  cardBackPrompt: z.string().trim().max(1600).nullable().optional()
-}).refine(input => input.visualStyle || input.rolePrompts || input.suitPrompts || input.cardBackPrompt !== undefined, {
+  cardBackPrompt: z.string().trim().max(1600).nullable().optional(),
+  colorTheme: z.enum(cardThemeIds).optional()
+}).refine(input => input.visualStyle || input.rolePrompts || input.suitPrompts || input.colorTheme || input.cardBackPrompt !== undefined, {
   message: 'Aucun prompt à sauvegarder'
 })
 
@@ -58,6 +60,7 @@ export default defineEventHandler(async (event) => {
       settings: {
         ...deck.settings,
         visualStyle: result.data.visualStyle || deck.settings.visualStyle,
+        colorTheme: result.data.colorTheme || deck.settings.colorTheme,
         rolePrompts: result.data.rolePrompts
           ? mergeRolePrompts({ ...deck.settings.rolePrompts, ...result.data.rolePrompts })
           : mergeRolePrompts(deck.settings.rolePrompts),
