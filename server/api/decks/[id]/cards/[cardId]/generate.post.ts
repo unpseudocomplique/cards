@@ -194,8 +194,8 @@ export default defineEventHandler(async (event) => {
     const prefix = `users/${session.user.id}/decks/${deck.id}/cards/${currentCard.id}`
     const rawImageKey = generateFileKey(prefix, `scene.${rawExtension}`)
     const rawImageUrl = await uploadFile(rawBuffer, rawImageKey, rawMediaType)
-    // Foreground layer saved alongside for debugging / future re-composite.
-    await uploadFile(
+    // Character layer kept so the card can be recomposed later without a new AI call.
+    const foregroundImageUrl = await uploadFile(
       foregroundBuffer,
       generateFileKey(prefix, `foreground.${foregroundExtension}`),
       foregroundMediaType
@@ -218,7 +218,7 @@ export default defineEventHandler(async (event) => {
         finalImageKey,
         finalImageUrl,
         // Remember the format this face was rendered in (decks can change format).
-        metadata: { ...currentCard.metadata, format: format.id },
+        metadata: { ...currentCard.metadata, format: format.id, foregroundImageUrl },
         errorMessage: null,
         updatedAt: new Date()
       })

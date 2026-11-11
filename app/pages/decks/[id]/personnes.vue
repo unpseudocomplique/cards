@@ -22,6 +22,18 @@ function addPhotos(person: DeckPerson) {
   uploadTarget.value = person
   uploadOpen.value = true
 }
+
+/* Editor: keep the id, read the person fresh from the workspace after each refresh. */
+const editingId = shallowRef<string | null>(null)
+const editing = computed(() => persons.value.find(person => person.id === editingId.value) ?? null)
+const editOpen = computed({
+  get: () => Boolean(editing.value),
+  set: (value: boolean) => {
+    if (!value) {
+      editingId.value = null
+    }
+  }
+})
 </script>
 
 <template>
@@ -62,6 +74,7 @@ function addPhotos(person: DeckPerson) {
           :key="person.id"
           :person="person"
           :card-count="cardCountByPerson.get(person.id) ?? 0"
+          @edit="editingId = person.id"
           @add-photos="addPhotos(person)"
         />
         <button
@@ -117,6 +130,12 @@ function addPhotos(person: DeckPerson) {
         />
       </p>
     </section>
+
+    <DeckPersonSlideover
+      v-model:open="editOpen"
+      :person="editing"
+      @add-photos="addPhotos"
+    />
 
     <DeckPhotoUploadModal
       v-model:open="uploadOpen"

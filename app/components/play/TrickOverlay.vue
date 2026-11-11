@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { AnimatePresence, motion } from 'motion-v'
 import type { CardId } from '~~/shared/tarot'
-import { seatAnchor } from '~/utils/seatLayout'
+import { trickZone, wonPileAnchor } from '~/utils/seatLayout'
 
 export type TrickEntry = { seat: number, card: CardId }
 
@@ -13,6 +13,7 @@ const props = defineProps<{
   playerCount: 3 | 4 | 5
   sceneWidth: number
   sceneHeight: number
+  mobile?: boolean
   /** Winner seat while collecting the trick toward their pile. */
   collectingToSeat?: number | null
   winnerName?: string | null
@@ -38,15 +39,12 @@ function collectOffset(seat: number) {
   if (props.collectingToSeat == null || props.sceneWidth <= 0) {
     return { x: 0, y: 0, scale: 1, opacity: 1 }
   }
-  const target = seatAnchor(
-    props.collectingToSeat,
-    props.localSeat,
-    props.playerCount,
-    props.sceneWidth,
-    props.sceneHeight,
-  )
-  const centerX = props.sceneWidth / 2
-  const centerY = props.sceneHeight * 0.42
+  const view = { width: props.sceneWidth, height: props.sceneHeight, mobile: props.mobile ?? false }
+  // Fly to the winner's pile on the felt (the local player's tricks go to the hand).
+  const target = wonPileAnchor(props.collectingToSeat, props.localSeat, props.playerCount, view)
+  const zone = trickZone(view)
+  const centerX = zone.centerX
+  const centerY = zone.centerY
   return {
     x: target.x - centerX + (seat - props.collectingToSeat) * 6,
     y: target.y - centerY,
@@ -91,7 +89,7 @@ const spring = computed(() =>
           />
           <p
             v-if="seats?.[entry.seat]?.name && collectingToSeat == null"
-            class="mt-1 max-w-[4.5rem] truncate text-center text-[10px] text-white/70 sm:text-xs"
+            class="mx-auto mt-1 w-fit max-w-[4.5rem] truncate rounded-full bg-black/55 px-1.5 py-px text-center text-[10px] text-white/85 backdrop-blur-sm sm:text-xs"
           >
             {{ seats[entry.seat]?.name }}
           </p>

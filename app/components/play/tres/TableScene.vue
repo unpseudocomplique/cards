@@ -7,7 +7,7 @@ import {
   isPetitStolen,
   resolveTrick,
 } from '~~/shared/tarot'
-import { seatAnchor } from '~/utils/seatLayout'
+import { TABLE_CAMERA, seatAnchor } from '~/utils/seatLayout'
 import type { TableFxEvent } from '~/components/play/TableFxOverlay.vue'
 
 const props = defineProps<{
@@ -237,7 +237,8 @@ function onFlightDone(card: CardId) {
 
 function spawnSeatFlight(seat: number, card: CardId) {
   const { width, height } = measureScene()
-  const anchor = seatAnchor(seat, localSeat.value, props.publicState.playerCount, width, height)
+  // Opponents' cards leave from their stack on the rim (projected from 3D).
+  const anchor = seatAnchor(seat, localSeat.value, props.publicState.playerCount, { width, height, mobile: isMobile.value })
   const cardH = 84
   const cardW = Math.round(cardH * cardRatio.value)
   enqueueFlight({
@@ -462,13 +463,10 @@ const winnerName = computed(() => {
 
 const holdBanner = computed(() => trickSummaryLine.value)
 
-const cameraPosition = computed<[number, number, number]>(() =>
-  isMobile.value ? [0, 3.25, 6.35] : [0, 2.95, 6.05],
-)
-
-const cameraLookAt = computed<[number, number, number]>(() =>
-  isMobile.value ? [0, 0.85, -0.2] : [0, 0.95, -0.25],
-)
+// Shared with the overlay projection (app/utils/seatLayout.ts).
+const cameraSpec = computed(() => isMobile.value ? TABLE_CAMERA.mobile : TABLE_CAMERA.desktop)
+const cameraPosition = computed<[number, number, number]>(() => [...cameraSpec.value.position])
+const cameraLookAt = computed<[number, number, number]>(() => [...cameraSpec.value.lookAt])
 
 const priorityCodes = computed(() => {
   const codes = new Set<string>()
@@ -527,7 +525,7 @@ function onLoop({ delta }: { delta: number }) {
         <TresPerspectiveCamera
           :position="cameraPosition"
           :look-at="cameraLookAt"
-          :fov="isMobile ? 46 : 42"
+          :fov="cameraSpec.fov"
         />
 
         <!-- Dramatic salon key + cool rim (no EffectComposer) -->
@@ -595,6 +593,8 @@ function onLoop({ delta }: { delta: number }) {
         :seats="publicState.seats"
         :scene-width="sceneSize.width"
         :scene-height="sceneSize.height"
+        :mobile="isMobile"
+        :active-seat="['Bidding', 'Trick', 'ReadyToPlay'].includes(publicState.phase) ? publicState.currentSeat : null"
         :highlight-seat="collectingToSeat"
       />
 
@@ -607,6 +607,7 @@ function onLoop({ delta }: { delta: number }) {
         :player-count="publicState.playerCount"
         :scene-width="sceneSize.width"
         :scene-height="sceneSize.height"
+        :mobile="isMobile"
         :collecting-to-seat="collectingToSeat"
         :winner-name="winnerName"
         :hold-banner="holdBanner"

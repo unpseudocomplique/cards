@@ -1,4 +1,5 @@
 import sharp from 'sharp'
+import type { OverlayOptions } from 'sharp'
 import type { Font, Path } from 'opentype.js'
 import { ensureIndexFont, getIndexFont } from '~~/server/utils/indexFont'
 import type { CardTheme, CardThemeId } from '~~/shared/utils/cardThemes'
@@ -531,44 +532,167 @@ function morphologyMax(source: Float32Array, width: number, height: number) {
   return output
 }
 
+/** Which borders of the character image the cut-out figure runs into. */
+export type EdgeContact = { top: boolean, right: boolean, bottom: boolean, left: boolean }
+
+/** Share of an image border the figure must cover to count as cut there. */
+const EDGE_CONTACT_RATIO = 0.02
+/** Outermost rows / columns inspected on each border. */
+const EDGE_CONTACT_BAND = 3
+
 /**
- * Character layer: cutout fitted to the scene window, standing on its bottom
- * edge. It may rise above the top frame line (pop-out) but is clipped to the
- * window horizontally and at the bottom, so it never covers the index corners
- * or the outer contour.
+ * The image model sometimes crops the figure — typically a knight's horse —
+ * at the image border. Those borders are straight cuts that must end up
+ * hidden behind the window frame instead of showing inside the scene.
+ */
+export async function detectEdgeContact(cutout: Buffer): Promise<EdgeContact> {
+  const { data, info } = await sharp(cutout)
+    .ensureAlpha()
+    .extractChannel('alpha')
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+  const { width, height } = info
+  const band = Math.max(1, Math.min(EDGE_CONTACT_BAND, Math.floor(Math.min(width, height) / 4)))
+  const opaque = (x: number, y: number) => (data[y * width + x] ?? 0) > 127
+
+  function rowCoverage(y: number) {
+    let count = 0
+    for (let x = 0; x < width; x += 1) {
+      if (opaque(x, y)) {
+        count += 1
+      }
+    }
+    return count / width
+  }
+
+  function columnCoverage(x: number) {
+    let count = 0
+    for (let y = 0; y < height; y += 1) {
+      if (opaque(x, y)) {
+        count += 1
+      }
+    }
+    return count / height
+  }
+
+  const touches = (coverage: (index: number) => number, from: (offset: number) => number) =>
+    Array.from({ length: band }, (_, offset) => coverage(from(offset)))
+      .some(value => value >= EDGE_CONTACT_RATIO)
+
+  return {
+    top: touches(rowCoverage, offset => offset),
+    bottom: touches(rowCoverage, offset => height - 1 - offset),
+    left: touches(columnCoverage, offset => offset),
+    right: touches(columnCoverage, offset => width - 1 - offset)
+  }
+}
+
+export type ForegroundPlacement = {
+  width: number
+  height: number
+  left: number
+  top: number
+  /** Visible area of the layer (the figure never covers indices or the contour). */
+  clip: { left: number, top: number, right: number, bottom: number }
+}
+
+/**
+ * Where the character goes in the window.
+ *
+ * - Whole figure: fitted inside the window, standing on its bottom edge,
+ *   centred, and allowed to rise slightly above the top frame (pop-out).
+ * - Figure cut by its image border: that border is laid exactly on the frame
+ *   (left / right aligned, scaled to the full height or width), so the cut
+ *   reads as the frame cropping a larger scene.
+ */
+export function placeForeground(
+  figure: { width: number, height: number },
+  contact: EdgeContact,
+  layout: CardLayout
+): ForegroundPlacement {
+  const { window, frameStroke } = layout
+  const innerLeft = window.x + frameStroke
+  const innerRight = window.x + window.width - frameStroke
+  const innerTop = window.y + frameStroke
+  const innerBottom = window.y + window.height - frameStroke
+  const innerWidth = innerRight - innerLeft
+  const innerHeight = innerBottom - innerTop
+  const aspect = figure.width / Math.max(1, figure.height)
+
+  let width: number
+  let height: number
+
+  if (contact.top) {
+    height = innerHeight
+    width = Math.round(height * aspect)
+  } else if (contact.left && contact.right) {
+    width = innerWidth
+    height = Math.round(width / aspect)
+  } else {
+    const popOut = Math.max(0, window.y - layout.foregroundTop)
+    const scale = Math.min(
+      (innerWidth * 0.94) / figure.width,
+      (window.height * 0.94 + popOut) / figure.height
+    )
+    width = Math.round(figure.width * scale)
+    height = Math.round(figure.height * scale)
+  }
+
+  let left: number
+  if (contact.left && !contact.right) {
+    left = innerLeft
+  } else if (contact.right && !contact.left) {
+    left = innerRight - width
+  } else {
+    left = Math.round(window.x + (window.width - width) / 2)
+  }
+
+  const top = innerBottom - height
+  // A figure cut at the top, or taller than the pop-out allowance, stops at the
+  // frame line rather than showing a straight cut above the window.
+  const clipTop = contact.top || top < layout.foregroundTop ? innerTop : layout.foregroundTop
+
+  return {
+    width,
+    height,
+    left,
+    top,
+    clip: { left: innerLeft, top: clipTop, right: innerRight, bottom: innerBottom }
+  }
+}
+
+/**
+ * Character layer: cutout placed in the scene window (see placeForeground).
+ * It never covers the index corners or the outer contour.
  */
 async function buildForegroundImage(source: Buffer, layout: CardLayout) {
-  const { width, height, window, frameStroke } = layout
+  const { width, height } = layout
   const cutout = await removeChromaGreen(source)
+  const contact = await detectEdgeContact(cutout)
+  // Trimming fails on an empty cutout: keep the untrimmed image then.
   const trimmed = await sharp(cutout)
     .trim({ threshold: 1 })
     .png()
     .toBuffer()
     .catch(() => cutout)
+  const trimmedSize = await sharp(trimmed).metadata()
 
-  const clipLeft = window.x + frameStroke
-  const clipRight = window.x + window.width - frameStroke
-  const clipBottom = window.y + window.height - frameStroke
-  const popOut = Math.max(0, window.y - layout.foregroundTop)
-  const boxWidth = Math.round((clipRight - clipLeft) * 0.94)
-  const boxHeight = Math.round(window.height * 0.94 + popOut)
+  const placement = placeForeground(
+    { width: trimmedSize.width || 1, height: trimmedSize.height || 1 },
+    contact,
+    layout
+  )
   const resized = await sharp(trimmed)
-    .resize(boxWidth, boxHeight, {
-      fit: 'inside',
-      withoutEnlargement: false
-    })
+    .resize(placement.width, placement.height, { fit: 'fill' })
     .png()
-    .toBuffer({ resolveWithObject: true })
+    .toBuffer()
 
-  const left = Math.round(window.x + (window.width - resized.info.width) / 2)
-  const top = Math.round(clipBottom - resized.info.height)
-  const clip = Buffer.from(`
-    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-      <rect x="${clipLeft}" y="${layout.foregroundTop}" width="${clipRight - clipLeft}" height="${clipBottom - layout.foregroundTop}" fill="#ffffff"/>
-    </svg>
-  `)
-
-  return sharp({
+  // Keep only the visible part, so the overlay always fits inside the card.
+  const visibleLeft = Math.max(placement.left, placement.clip.left)
+  const visibleTop = Math.max(placement.top, placement.clip.top)
+  const visibleRight = Math.min(placement.left + placement.width, placement.clip.right)
+  const visibleBottom = Math.min(placement.top + placement.height, placement.clip.bottom)
+  const base = sharp({
     create: {
       width,
       height,
@@ -576,10 +700,23 @@ async function buildForegroundImage(source: Buffer, layout: CardLayout) {
       background: { r: 0, g: 0, b: 0, alpha: 0 }
     }
   })
-    .composite([
-      { input: resized.data, left, top },
-      { input: clip, blend: 'dest-in' }
-    ])
+
+  if (visibleRight <= visibleLeft || visibleBottom <= visibleTop) {
+    return base.png().toBuffer()
+  }
+
+  const visible = await sharp(resized)
+    .extract({
+      left: visibleLeft - placement.left,
+      top: visibleTop - placement.top,
+      width: visibleRight - visibleLeft,
+      height: visibleBottom - visibleTop
+    })
+    .png()
+    .toBuffer()
+
+  return base
+    .composite([{ input: visible, left: visibleLeft, top: visibleTop }])
     .png()
     .toBuffer()
 }
@@ -620,7 +757,7 @@ export async function renderCardImage(
   const layout = getCardLayout(getCardFormat(options.format), profile)
   const { width, height, cardRadius, window } = layout
   const sceneImage = await buildSceneImage(source, window.width, window.height, window.radius)
-  const layers: sharp.OverlayOptions[] = [
+  const layers: OverlayOptions[] = [
     { input: sceneImage, top: window.y, left: window.x },
     { input: buildWindowFrame(layout, theme, window), top: 0, left: 0 }
   ]

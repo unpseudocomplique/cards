@@ -63,13 +63,19 @@ const rows = computed<CardId[][]>(() => {
 })
 
 const twoRows = computed(() => rows.value.length > 1)
-/** Smaller cards when two rows must fit in a short (landscape phone) screen. */
-const cardSize = computed<'sm' | 'md'>(() => twoRows.value && isShort.value ? 'sm' : 'md')
+/** Smaller cards on short (landscape phone) screens, so the hand leaves the table visible. */
+const cardSize = computed<'sm' | 'md'>(() => isShort.value ? 'sm' : 'md')
 const cardHeight = computed(() => cardSize.value === 'sm'
   ? (isMobile.value ? 84 : 96)
   : (isMobile.value ? 104 : 148))
 /** How much of the back row shows above the front row (its index and face). */
 const rowLift = computed(() => twoRows.value ? Math.round(cardHeight.value * 0.46) : 0)
+
+/** Room under the fan for the lower corners of the most rotated cards. */
+const rotationOverhang = computed(() => {
+  const maxArc = isMobile.value ? 26 : 32
+  return Math.round((cardHeight.value * 0.35) * Math.sin((maxArc * Math.PI) / 180))
+})
 
 const placements = computed(() => {
   const map = new Map<CardId, { row: number, index: number, total: number }>()
@@ -139,7 +145,8 @@ function cardMotion(card: CardId) {
 
   const rotate = t * arc
   const x = t * (spread / 2)
-  const y = Math.abs(t) * yOffset
+  // Raise the middle instead of dropping the ends, so edge cards stay on screen.
+  const y = (Math.abs(t) - 1) * yOffset
   const playableBoost = props.dimUnplayable && isPlayable(card)
     ? (isMobile.value ? -10 : -16)
     : 0
@@ -189,7 +196,10 @@ function onPlay(card: CardId, event: MouseEvent) {
 <template>
   <div
     class="pointer-events-auto relative z-20 mx-auto flex w-full max-w-6xl items-end justify-center px-1 pb-1"
-    :style="{ height: `calc(${isMobile ? 'min(30vh, 240px)' : 'min(34vh, 280px)'} + ${rowLift}px)` }"
+    :style="{
+      height: `calc(${isMobile ? 'min(30vh, 240px)' : 'min(34vh, 280px)'} + ${rowLift}px)`,
+      paddingBottom: `${rotationOverhang}px`
+    }"
     @pointerenter="hovered = true"
     @pointerleave="hovered = false"
   >
@@ -202,7 +212,7 @@ function onPlay(card: CardId, event: MouseEvent) {
       <p
         v-if="prompt"
         class="pointer-events-none absolute left-1/2 z-[300] flex -translate-x-1/2 items-center gap-2 rounded-full bg-amber-300 px-3.5 py-1.5 text-sm font-semibold whitespace-nowrap text-neutral-950 shadow-lg shadow-black/40"
-        :style="{ bottom: `${cardHeight + rowLift + 34}px` }"
+        :style="{ bottom: `${cardHeight + rowLift + rotationOverhang + 34}px` }"
         role="status"
       >
         <UIcon

@@ -92,6 +92,11 @@ const goal = computed(() => props.state.endMode === 'threshold'
           </p>
           <p class="text-sm font-semibold text-white tabular-nums">
             {{ state.scores[index] ?? 0 }}
+            <span
+              v-if="state.tricksWonBySeat?.[index]"
+              class="ml-1 text-[11px] font-normal text-white/50"
+              :title="`${state.tricksWonBySeat[index]} pli${state.tricksWonBySeat[index]! > 1 ? 's' : ''} ramassé${state.tricksWonBySeat[index]! > 1 ? 's' : ''}`"
+            >· {{ state.tricksWonBySeat[index] }} pli{{ state.tricksWonBySeat[index]! > 1 ? 's' : '' }}</span>
           </p>
         </div>
       </div>

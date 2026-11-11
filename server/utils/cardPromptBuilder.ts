@@ -262,7 +262,9 @@ export function buildCardForegroundPrompt(card: PromptCard, settings: DeckStyleS
       'Character fully opaque against that green. Hard clean silhouette edges. Absolutely no green halo, fringe, glow, outline, or green contamination on hair, skin, clothes, or props.',
       'Never use bright or saturated green on the character (it would be keyed out): render any green of the palette as dark olive, bottle green or teal.',
       'Do not paint any card frame, border, number, letter, or suit pip.',
-      'Leave empty green margin around the silhouette so cutout is easy.'
+      'The figure may only be cropped by the bottom border (three-quarter framing); head, hands, cape, weapon, props and any horse or animal stay fully inside the left, right and top borders.',
+      'Keep a clear band of pure green along the left, right and top borders, at least 5% of the image width.',
+      'If a horse or large animal would not fit entirely, show only its head and neck beside the character, still fully inside the image.'
     ]
   })
 }

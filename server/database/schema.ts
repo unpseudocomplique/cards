@@ -51,6 +51,8 @@ export type DeckCardMetadata = {
   promptHint: string
   /** Format the stored face was rendered in. Absent on faces generated before formats = poker. */
   format?: CardFormatId
+  /** Character layer (chroma-key cutout) of the last generation, to recompose without AI. */
+  foregroundImageUrl?: string
 }
 
 export const users = pgTable('users', {
