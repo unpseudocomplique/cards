@@ -23,6 +23,10 @@ COPY . .
 
 RUN pnpm run db:migrate && pnpm run build
 
+# Fail the build (not the production boot) if sharp cannot load its libvips.
+# Two sharp versions in the tree make Nitro ship mismatched native binaries.
+RUN cd .output/server && node --input-type=module -e "import sharp from 'sharp'; await sharp({ create: { width: 1, height: 1, channels: 3, background: '#000' } }).png().toBuffer(); console.log('sharp', sharp.versions.sharp, 'libvips', sharp.versions.vips)"
+
 FROM node:22-alpine AS runner
 
 RUN apk add --no-cache curl
