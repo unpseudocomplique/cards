@@ -50,6 +50,35 @@ async function saveName() {
   }
 }
 
+/* Person prompt layer */
+const promptDraft = shallowRef('')
+const savingPrompt = shallowRef(false)
+
+watch(() => [props.person?.id, props.person?.prompt, open.value], () => {
+  promptDraft.value = props.person?.prompt ?? ''
+}, { immediate: true })
+
+const promptDirty = computed(() => Boolean(props.person) && (promptDraft.value.trim() || null) !== (props.person!.prompt ?? null))
+
+async function savePrompt() {
+  if (!props.person || !promptDirty.value) {
+    return
+  }
+  savingPrompt.value = true
+  try {
+    await $fetch(`/api/decks/${deckId.value}/persons/${props.person.id}`, {
+      method: 'PATCH',
+      body: { prompt: promptDraft.value.trim() || null }
+    })
+    await refresh()
+    toast.add({ title: 'Consigne enregistrée', description: 'Elle s’appliquera à ses prochaines cartes générées.', color: 'success', icon: 'i-lucide-check' })
+  } catch (err) {
+    toast.add({ title: 'Enregistrement impossible', description: getApiErrorMessage(err), color: 'error', icon: 'i-lucide-circle-alert' })
+  } finally {
+    savingPrompt.value = false
+  }
+}
+
 /* Assigned cards */
 const assignedCards = computed(() => props.person
   ? cards.value.filter(card => card.sourcePersonId === props.person!.id)
@@ -168,6 +197,40 @@ async function deletePerson() {
           :disabled="!nameDirty"
         />
       </form>
+
+      <UFormField
+        label="Consigne pour cette personne"
+        help="S’applique à toutes ses cartes, après le style du jeu, de la couleur et du type. La consigne d’une carte peut la contredire."
+      >
+        <UTextarea
+          v-model="promptDraft"
+          :rows="3"
+          autoresize
+          :maxlength="1200"
+          placeholder="Ex. ses chiens sont sur une des photos : ne les dessine pas, sauf si la carte le demande."
+          class="w-full"
+        />
+        <div
+          v-if="promptDirty"
+          class="mt-2 flex justify-end gap-2"
+        >
+          <UButton
+            label="Annuler"
+            size="xs"
+            color="neutral"
+            variant="ghost"
+            @click="promptDraft = person.prompt ?? ''"
+          />
+          <UButton
+            label="Enregistrer"
+            size="xs"
+            color="neutral"
+            variant="subtle"
+            :loading="savingPrompt"
+            @click="savePrompt"
+          />
+        </div>
+      </UFormField>
 
       <section>
         <div class="mb-3 flex items-center justify-between gap-2">

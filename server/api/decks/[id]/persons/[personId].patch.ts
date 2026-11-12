@@ -3,8 +3,12 @@ import { z } from 'zod'
 import { requireOwnedDeck } from '~~/server/utils/deckAccess'
 import { db, deckPersons } from '~~/server/utils/db'
 
-const renamePersonSchema = z.object({
-  label: z.string().trim().min(1, 'Nom requis').max(80, 'Nom trop long')
+const updatePersonSchema = z.object({
+  label: z.string().trim().min(1, 'Nom requis').max(80, 'Nom trop long').optional(),
+  /** Prompt layer for every card of this person; null or empty clears it. */
+  prompt: z.string().trim().max(1200, 'Consigne trop longue').nullable().optional()
+}).refine(input => input.label !== undefined || input.prompt !== undefined, {
+  message: 'Rien à enregistrer'
 })
 
 export default defineEventHandler(async (event) => {
@@ -18,12 +22,12 @@ export default defineEventHandler(async (event) => {
 
   const deck = await requireOwnedDeck(deckId, session.user.id)
   const body = await readBody(event)
-  const result = renamePersonSchema.safeParse(body)
+  const result = updatePersonSchema.safeParse(body)
 
   if (!result.success) {
     throw createError({
       status: 400,
-      message: 'Nom invalide',
+      message: result.error.issues[0]?.message ?? 'Données invalides',
       data: result.error.flatten()
     })
   }
@@ -31,7 +35,8 @@ export default defineEventHandler(async (event) => {
   const [person] = await db
     .update(deckPersons)
     .set({
-      label: result.data.label,
+      ...(result.data.label !== undefined ? { label: result.data.label } : {}),
+      ...(result.data.prompt !== undefined ? { prompt: result.data.prompt || null } : {}),
       updatedAt: new Date()
     })
     .where(and(

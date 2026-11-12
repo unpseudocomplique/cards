@@ -4,6 +4,7 @@ import { db, deckPersons, deckPhotos } from '~~/server/utils/db'
 export type DeckPersonPayload = {
   id: string
   label: string
+  prompt: string | null
   createdAt: string
   photos: Array<{
     id: string
@@ -37,6 +38,7 @@ export async function listDeckPersons(deckId: string): Promise<DeckPersonPayload
   return persons.map(person => ({
     id: person.id,
     label: person.label,
+    prompt: person.prompt,
     createdAt: person.createdAt.toISOString(),
     photos: (photosByPersonId.get(person.id) || []).map(photo => ({
       id: photo.id,

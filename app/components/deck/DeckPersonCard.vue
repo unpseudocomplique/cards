@@ -71,6 +71,17 @@ const full = computed(() => props.person.photos.length >= 6)
           </span>
         </p>
       </div>
+      <UTooltip
+        v-if="person.prompt"
+        :text="person.prompt"
+        :content="{ side: 'top' }"
+      >
+        <UIcon
+          name="i-lucide-message-square-text"
+          class="relative z-10 size-4 shrink-0 text-primary"
+          aria-label="Consigne personnalisée"
+        />
+      </UTooltip>
       <UIcon
         name="i-lucide-pencil"
         class="size-4 shrink-0 text-dimmed transition group-hover:text-default"

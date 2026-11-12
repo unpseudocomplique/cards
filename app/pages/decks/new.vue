@@ -237,7 +237,8 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
           </section>
         </div>
 
-        <div class="sticky bottom-0 -mx-4 mt-2 flex justify-end gap-2 border-t border-default bg-default/80 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+        <!-- Negative bottom offsets cancel the panel body padding, see the deck cards page. -->
+        <div class="sticky -bottom-4 -mx-4 mt-2 flex justify-end gap-2 border-t border-default bg-default/80 px-4 py-4 backdrop-blur sm:-bottom-6 sm:-mx-6 sm:px-6 lg:-bottom-8 lg:-mx-8 lg:px-8">
           <UButton
             to="/dashboard"
             label="Annuler"

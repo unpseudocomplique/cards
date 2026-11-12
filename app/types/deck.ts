@@ -57,6 +57,8 @@ export type DeckPhoto = {
 export type DeckPerson = {
   id: string
   label: string
+  /** Prompt layer applied to all of this person's cards. */
+  prompt: string | null
   createdAt: string
   photos: DeckPhoto[]
 }

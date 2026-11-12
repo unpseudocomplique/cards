@@ -58,6 +58,15 @@ watchEffect(() => {
 
 const saving = shallowRef(false)
 
+/** Order in which prompt layers apply (server/utils/cardPromptBuilder.ts). */
+const promptOrder = [
+  { label: 'Jeu', where: 'style ci-dessus', icon: 'i-lucide-layers' },
+  { label: 'Couleur', where: 'ci-dessous', icon: 'i-lucide-heart' },
+  { label: 'Type', where: 'ci-dessous', icon: 'i-lucide-crown' },
+  { label: 'Personne', where: 'onglet Personnes', icon: 'i-lucide-user-round' },
+  { label: 'Carte', where: 'onglet Cartes', icon: 'i-lucide-square-pen' }
+]
+
 function reset() {
   draft.value = snapshot(settings.value)
 }
@@ -157,38 +166,47 @@ async function save() {
 
     <section>
       <h2 class="text-lg font-semibold text-highlighted">
-        Consignes détaillées
+        Consignes par couleur et par type
       </h2>
       <p class="mt-1 mb-4 text-sm text-muted">
         Facultatif. Les valeurs par défaut conviennent à la plupart des jeux.
       </p>
 
-      <div class="grid gap-6 lg:grid-cols-2">
-        <UCard
-          variant="subtle"
-          :ui="{ body: 'space-y-3' }"
-        >
-          <p class="text-sm font-medium text-highlighted">
-            Par type de carte
-          </p>
-          <USelect
-            v-model="roleTab"
-            :items="presentRoles.map(role => ({
-              label: `${roleMeta[role].plural}${changedRoles.includes(role) ? ' •' : ''}`,
-              value: role
-            }))"
-            class="w-full"
-          />
-          <UTextarea
-            v-if="roleTab"
-            v-model="draft.rolePrompts[roleTab]"
-            :rows="5"
-            autoresize
-            :maxlength="1600"
-            class="w-full"
-          />
-        </UCard>
+      <div
+        class="mb-6 rounded-xl bg-elevated/50 p-4 ring ring-default"
+        aria-label="Ordre d’application des consignes"
+      >
+        <p class="text-sm font-medium text-highlighted">
+          Comment les consignes se combinent
+        </p>
+        <ol class="mt-3 flex flex-wrap items-center gap-1.5 text-xs">
+          <template
+            v-for="(step, index) in promptOrder"
+            :key="step.label"
+          >
+            <li class="flex items-center gap-1.5 rounded-full bg-default px-2.5 py-1 ring ring-default">
+              <UIcon
+                :name="step.icon"
+                class="size-3.5 text-muted"
+              />
+              <span class="font-medium text-highlighted">{{ step.label }}</span>
+              <span class="text-muted">· {{ step.where }}</span>
+            </li>
+            <UIcon
+              v-if="index < promptOrder.length - 1"
+              name="i-lucide-chevron-right"
+              class="size-3.5 text-dimmed"
+              aria-hidden="true"
+            />
+          </template>
+        </ol>
+        <p class="mt-3 text-xs text-muted">
+          Chaque génération les applique dans cet ordre. Quand deux consignes se contredisent, la plus précise l’emporte :
+          une consigne de carte (« avec ses chiens ») passe avant celle de la personne (« sans ses chiens »).
+        </p>
+      </div>
 
+      <div class="grid gap-6 lg:grid-cols-2">
         <UCard
           variant="subtle"
           :ui="{ body: 'space-y-3' }"
@@ -207,6 +225,30 @@ async function save() {
           <UTextarea
             v-if="suitTab"
             v-model="draft.suitPrompts[suitTab]"
+            :rows="5"
+            autoresize
+            :maxlength="1600"
+            class="w-full"
+          />
+        </UCard>
+        <UCard
+          variant="subtle"
+          :ui="{ body: 'space-y-3' }"
+        >
+          <p class="text-sm font-medium text-highlighted">
+            Par type de carte
+          </p>
+          <USelect
+            v-model="roleTab"
+            :items="presentRoles.map(role => ({
+              label: `${roleMeta[role].plural}${changedRoles.includes(role) ? ' •' : ''}`,
+              value: role
+            }))"
+            class="w-full"
+          />
+          <UTextarea
+            v-if="roleTab"
+            v-model="draft.rolePrompts[roleTab]"
             :rows="5"
             autoresize
             :maxlength="1600"

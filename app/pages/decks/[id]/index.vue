@@ -160,7 +160,11 @@ defineShortcuts(computed(() => selecting.value && !openCardId.value
     />
 
     <!-- Toolbar -->
-    <div class="sticky top-0 z-10 -mx-4 flex flex-col gap-3 border-b border-default bg-default/85 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+    <!--
+      Sticky offsets cancel the panel body padding (p-4 / sm:p-6 / lg:p-8):
+      sticky elements stick to the padding edge, not to the visible top.
+    -->
+    <div class="sticky -top-4 z-10 -mx-4 flex flex-col gap-3 border-b border-default bg-default/85 px-4 py-3 backdrop-blur sm:-top-6 sm:-mx-6 sm:px-6 lg:-top-8 lg:-mx-8 lg:px-8">
       <div class="-mx-1 overflow-x-auto px-1">
         <UTabs
           v-model="filters.status"

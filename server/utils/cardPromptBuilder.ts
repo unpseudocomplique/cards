@@ -59,6 +59,114 @@ function getSuitContext(card: PromptCard, settings: DeckStyleSettings) {
   return mergeSuitPrompts(settings.suitPrompts)[suit]
 }
 
+/* ------------------------------------------------------------------ */
+/* Prompt layers                                                        */
+/* ------------------------------------------------------------------ */
+
+export type PromptLayerLevel = 'deck' | 'suit' | 'role' | 'person' | 'card'
+
+export type PromptLayer = {
+  level: PromptLayerLevel
+  /** French label shown in the app, e.g. "Couleur · Cœurs". */
+  title: string
+  text: string
+}
+
+export type PromptPerson = {
+  label: string
+  prompt?: string | null
+}
+
+export type CardPromptOptions = {
+  /** Instruction written on this card only. */
+  cardPrompt?: string | null
+  /** Person drawn on the card, with their own instruction. */
+  person?: PromptPerson | null
+}
+
+const suitTitles: Record<CardPromptSuit, string> = {
+  hearts: 'Cœurs',
+  diamonds: 'Carreaux',
+  clubs: 'Trèfles',
+  spades: 'Piques',
+  trumps: 'Atouts'
+}
+
+const roleTitles: Record<CardPromptRole, string> = {
+  king: 'Rois',
+  queen: 'Dames',
+  knight: 'Cavaliers',
+  jack: 'Valets',
+  trump: 'Atouts',
+  excuse: 'Excuse',
+  ace: 'As',
+  number: 'Numérales'
+}
+
+/** English names used inside the prompt for each level. */
+const levelPromptNames: Record<PromptLayerLevel, string> = {
+  deck: 'Whole deck',
+  suit: 'Suit',
+  role: 'Card rank',
+  person: 'Person',
+  card: 'This card'
+}
+
+/**
+ * Every instruction that applies to a card, from the most general to the most
+ * specific: whole deck → suit → card rank → person → this card. Generation
+ * applies them in that order and the later layer wins on any conflict, so a
+ * card can bring back what the person's layer excludes (or the reverse).
+ */
+export function getCardPromptLayers(card: PromptCard, settings: DeckStyleSettings, options: CardPromptOptions = {}): PromptLayer[] {
+  const suit = isPromptSuit(card.suit) ? card.suit : null
+  const role = isPromptRole(card.role) ? card.role : null
+  const person = options.person ?? null
+  const layers: Array<PromptLayer | null> = [
+    settings.visualStyle?.trim()
+      ? { level: 'deck', title: 'Jeu entier', text: settings.visualStyle.trim() }
+      : null,
+    suit
+      ? { level: 'suit', title: `Couleur · ${suitTitles[suit]}`, text: getSuitContext(card, settings) ?? '' }
+      : null,
+    role
+      ? { level: 'role', title: `Type · ${roleTitles[role]}`, text: getRoleContext(card, settings) ?? '' }
+      : null,
+    person?.prompt?.trim()
+      ? { level: 'person', title: `Personne · ${person.label}`, text: person.prompt.trim() }
+      : null,
+    options.cardPrompt?.trim()
+      ? { level: 'card', title: `Carte · ${card.label}`, text: options.cardPrompt.trim() }
+      : null
+  ]
+
+  return layers.filter((layer): layer is PromptLayer => Boolean(layer?.text))
+}
+
+function formatLayers(layers: PromptLayer[], card: PromptCard, person?: PromptPerson | null) {
+  if (!layers.length) {
+    return null
+  }
+
+  const detail = (layer: PromptLayer) => {
+    if (layer.level === 'suit' || layer.level === 'role') {
+      return ` (${layer.title.split(' · ')[1]})`
+    }
+    if (layer.level === 'person') {
+      return person?.label ? ` (${person.label})` : ''
+    }
+    if (layer.level === 'card') {
+      return ` (${card.label})`
+    }
+    return ''
+  }
+
+  return [
+    'Layered instructions, from the most general to the most specific. Apply them in this order; when two layers disagree, the later, more specific layer wins.',
+    ...layers.map((layer, index) => `${index + 1}. ${levelPromptNames[layer.level]}${detail(layer)}: ${layer.text}`)
+  ].join('\n')
+}
+
 /** Suit accent expressed inside the deck palette (never a colour of its own). */
 function getSuitAccent(card: PromptCard, settings: DeckStyleSettings) {
   const theme = getCardTheme(settings.colorTheme)
@@ -142,38 +250,11 @@ const premiumIllustrationStyle = [
   'no cartoon outlines, no comic ink lines, no flat cel shading'
 ]
 
-/**
- * Legacy single-pass prompt (subject / context / style).
- * Kept for compatibility if a one-shot generation path is reintroduced.
- */
-export function buildCardImagePrompt(card: PromptCard, settings: DeckStyleSettings, cardPrompt?: string | null) {
-  const displayName = getCardDisplayName(card)
-
-  return buildStructuredPrompt({
-    subject: `A premium full-bleed playing-card illustration of the person from the reference photos as ${displayName}, clear likeness, centered bust or three-quarter portrait in the foreground.`,
-    context: [
-      getArcanaContext(card),
-      getExpressionDirection(card),
-      getRoleContext(card, settings),
-      getSuitContext(card, settings),
-      getSuitAccent(card, settings),
-      cardPrompt,
-      'Soft background behind the figure, simple decor, few accessories, readable at a glance.'
-    ],
-    style: [
-      settings.visualStyle,
-      ...getDeckArtDirection(settings),
-      ...premiumIllustrationStyle,
-      'cohesive premium card art, soft lighting, high detail on the face, quieter background'
-    ],
-    constraints: sharedArtConstraints
-  })
-}
-
 /** Text-to-image only: empty scenic backdrop for the card window. */
-export function buildCardScenePrompt(card: PromptCard, settings: DeckStyleSettings, cardPrompt?: string | null) {
+export function buildCardScenePrompt(card: PromptCard, settings: DeckStyleSettings, options: CardPromptOptions = {}) {
   const displayName = getCardDisplayName(card)
   const arcana = getTarotArcana(card.role, card.rank)
+  const layers = getCardPromptLayers(card, settings, options)
 
   return buildStructuredPrompt({
     subject: arcana
@@ -182,15 +263,15 @@ export function buildCardScenePrompt(card: PromptCard, settings: DeckStyleSettin
     context: [
       getArcanaContext(card),
       arcana ? `Evoke the symbolism and mood of ${arcana.name} through setting, light, and props only (${arcana.meaning}).` : null,
-      getRoleContext(card, settings),
-      getSuitContext(card, settings),
+      formatLayers(layers, card, options.person),
+      layers.length
+        ? 'This image is only the background: take from the layers what concerns the setting, light, colours and props. People, pets and animals they mention belong to the separate character layer and must not appear here.'
+        : null,
       getSuitAccent(card, settings),
-      cardPrompt,
       'Soft depth, calm readable shapes, decor filling the whole frame, ready to sit behind a character cutout.',
       'Keep the centre of the image calm and slightly darker or lighter than the figure will be, so the character stands out; detail stays in the background.'
     ],
     style: [
-      settings.visualStyle,
       ...getDeckArtDirection(settings),
       ...premiumIllustrationStyle,
       'gentle lighting, painterly background, edge-to-edge composition'
@@ -228,9 +309,10 @@ export function buildCardBackPrompt(settings: DeckStyleSettings, cardBackPrompt?
 }
 
 /** Image edit: likeness on pure chroma green for cutout. */
-export function buildCardForegroundPrompt(card: PromptCard, settings: DeckStyleSettings, cardPrompt?: string | null) {
+export function buildCardForegroundPrompt(card: PromptCard, settings: DeckStyleSettings, options: CardPromptOptions = {}) {
   const displayName = getCardDisplayName(card)
   const arcana = getTarotArcana(card.role, card.rank)
+  const layers = getCardPromptLayers(card, settings, options)
 
   return buildStructuredPrompt({
     subject: arcana
@@ -242,17 +324,15 @@ export function buildCardForegroundPrompt(card: PromptCard, settings: DeckStyleS
       arcana
         ? `Costume, pose, and one symbolic prop must express ${arcana.name} (${arcana.meaning}). The mood of the portrait is as important as the costume.`
         : null,
-      getRoleContext(card, settings),
-      getSuitContext(card, settings),
+      formatLayers(layers, card, options.person),
       getSuitAccent(card, settings),
-      cardPrompt,
-      'Use every provided reference photo to lock identity: face shape, age, hair, glasses, and distinctive features.',
+      'Use the reference photos of the person to lock identity: face shape, age, hair, glasses, and distinctive features.',
+      'Reference photos may also show companions, pets or objects. Include them only when a layer above asks for them on this card; otherwise leave them out.',
       arcana
-        ? 'Character in the foreground only, minimal props, theatrical Marseille-tarot presence without clutter. This is a major arcana, not a suit card.'
-        : 'Character in the foreground only, costume and pose matching the card role, minimal props.'
+        ? 'Character (with any companion a layer asks for) in the foreground only, minimal props, theatrical Marseille-tarot presence without clutter. This is a major arcana, not a suit card.'
+        : 'Character (with any companion a layer asks for) in the foreground only, costume and pose matching the card role, minimal props.'
     ],
     style: [
-      settings.visualStyle,
       ...getDeckArtDirection(settings),
       ...premiumIllustrationStyle,
       'clean silhouette edges, studio cutout look, refined costume rendering'

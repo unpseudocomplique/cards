@@ -7,7 +7,7 @@ import { buildCardForegroundPrompt, buildCardScenePrompt } from '~~/server/utils
 import { renderCardImage } from '~~/server/utils/cardRenderer'
 import { requireOwnedDeck } from '~~/server/utils/deckAccess'
 import { MAX_PERSON_REFERENCE_PHOTOS } from '~~/server/utils/deckPersons'
-import { db, deckCards, deckPhotos, decks } from '~~/server/utils/db'
+import { db, deckCards, deckPersons, deckPhotos, decks } from '~~/server/utils/db'
 import { assertCanGenerate } from '~~/server/utils/generationAccess'
 import { normalizeGenerationError } from '~~/server/utils/generationErrors'
 import { generateFileKey, uploadFile } from '~~/server/utils/s3'
@@ -103,6 +103,12 @@ export default defineEventHandler(async (event) => {
     throw createError({ status: 400, message: 'Cette personne n\'a aucune photo de référence' })
   }
 
+  const [person] = await db
+    .select({ label: deckPersons.label, prompt: deckPersons.prompt })
+    .from(deckPersons)
+    .where(and(eq(deckPersons.id, personId), eq(deckPersons.deckId, deck.id)))
+    .limit(1)
+
   await db.transaction(async (tx) => {
     await tx
       .update(decks)
@@ -122,8 +128,10 @@ export default defineEventHandler(async (event) => {
       referencePhotos.map(photo => readPhotoBuffer(photo.url))
     )
     const format = resolveDeckCardFormat(deck.settings)
-    const scenePrompt = buildCardScenePrompt(currentCard.metadata, deck.settings, currentCard.prompt)
-    const foregroundPrompt = buildCardForegroundPrompt(currentCard.metadata, deck.settings, currentCard.prompt)
+    // Layered prompt: deck → suit → card rank → person → this card (later wins).
+    const promptOptions = { cardPrompt: currentCard.prompt, person }
+    const scenePrompt = buildCardScenePrompt(currentCard.metadata, deck.settings, promptOptions)
+    const foregroundPrompt = buildCardForegroundPrompt(currentCard.metadata, deck.settings, promptOptions)
     const imageProviderOptions = {
       google: {
         responseModalities: ['TEXT', 'IMAGE'] as Array<'TEXT' | 'IMAGE'>

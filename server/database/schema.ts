@@ -118,6 +118,8 @@ export const deckPersons = pgTable('deck_persons', {
   deckId: text('deck_id').notNull().references(() => decks.id, { onDelete: 'cascade' }),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   label: text('label').notNull(),
+  /** Prompt layer applied to every card of this person (see cardPromptBuilder). */
+  prompt: text('prompt'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull()
 }, table => [
