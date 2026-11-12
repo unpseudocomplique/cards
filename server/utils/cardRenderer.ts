@@ -73,6 +73,10 @@ const greenSpillMinimum = 55
 const greenSpillRange = 100
 const neutralGreenTolerance = 4
 const fringeAlphaCutoff = 0.18
+/** Width of the edge band despilled around the cutout, in share of the image width. */
+const edgeDespillBand = 0.02
+/** Inside this share of the band the green is fully neutralised, then it fades out. */
+const edgeDespillFullShare = 0.6
 
 /** Constrains chroma ratios used for alpha and spill cleanup to the [0, 1] range. */
 function clamp(value: number) {
@@ -395,7 +399,53 @@ async function buildSceneImage(source: Buffer, width: number, height: number, ra
     .toBuffer()
 }
 
-async function removeChromaGreen(source: Buffer) {
+/**
+ * Chamfer distance (in pixels, capped) from every pixel to the nearest
+ * transparent one — the cutout's outline and any hole keyed out inside it.
+ */
+function distanceToTransparent(alpha: Float32Array, width: number, height: number, cap: number) {
+  const limit = Math.ceil(cap) * 3 + 3
+  const distance = new Int32Array(width * height)
+
+  for (let pixel = 0; pixel < distance.length; pixel += 1) {
+    distance[pixel] = (alpha[pixel] ?? 0) < 0.5 ? 0 : limit
+  }
+
+  const relax = (pixel: number, neighbour: number, cost: number) => {
+    const candidate = distance[neighbour]! + cost
+    if (candidate < distance[pixel]!) {
+      distance[pixel] = candidate
+    }
+  }
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const pixel = y * width + x
+      if (x > 0) relax(pixel, pixel - 1, 3)
+      if (y > 0) {
+        relax(pixel, pixel - width, 3)
+        if (x > 0) relax(pixel, pixel - width - 1, 4)
+        if (x < width - 1) relax(pixel, pixel - width + 1, 4)
+      }
+    }
+  }
+
+  for (let y = height - 1; y >= 0; y -= 1) {
+    for (let x = width - 1; x >= 0; x -= 1) {
+      const pixel = y * width + x
+      if (x < width - 1) relax(pixel, pixel + 1, 3)
+      if (y < height - 1) {
+        relax(pixel, pixel + width, 3)
+        if (x < width - 1) relax(pixel, pixel + width + 1, 4)
+        if (x > 0) relax(pixel, pixel + width - 1, 4)
+      }
+    }
+  }
+
+  return distance
+}
+
+export async function removeChromaGreen(source: Buffer) {
   const { data, info } = await sharp(source)
     .ensureAlpha()
     .raw()
@@ -459,10 +509,31 @@ async function removeChromaGreen(source: Buffer) {
   const erodedTwice = morphologyMin(erodedOnce, width, height)
   const cleaned = morphologyMax(erodedTwice, width, height)
 
+  // Green spill survives as dark olive tints in hair and fur near the outline,
+  // where the AI blended the figure with the green screen. Neutralise green in
+  // a band around every transparent area only, so green clothing inside the
+  // figure (dark olive, bottle green) keeps its colour.
+  const band = Math.max(4, width * edgeDespillBand)
+  const fullBand = band * edgeDespillFullShare
+  const edgeDistance = distanceToTransparent(cleaned, width, height, band)
+
   for (let index = 0; index < data.length; index += 4) {
     const pixel = index / 4
     const nextAlpha = cleaned[pixel] || 0
     data[index + 3] = Math.round(nextAlpha * 255)
+
+    const fromEdge = (edgeDistance[pixel] ?? 0) / 3
+    if (nextAlpha > 0 && fromEdge <= band) {
+      const red = data[index] || 0
+      const green = data[index + 1] || 0
+      const blue = data[index + 2] || 0
+      const maxRB = Math.max(red, blue)
+
+      if (green > maxRB) {
+        const strength = fromEdge <= fullBand ? 1 : 1 - (fromEdge - fullBand) / (band - fullBand)
+        data[index + 1] = Math.round(green - (green - maxRB) * strength)
+      }
+    }
 
     // Final despill on remaining edge pixels.
     if (nextAlpha > 0 && nextAlpha < 0.92) {
