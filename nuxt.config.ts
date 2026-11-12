@@ -26,6 +26,8 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     databaseUrl: process.env.DATABASE_URL || '',
+    // Image model for card generation (server/utils/ai.ts). Empty = Nano Banana 2.1.
+    aiImageModel: process.env.NUXT_AI_IMAGE_MODEL || '',
     bucketEndpoint: process.env.NUXT_BUCKET_ENDPOINT || process.env.BUCKET_ENDPOINT || process.env.S3_ENDPOINT || '',
     bucketName: process.env.NUXT_BUCKET_NAME || process.env.BUCKET_NAME || process.env.S3_BUCKET_NAME || 'quizwar',
     bucketPublicUrl: process.env.NUXT_BUCKET_PUBLIC_URL || process.env.BUCKET_PUBLIC_URL || process.env.S3_PUBLIC_URL || 'https://s3.quizwar.app',

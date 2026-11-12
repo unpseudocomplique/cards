@@ -1,7 +1,6 @@
-import { generateImage } from 'ai'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
-import { aiImageModel } from '~~/server/utils/ai'
+import { generateCardImage } from '~~/server/utils/ai'
 import { buildCardBackPrompt } from '~~/server/utils/cardPromptBuilder'
 import { renderCardBackImage } from '~~/server/utils/cardRenderer'
 import { requireOwnedDeck } from '~~/server/utils/deckAccess'
@@ -62,8 +61,7 @@ export default defineEventHandler(async (event) => {
 
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
-        const result = await generateImage({
-          model: aiImageModel,
+        const result = await generateCardImage({
           prompt: buildCardBackPrompt(settings, promptOverride),
           aspectRatio,
           providerOptions: {

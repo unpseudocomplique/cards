@@ -47,7 +47,7 @@ if (!apiKey) {
 }
 
 const google = createGoogleGenerativeAI({ apiKey })
-const model = google.image('gemini-3.1-flash-image-preview')
+const model = google.image(process.env.NUXT_AI_IMAGE_MODEL || 'gemini-nano-banana-2.1')
 
 const only = process.argv.slice(2).filter(a => !a.startsWith('-'))
 const list = only.length

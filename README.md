@@ -33,6 +33,8 @@ NUXT_SESSION_PASSWORD=<secret-long-32-chars-minimum>
 NUXT_OAUTH_GOOGLE_CLIENT_ID=<google-client-id-prod>
 NUXT_OAUTH_GOOGLE_CLIENT_SECRET=<google-client-secret-prod>
 GOOGLE_GENERATIVE_AI_API_KEY=<google-generative-ai-key>
+# Optionnel : modèle d’image (défaut gemini-nano-banana-2.1 ; repli auto sur gemini-3.1-flash-image)
+# NUXT_AI_IMAGE_MODEL=gemini-3-pro-image
 NUXT_BUCKET_ENDPOINT=s3.quizwar.app
 NUXT_BUCKET_NAME=quizwar
 NUXT_BUCKET_PUBLIC_URL=https://s3.quizwar.app

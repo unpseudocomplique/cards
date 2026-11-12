@@ -1,8 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { generateImage } from 'ai'
 import { and, asc, count, eq } from 'drizzle-orm'
-import { aiImageModel } from '~~/server/utils/ai'
+import { generateCardImage } from '~~/server/utils/ai'
 import { buildCardForegroundPrompt, buildCardScenePrompt } from '~~/server/utils/cardPromptBuilder'
 import { renderCardImage } from '~~/server/utils/cardRenderer'
 import { requireOwnedDeck } from '~~/server/utils/deckAccess'
@@ -140,13 +139,13 @@ export default defineEventHandler(async (event) => {
 
     async function generateWithRetry(
       label: string,
-      input: Parameters<typeof generateImage>[0]
+      input: Parameters<typeof generateCardImage>[0]
     ) {
       let lastError: unknown
 
       for (let attempt = 1; attempt <= 3; attempt += 1) {
         try {
-          const result = await generateImage(input)
+          const result = await generateCardImage(input)
 
           if (result.image?.uint8Array?.byteLength) {
             return result
@@ -171,13 +170,11 @@ export default defineEventHandler(async (event) => {
 
     const [sceneResult, foregroundResult] = await Promise.all([
       generateWithRetry('décor', {
-        model: aiImageModel,
         prompt: scenePrompt,
         aspectRatio: format.artAspectRatio,
         providerOptions: imageProviderOptions
       }),
       generateWithRetry('personnage', {
-        model: aiImageModel,
         prompt: {
           text: foregroundPrompt,
           images: referenceBuffers
