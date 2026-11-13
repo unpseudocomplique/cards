@@ -8,7 +8,8 @@
  *
  * A deck has exactly one card format: every face (figures, numerals, trumps,
  * Excuse) and its single back share the same size and contour.
- * All print exports use 300 DPI + 3 mm bleed.
+ * All print exports use 300 DPI + 3 mm bleed, in CMYK (FOGRA39), as PDF with
+ * crop marks: one PDF for every face (one card per page), one PDF for the back.
  */
 
 export const PRINT_DPI = 300
@@ -19,6 +20,23 @@ export const PRINT_BLEED_MM = 3
  * from the cut line (applies to the tarot layout; see getCardLayoutRatios).
  */
 export const PRINT_SAFE_MM = 3
+
+/**
+ * Printer PDF page: the card with its bleed, surrounded by a slug that holds
+ * the crop marks. Marks are aligned on the trim lines and start outside the
+ * bleed so they never print on the card.
+ */
+export const PRINT_SLUG_MM = 10
+export const PRINT_CROP_MARK_OFFSET_MM = PRINT_BLEED_MM
+export const PRINT_CROP_MARK_LENGTH_MM = 5
+export const PRINT_CROP_MARK_STROKE_PT = 0.25
+
+/** CMYK press profile (server/assets/icc), also the PDF OutputIntent. */
+export const PRINT_ICC_PROFILE = {
+  file: 'FOGRA39L_coated.icc',
+  identifier: 'FOGRA39',
+  description: 'Coated FOGRA39 (ISO 12647-2:2004)'
+} as const
 
 export const cardFormatIds = ['poker', 'tarot'] as const
 export type CardFormatId = typeof cardFormatIds[number]
@@ -235,11 +253,20 @@ export function getPrintSpecSummary(format: CardFormat) {
     safeZoneMm: format.layout === 'band' ? PRINT_SAFE_MM : null,
     format: format.id,
     trimMm: format.trimMm,
-    colorSpace: 'sRGB PNG (convert to CMYK at the printer if required)',
+    colorSpace: `CMYK, ${PRINT_ICC_PROFILE.description} (PDF OutputIntent)`,
+    cropMarks: {
+      offsetMm: PRINT_CROP_MARK_OFFSET_MM,
+      lengthMm: PRINT_CROP_MARK_LENGTH_MM,
+      strokePt: PRINT_CROP_MARK_STROKE_PT
+    },
+    pageMm: {
+      width: format.trimMm.width + PRINT_SLUG_MM * 2,
+      height: format.trimMm.height + PRINT_SLUG_MM * 2
+    },
     files: {
-      faces: 'print/faces/{cardCode}.png',
-      back: 'print/back/card-back.png',
-      spec: 'print/print-spec.json'
+      recto: 'recto.pdf (une carte par page)',
+      verso: 'verso.pdf (dos commun à toutes les cartes)',
+      spec: 'print-spec.json'
     }
   } as const
 }

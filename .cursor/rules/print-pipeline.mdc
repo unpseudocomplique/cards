@@ -1,6 +1,6 @@
 ---
 description: Card rendering, colour themes, single card back and print pipeline for personalized decks. Do not regress deck uniformity or reintroduce foil.
-globs: server/utils/cardRenderer.ts,server/utils/cardPromptBuilder.ts,server/utils/printExport.ts,shared/utils/printSpec.ts,shared/utils/cardThemes.ts,server/api/decks/**/exports/**,server/api/decks/**/back/**,app/pages/decks/[id]/impression.vue
+globs: server/utils/cardRenderer.ts,server/utils/printPdf.ts,server/utils/cardPromptBuilder.ts,server/utils/printExport.ts,shared/utils/printSpec.ts,shared/utils/cardThemes.ts,server/api/decks/**/exports/**,server/api/decks/**/back/**,app/pages/decks/[id]/impression.vue
 alwaysApply: false
 ---
 
@@ -27,4 +27,4 @@ Abandoned. Do not add foil masks, gold extraction, or "paint polished gold for h
 
 `shared/utils/printSpec.ts`: 300 DPI, 3 mm bleed, trim 61 × 112 mm (tarot) or 63.5 × 88.9 mm (poker). Tarot layout keeps contour, indices and frame outside the 3 mm safe zone (`PRINT_SAFE_MM`, `getCardLayoutRatios`). Do not change without updating `README.md` and `docs/print-pipeline.md`.
 
-ZIP: `print/faces/{cardCode}.png`, `print/back/card-back.png`, `print/print-spec.json`.
+Printer ZIP: `{deck}-recto.pdf` (every face, one card per page, deck order), `{deck}-verso.pdf` (the back, one page), `print-spec.json`. PDFs are CMYK (images converted with `PRINT_ICC_PROFILE`, Coated FOGRA39, also the OutputIntent), with BleedBox/TrimBox and crop marks outside the bleed (`PRINT_SLUG_MM`, `PRINT_CROP_MARK_*`). Don't go back to RGB PNG exports: the printer asked for CMYK PDFs with crop marks.

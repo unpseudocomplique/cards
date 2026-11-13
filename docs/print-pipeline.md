@@ -48,15 +48,24 @@ Les positions viennent de `getCardLayoutRatios(format)` (`shared/utils/printSpec
 
 Changer de thème = régénérer les faces prêtes et le dos pour garder un jeu homogène.
 
-## Export
+## Export imprimeur
 
-`POST /api/decks/:id/exports/print` produit un ZIP :
+`POST /api/decks/:id/exports/print` produit un ZIP `{jeu}-impression.zip` :
 
 ```
-print/faces/{cardCode}.png
-print/back/card-back.png       ← le même dos pour toutes les cartes
-print/print-spec.json
+{jeu}-recto.pdf     ← toutes les faces, une carte par page, dans l’ordre du jeu
+{jeu}-verso.pdf     ← le dos, identique pour toutes les cartes (une page)
+print-spec.json
 ```
+
+Chaque page PDF (`server/utils/printPdf.ts`) :
+
+- **Couleurs CMJN** : l’image sRGB est convertie avec le profil **Coated FOGRA39** (`server/assets/icc/FOGRA39L_coated.icc`, CC0) et placée en `DeviceCMYK` (JPEG qualité 95). Le profil est déclaré une fois comme *OutputIntent* du PDF.
+- **Fond perdu** : la carte avec ses 3 mm de fond perdu (`BleedBox`), format fini en `TrimBox`.
+- **Traits de coupe** : aux quatre coins, dans le prolongement des lignes de coupe, de 3 mm à 8 mm hors coupe (donc hors fond perdu), 0,25 pt en couleur de repérage (100 % CMJN). Page = format fini + 10 mm de marge de chaque côté.
+- Une ligne d’identification (jeu, numéro de page, code de carte) en bas de page, hors fond perdu.
+
+Constantes : `PRINT_SLUG_MM`, `PRINT_CROP_MARK_*`, `PRINT_ICC_PROFILE` dans `shared/utils/printSpec.ts`.
 
 ## Fichiers clés
 
@@ -65,4 +74,5 @@ print/print-spec.json
 - `shared/utils/cardThemes.ts` — thèmes de couleurs
 - `server/utils/cardPromptBuilder.ts` — prompts décor / personnage / dos
 - `server/utils/cardRenderer.ts` — mise en page, cadre, index, dos, upscale
-- `server/utils/printExport.ts` — ZIP
+- `server/utils/printExport.ts` — ZIP imprimeur
+- `server/utils/printPdf.ts` — conversion CMJN, PDF une carte par page, traits de coupe
