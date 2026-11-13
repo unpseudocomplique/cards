@@ -83,6 +83,10 @@ export default defineNuxtConfig({
       {
         baseName: 'fonts',
         dir: './server/assets/fonts'
+      },
+      {
+        baseName: 'icc',
+        dir: './server/assets/icc'
       }
     ],
     prerender: {

@@ -102,7 +102,9 @@ Règle agent : [`.cursor/rules/print-pipeline.mdc`](.cursor/rules/print-pipeline
 | Format | **Un seul format par jeu**, atouts et Excuse compris : **61 × 112 mm** (tarot 56 / 78) ou 63,5 × 88,9 mm (jeu classique, et anciens decks) — changeable dans *Dos & impression* |
 | Thème de couleurs | Palette des prompts + couleurs du cadre et des index, commun à tout le jeu |
 | Dos | Un seul dos par jeu, même contour que les faces |
-| Export | `POST /api/decks/:id/exports/print` → ZIP `faces` / `back` / `print-spec.json` |
+| Couleurs | CMJN, profil Coated FOGRA39 (OutputIntent des PDF) |
+| Traits de coupe | 5 mm, hors fond perdu, page = format fini + 10 mm de marge |
+| Export | `POST /api/decks/:id/exports/print` → ZIP : PDF recto (une carte par page), PDF verso (dos), `print-spec.json` |
 
 UI : onglets **Style** (thème, style des illustrations) et **Dos & impression** de l’atelier d’un deck (`/decks/:id/style`, `/decks/:id/impression`). Les aperçus de cartes suivent le format du deck (`cardFormatRatio`).
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { DeckSettings } from '~/types/deck'
 import type { CardFormatId } from '~~/shared/utils/printSpec'
-import { CARD_FORMATS, PRINT_BLEED_MM, PRINT_DPI, PRINT_SAFE_MM, allowedCardFormatsForDeckType, cardFormatRatio, formatTrimLabel } from '~~/shared/utils/printSpec'
+import { CARD_FORMATS, PRINT_BLEED_MM, PRINT_CROP_MARK_LENGTH_MM, PRINT_DPI, PRINT_ICC_PROFILE, PRINT_SAFE_MM, allowedCardFormatsForDeckType, cardFormatRatio, formatTrimLabel } from '~~/shared/utils/printSpec'
 
 const toast = useToast()
 const { deckId, deck, stats, theme, format, backOutdated, patchSettings, refresh } = useDeckWorkspace()
@@ -119,7 +119,9 @@ const specs = computed(() => [
     value: format.value.layout === 'band' ? `${PRINT_SAFE_MM} mm à l’intérieur de la coupe` : 'Non garantie (format poker)',
     icon: 'i-lucide-shield-check'
   },
-  { label: 'Contenu', value: 'Faces, dos et print-spec.json', icon: 'i-lucide-folder-archive' }
+  { label: 'Couleurs', value: `CMJN, ${PRINT_ICC_PROFILE.description}`, icon: 'i-lucide-palette' },
+  { label: 'Traits de coupe', value: `${PRINT_CROP_MARK_LENGTH_MM} mm, hors fond perdu`, icon: 'i-lucide-scissors' },
+  { label: 'Contenu', value: 'PDF recto (une carte par page), PDF verso, print-spec.json', icon: 'i-lucide-folder-archive' }
 ])
 </script>
 
@@ -261,7 +263,7 @@ const specs = computed(() => [
         Pack pour l’imprimeur
       </h2>
       <p class="mt-1 mb-6 text-sm text-muted">
-        Une archive ZIP prête à envoyer, avec les fichiers aux bonnes dimensions.
+        Une archive ZIP prête à envoyer : un PDF recto avec une carte par page et un PDF verso pour le dos, en CMJN, avec fond perdu et traits de coupe.
       </p>
 
       <UCard variant="subtle">
