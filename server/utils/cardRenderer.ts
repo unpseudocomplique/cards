@@ -880,18 +880,13 @@ export function getPipCount(card: RenderCard) {
   return Number.isInteger(value) && value >= 1 && value <= 10 ? value : null
 }
 
-/** Ace: one large pip in a thin ring, centred on the card. */
-function drawAcePip(card: RenderCard, area: Rect, layout: CardLayout, theme: CardTheme, color: string) {
+/** Ace: one large pip centred on the card, nothing around it. */
+function drawAcePip(card: RenderCard, area: Rect, color: string) {
   const cx = area.x + area.width / 2
   const cy = area.y + area.height / 2
-  const size = Math.min(area.width * 0.5, area.height * 0.32)
-  const ring = size * 0.95
+  const size = Math.min(area.width * 0.55, area.height * 0.34)
 
-  return [
-    `<circle cx="${round(cx)}" cy="${round(cy)}" r="${round(ring)}" fill="none" stroke="${theme.colors.frame}" stroke-width="${layout.hairlineStroke}"/>`,
-    `<circle cx="${round(cx)}" cy="${round(cy)}" r="${round(ring + layout.hairlineGap * 1.5)}" fill="none" stroke="${theme.colors.hairline}" stroke-width="${layout.hairlineStroke}"/>`,
-    drawSuit(card.suit, cx, cy, size, color)
-  ].join('')
+  return drawSuit(card.suit, cx, cy, size, color)
 }
 
 /**
@@ -930,7 +925,7 @@ function drawPips(card: RenderCard, layout: CardLayout, theme: CardTheme) {
   const pipArea = getPipArea(layout)
 
   if (count === 1) {
-    return drawAcePip(card, pipArea, layout, theme, color)
+    return drawAcePip(card, pipArea, color)
   }
 
   const positions = pipLayouts[count] ?? []
