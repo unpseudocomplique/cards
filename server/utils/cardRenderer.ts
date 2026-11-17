@@ -880,22 +880,46 @@ export function getPipCount(card: RenderCard) {
   return Number.isInteger(value) && value >= 1 && value <= 10 ? value : null
 }
 
-/** Ace: one large pip, framed by two thin rings in the theme colours. */
-function drawAcePip(card: RenderCard, window: Rect, theme: CardTheme, color: string) {
-  const cx = window.x + window.width / 2
-  const cy = window.y + window.height / 2
-  const size = Math.min(window.width * 0.42, window.height * 0.3)
-  const ring = size * 0.92
-  const stroke = Math.max(1, size * 0.018)
+/** Ace: one large pip in a thin ring, centred on the card. */
+function drawAcePip(card: RenderCard, area: Rect, layout: CardLayout, theme: CardTheme, color: string) {
+  const cx = area.x + area.width / 2
+  const cy = area.y + area.height / 2
+  const size = Math.min(area.width * 0.5, area.height * 0.32)
+  const ring = size * 0.95
 
   return [
-    `<circle cx="${round(cx)}" cy="${round(cy)}" r="${round(ring)}" fill="none" stroke="${theme.colors.hairline}" stroke-width="${round(stroke)}"/>`,
-    `<circle cx="${round(cx)}" cy="${round(cy)}" r="${round(ring * 1.08)}" fill="none" stroke="${theme.colors.frame}" stroke-width="${round(stroke * 0.6)}"/>`,
+    `<circle cx="${round(cx)}" cy="${round(cy)}" r="${round(ring)}" fill="none" stroke="${theme.colors.frame}" stroke-width="${layout.hairlineStroke}"/>`,
+    `<circle cx="${round(cx)}" cy="${round(cy)}" r="${round(ring + layout.hairlineGap * 1.5)}" fill="none" stroke="${theme.colors.hairline}" stroke-width="${layout.hairlineStroke}"/>`,
     drawSuit(card.suit, cx, cy, size, color)
   ].join('')
 }
 
-function drawPips(card: RenderCard, window: Rect, theme: CardTheme) {
+/**
+ * Pip area of a classic card. There is no illustration window: the pips sit
+ * between the index corners, with the same margin on every side so the
+ * layout reads balanced on both poker and tarot cards.
+ */
+function getPipArea(layout: CardLayout): Rect {
+  const { contour, index } = layout
+  const margin = layout.contentWidth * 0.04
+  const indexRight = index.x + index.width
+  const indexBottom = index.y + index.height
+  // Side indices (poker): pips between the index columns, full height.
+  // Band indices (tarot): pips below the top index row, full width.
+  const band = layout.window.y > indexBottom
+  const left = band ? index.x + margin : indexRight + margin
+  const top = band ? indexBottom + margin : index.y + margin
+
+  return {
+    x: left,
+    y: top,
+    width: contour.x * 2 + contour.width - left * 2,
+    height: contour.y * 2 + contour.height - top * 2,
+    radius: 0
+  }
+}
+
+function drawPips(card: RenderCard, layout: CardLayout, theme: CardTheme) {
   const color = getInk(card, theme)
   const count = getPipCount(card)
 
@@ -903,20 +927,22 @@ function drawPips(card: RenderCard, window: Rect, theme: CardTheme) {
     return ''
   }
 
+  const pipArea = getPipArea(layout)
+
   if (count === 1) {
-    return drawAcePip(card, window, theme, color)
+    return drawAcePip(card, pipArea, layout, theme, color)
   }
 
   const positions = pipLayouts[count] ?? []
-  const insetX = window.width * 0.16
-  const insetY = window.height * 0.09
+  // Columns sit a quarter in from the sides, like a printed deck.
+  const insetX = pipArea.width * 0.12
   const area = {
-    x: window.x + insetX,
-    y: window.y + insetY,
-    width: window.width - insetX * 2,
-    height: window.height - insetY * 2
+    x: pipArea.x + insetX,
+    y: pipArea.y,
+    width: pipArea.width - insetX * 2,
+    height: pipArea.height
   }
-  const size = Math.min(area.width * 0.36, area.height * 0.17)
+  const size = Math.min(area.width * 0.34, area.height * 0.16)
 
   return positions.map(([column, row]) => {
     const cx = area.x + size / 2 + column * (area.width - size)
@@ -929,25 +955,24 @@ function drawPips(card: RenderCard, window: Rect, theme: CardTheme) {
 }
 
 /**
- * Classic design for aces and numerals: same paper, contour, frame and
- * indices as the illustrated faces, with the suit pips laid out the
- * traditional way inside the frame. No AI image, so it is instant and free.
+ * Classic design for aces and numerals: same paper, contour and indices as
+ * the illustrated faces, with the suit pips laid out the traditional way
+ * between the indices (no illustration window). No AI image, so it is instant and free.
  */
 export async function renderClassicCardImage(card: RenderCard, options: RenderOptions = {}) {
   await ensureIndexFont()
   const profile = options.profile || 'screen'
   const theme = getCardTheme(options.theme)
   const layout = getCardLayout(getCardFormat(options.format), profile)
-  const { width, height, cardRadius, window } = layout
+  const { width, height, cardRadius } = layout
   const pips = Buffer.from(`
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-      ${drawPips(card, window, theme)}
+      ${drawPips(card, layout, theme)}
     </svg>
   `)
 
   const flat = await sharp(buildBaseLayer(layout, theme))
     .composite([
-      { input: buildWindowFrame(layout, theme, window), top: 0, left: 0 },
       { input: pips, top: 0, left: 0 },
       { input: buildIndexLayer(card, layout, theme), top: 0, left: 0 }
     ])
