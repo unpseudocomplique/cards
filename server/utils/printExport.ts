@@ -1,6 +1,6 @@
 import JSZip from 'jszip'
 import { and, asc, eq, isNotNull } from 'drizzle-orm'
-import { upscaleToPrintCanvas } from '~~/server/utils/cardRenderer'
+import { renderClassicCardImage, upscaleToPrintCanvas } from '~~/server/utils/cardRenderer'
 import { db, deckCards, type DeckStyleSettings } from '~~/server/utils/db'
 import { buildPrintPdf } from '~~/server/utils/printPdf'
 import { generateFileKey, uploadFile } from '~~/server/utils/s3'
@@ -89,9 +89,12 @@ export async function buildPrintExportZip(options: {
   const faces = []
 
   for (const [index, card] of cards.entries()) {
-    const faceBuffer = await readRemoteBuffer(card.finalImageUrl!)
+    // Classic aces and numerals are pure vector: draw them straight at print size.
+    const image = card.metadata.design === 'classic'
+      ? await renderClassicCardImage(card.metadata, { profile: 'print', theme: theme.id, format: format.id })
+      : await upscaleToPrintCanvas(await readRemoteBuffer(card.finalImageUrl!), theme.id, format.id)
     faces.push({
-      image: await upscaleToPrintCanvas(faceBuffer, theme.id, format.id),
+      image,
       label: `${options.deckTitle} - recto ${index + 1}/${cards.length} - ${card.cardCode}`
     })
   }

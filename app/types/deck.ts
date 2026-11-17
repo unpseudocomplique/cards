@@ -1,3 +1,4 @@
+import type { PipCardStyle } from '~~/shared/utils/classicCards'
 import type { CardThemeId } from '~~/shared/utils/cardThemes'
 import type { CardFormatId } from '~~/shared/utils/printSpec'
 
@@ -37,6 +38,8 @@ export type DeckCard = {
     promptHint: string
     /** Format the stored face was rendered in (absent = poker). */
     format?: CardFormatId
+    /** 'classic' when the face is the ready-made pip design (no AI). */
+    design?: 'classic'
   }
   prompt: string | null
   rawImageUrl: string | null
@@ -76,6 +79,8 @@ export type DeckSettings = {
   cardFormat?: CardFormatId
   /** Format the current back was rendered in (absent = poker). */
   cardBackFormat?: CardFormatId
+  /** Aces and numerals: classic pips (default) or AI illustration. */
+  pipCardStyle?: PipCardStyle
 }
 
 export type DeckDetails = {

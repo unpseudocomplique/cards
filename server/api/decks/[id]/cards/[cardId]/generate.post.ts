@@ -1,15 +1,17 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { and, asc, count, eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 import { generateCardImage } from '~~/server/utils/ai'
 import { buildCardForegroundPrompt, buildCardScenePrompt } from '~~/server/utils/cardPromptBuilder'
 import { renderCardImage } from '~~/server/utils/cardRenderer'
+import { renderAndStoreClassicCard, updateDeckProgress } from '~~/server/utils/classicCards'
 import { requireOwnedDeck } from '~~/server/utils/deckAccess'
 import { MAX_PERSON_REFERENCE_PHOTOS } from '~~/server/utils/deckPersons'
 import { db, deckCards, deckPersons, deckPhotos, decks } from '~~/server/utils/db'
 import { assertCanGenerate } from '~~/server/utils/generationAccess'
 import { normalizeGenerationError } from '~~/server/utils/generationErrors'
 import { generateFileKey, uploadFile } from '~~/server/utils/s3'
+import { usesClassicDesign } from '~~/shared/utils/classicCards'
 import { resolveDeckCardFormat } from '~~/shared/utils/printSpec'
 
 function mediaTypeToExtension(mediaType?: string) {
@@ -36,30 +38,8 @@ async function readPhotoBuffer(url: string) {
   return Buffer.from(await response.arrayBuffer())
 }
 
-async function updateDeckProgress(deckId: string) {
-  const [readyResult] = await db
-    .select({ value: count() })
-    .from(deckCards)
-    .where(and(eq(deckCards.deckId, deckId), eq(deckCards.status, 'ready')))
-
-  const [deck] = await db
-    .select({ cardCount: decks.cardCount })
-    .from(decks)
-    .where(eq(decks.id, deckId))
-    .limit(1)
-
-  const readyCardCount = readyResult?.value || 0
-  const status = deck && readyCardCount === deck.cardCount ? 'ready' : 'draft'
-
-  await db
-    .update(decks)
-    .set({ readyCardCount, status, updatedAt: new Date() })
-    .where(eq(decks.id, deckId))
-}
-
 export default defineEventHandler(async (event) => {
   const session = await requireUserSession(event) as { user: { email: string, id: string } }
-  assertCanGenerate(session.user)
   const deckId = getRouterParam(event, 'id')
   const cardId = getRouterParam(event, 'cardId')
 
@@ -82,6 +62,19 @@ export default defineEventHandler(async (event) => {
     throw createError({ status: 404, message: 'Carte introuvable' })
   }
 
+  // Aces and numerals use the classic pip design: drawn locally, no AI, no person.
+  if (usesClassicDesign(card.metadata.role, deck.settings)) {
+    try {
+      const updated = await renderAndStoreClassicCard(deck, card)
+      await updateDeckProgress(deck.id)
+      return updated
+    } catch (error) {
+      console.error('[card.generate] classic render failed', { deckId: deck.id, cardId: card.id, error })
+      throw createError({ status: 500, message: 'Dessin de la carte classique impossible' })
+    }
+  }
+
+  assertCanGenerate(session.user)
   const personId = card.sourcePersonId
 
   if (!personId) {

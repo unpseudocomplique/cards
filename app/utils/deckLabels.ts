@@ -1,4 +1,5 @@
-import type { CardRolePromptKey, CardSuitPromptKey, DeckCard, DeckSummary, DeckType } from '~/types/deck'
+import type { CardRolePromptKey, CardSuitPromptKey, DeckCard, DeckSettings, DeckSummary, DeckType } from '~/types/deck'
+import { usesClassicDesign } from '~~/shared/utils/classicCards'
 
 type BadgeColor = 'neutral' | 'info' | 'warning' | 'success' | 'error' | 'primary'
 
@@ -86,7 +87,22 @@ export function cardSubtitle(card: DeckCard) {
   return `${role} · ${suitMeta[suit].label}`
 }
 
-/** Cards that still need an image and can be generated (a person is assigned). */
-export function isGeneratable(card: DeckCard) {
-  return Boolean(card.sourcePersonId) && card.status !== 'ready' && card.status !== 'generating'
+/** Aces and numerals drawn with the classic pip design (no AI, no person). */
+export function isClassicCard(card: DeckCard, settings?: DeckSettings | null) {
+  return usesClassicDesign(card.metadata.role, settings)
+}
+
+/** The card is illustrated by the AI and so needs a person. */
+export function needsPerson(card: DeckCard, settings?: DeckSettings | null) {
+  return !isClassicCard(card, settings)
+}
+
+/**
+ * Cards that still need an image and can be made now: a person is assigned,
+ * or the card uses the classic design (drawn without AI).
+ */
+export function isGeneratable(card: DeckCard, settings?: DeckSettings | null) {
+  return (Boolean(card.sourcePersonId) || isClassicCard(card, settings))
+    && card.status !== 'ready'
+    && card.status !== 'generating'
 }

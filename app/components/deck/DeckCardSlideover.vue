@@ -11,7 +11,7 @@ const props = defineProps<{
 const cardId = defineModel<string | null>('cardId', { required: true })
 
 const toast = useToast()
-const { findCard, personFor, persons, theme, format, isOutdated, generateCard, assignCards, patchCard, deckId, deck, job } = useDeckWorkspace()
+const { findCard, personFor, persons, theme, format, isOutdated, isClassic, generateCard, assignCards, patchCard, deckId, deck, job } = useDeckWorkspace()
 
 const open = computed({
   get: () => Boolean(cardId.value),
@@ -32,6 +32,7 @@ const red = computed(() => {
 })
 const busy = computed(() => card.value?.status === 'generating' || card.value?.status === 'queued')
 const outdated = computed(() => card.value ? isOutdated(card.value) : false)
+const classic = computed(() => card.value ? isClassic(card.value) : false)
 
 function step(delta: number) {
   if (position.value < 0 || !props.ids.length) {
@@ -130,9 +131,9 @@ async function loadPreview() {
 }
 
 watch(
-  () => [open.value, card.value?.id, card.value?.prompt, card.value?.sourcePersonId, person.value?.prompt, deck.value?.settings],
+  () => [open.value, classic.value, card.value?.id, card.value?.prompt, card.value?.sourcePersonId, person.value?.prompt, deck.value?.settings],
   () => {
-    if (open.value) {
+    if (open.value && !classic.value) {
       void loadPreview()
     }
   },
@@ -268,151 +269,162 @@ async function generate() {
         :description="card.errorMessage"
       />
 
-      <UFormField
-        label="Personne sur la carte"
-        :help="persons.length ? undefined : 'Ajoutez d’abord des personnes dans l’onglet Personnes.'"
-      >
-        <USelectMenu
-          :model-value="card.sourcePersonId ?? noPerson"
-          :items="personItems"
-          value-key="value"
-          :avatar="person ? { src: person.photos[0]?.url, alt: person.label } : undefined"
-          :icon="person ? undefined : 'i-lucide-user-round-x'"
-          :loading="assigning"
-          :disabled="!persons.length || busy"
-          :search-input="persons.length > 6 ? { placeholder: 'Rechercher…' } : false"
-          class="w-full"
-          @update:model-value="onPersonChange($event as string)"
-        />
-      </UFormField>
+      <UAlert
+        v-if="classic"
+        color="neutral"
+        variant="subtle"
+        icon="i-lucide-spade"
+        title="Design classique"
+        description="Cette carte est dessinée avec les symboles traditionnels, dans le cadre et les couleurs du thème. Pas besoin de personne ni de génération. Pour l’illustrer, changez le réglage « As et cartes chiffrées » dans Style."
+      />
 
-      <UFormField
-        label="Consigne pour cette carte"
-        help="La plus précise : elle l’emporte sur celles du jeu, de la couleur, du type et de la personne."
-      >
-        <UTextarea
-          v-model="promptDraft"
-          :rows="3"
-          autoresize
-          :maxlength="1200"
-          placeholder="Ex. avec ses deux chiens assis à ses pieds, manteau bleu…"
-          class="w-full"
-        />
-        <div
-          v-if="promptDirty"
-          class="mt-2 flex justify-end gap-2"
+      <template v-else>
+        <UFormField
+          label="Personne sur la carte"
+          :help="persons.length ? undefined : 'Ajoutez d’abord des personnes dans l’onglet Personnes.'"
         >
-          <UButton
-            label="Annuler"
-            size="xs"
-            color="neutral"
-            variant="ghost"
-            @click="promptDraft = card.prompt ?? ''"
+          <USelectMenu
+            :model-value="card.sourcePersonId ?? noPerson"
+            :items="personItems"
+            value-key="value"
+            :avatar="person ? { src: person.photos[0]?.url, alt: person.label } : undefined"
+            :icon="person ? undefined : 'i-lucide-user-round-x'"
+            :loading="assigning"
+            :disabled="!persons.length || busy"
+            :search-input="persons.length > 6 ? { placeholder: 'Rechercher…' } : false"
+            class="w-full"
+            @update:model-value="onPersonChange($event as string)"
           />
-          <UButton
-            label="Enregistrer"
-            size="xs"
-            color="neutral"
-            variant="subtle"
-            :loading="savingPrompt"
-            @click="savePrompt"
+        </UFormField>
+
+        <UFormField
+          label="Consigne pour cette carte"
+          help="La plus précise : elle l’emporte sur celles du jeu, de la couleur, du type et de la personne."
+        >
+          <UTextarea
+            v-model="promptDraft"
+            :rows="3"
+            autoresize
+            :maxlength="1200"
+            placeholder="Ex. avec ses deux chiens assis à ses pieds, manteau bleu…"
+            class="w-full"
           />
-        </div>
-      </UFormField>
-
-      <section>
-        <h3 class="text-sm font-medium text-highlighted">
-          Consignes appliquées
-        </h3>
-        <p class="mt-0.5 mb-4 text-xs text-muted">
-          Dans cet ordre. En cas de contradiction, la plus précise (la plus basse) l’emporte.
-          <span v-if="promptDirty">La consigne en cours d’écriture n’est pas encore prise en compte.</span>
-        </p>
-
-        <USkeleton
-          v-if="previewLoading && !preview"
-          class="h-24 rounded-lg"
-        />
-        <ol
-          v-else-if="preview?.layers.length"
-          class="ml-2.5 space-y-3 border-l border-default pl-5"
-        >
-          <li
-            v-for="(layer, index) in preview.layers"
-            :key="layer.level"
-            class="relative"
+          <div
+            v-if="promptDirty"
+            class="mt-2 flex justify-end gap-2"
           >
-            <span
-              class="absolute top-0 -left-[1.95rem] grid size-5 place-items-center rounded-full text-[10px] font-semibold ring"
-              :class="index === preview.layers.length - 1
-                ? 'bg-primary text-inverted ring-primary'
-                : 'bg-elevated text-muted ring-default'"
-            >{{ index + 1 }}</span>
-            <p class="text-xs font-medium text-highlighted">
-              {{ layer.title }}
-            </p>
-            <p class="line-clamp-3 text-xs text-muted">
-              {{ layer.text }}
-            </p>
-          </li>
-        </ol>
-        <p
-          v-else
-          class="text-xs text-muted"
-        >
-          Aucune consigne : seul le style par défaut s’applique.
-        </p>
+            <UButton
+              label="Annuler"
+              size="xs"
+              color="neutral"
+              variant="ghost"
+              @click="promptDraft = card.prompt ?? ''"
+            />
+            <UButton
+              label="Enregistrer"
+              size="xs"
+              color="neutral"
+              variant="subtle"
+              :loading="savingPrompt"
+              @click="savePrompt"
+            />
+          </div>
+        </UFormField>
 
-        <p class="mt-4 text-xs text-muted">
-          Modifier :
-          <ULink
-            :to="`/decks/${deckId}/style`"
-            class="text-primary"
-          >
-            jeu, couleurs et types
-          </ULink>
-          ·
-          <ULink
-            :to="`/decks/${deckId}/personnes`"
-            class="text-primary"
-          >
-            personnes
-          </ULink>
-        </p>
+        <section>
+          <h3 class="text-sm font-medium text-highlighted">
+            Consignes appliquées
+          </h3>
+          <p class="mt-0.5 mb-4 text-xs text-muted">
+            Dans cet ordre. En cas de contradiction, la plus précise (la plus basse) l’emporte.
+            <span v-if="promptDirty">La consigne en cours d’écriture n’est pas encore prise en compte.</span>
+          </p>
 
-        <UCollapsible
-          v-model:open="showFullPrompt"
-          class="mt-4"
-        >
-          <UButton
-            :label="showFullPrompt ? 'Masquer le prompt envoyé à l’IA' : 'Voir le prompt envoyé à l’IA'"
-            :trailing-icon="showFullPrompt ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
-            color="neutral"
-            variant="link"
-            size="xs"
-            class="px-0"
+          <USkeleton
+            v-if="previewLoading && !preview"
+            class="h-24 rounded-lg"
           />
-          <template #content>
-            <div
-              v-if="preview"
-              class="mt-2 space-y-3"
+          <ol
+            v-else-if="preview?.layers.length"
+            class="ml-2.5 space-y-3 border-l border-default pl-5"
+          >
+            <li
+              v-for="(layer, index) in preview.layers"
+              :key="layer.level"
+              class="relative"
             >
-              <div>
-                <p class="mb-1 text-xs font-medium text-highlighted">
-                  Personnage (avec les photos de référence)
-                </p>
-                <pre class="max-h-64 overflow-auto rounded-lg bg-elevated p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-muted">{{ preview.character }}</pre>
+              <span
+                class="absolute top-0 -left-[1.95rem] grid size-5 place-items-center rounded-full text-[10px] font-semibold ring"
+                :class="index === preview.layers.length - 1
+                  ? 'bg-primary text-inverted ring-primary'
+                  : 'bg-elevated text-muted ring-default'"
+              >{{ index + 1 }}</span>
+              <p class="text-xs font-medium text-highlighted">
+                {{ layer.title }}
+              </p>
+              <p class="line-clamp-3 text-xs text-muted">
+                {{ layer.text }}
+              </p>
+            </li>
+          </ol>
+          <p
+            v-else
+            class="text-xs text-muted"
+          >
+            Aucune consigne : seul le style par défaut s’applique.
+          </p>
+
+          <p class="mt-4 text-xs text-muted">
+            Modifier :
+            <ULink
+              :to="`/decks/${deckId}/style`"
+              class="text-primary"
+            >
+              jeu, couleurs et types
+            </ULink>
+            ·
+            <ULink
+              :to="`/decks/${deckId}/personnes`"
+              class="text-primary"
+            >
+              personnes
+            </ULink>
+          </p>
+
+          <UCollapsible
+            v-model:open="showFullPrompt"
+            class="mt-4"
+          >
+            <UButton
+              :label="showFullPrompt ? 'Masquer le prompt envoyé à l’IA' : 'Voir le prompt envoyé à l’IA'"
+              :trailing-icon="showFullPrompt ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
+              color="neutral"
+              variant="link"
+              size="xs"
+              class="px-0"
+            />
+            <template #content>
+              <div
+                v-if="preview"
+                class="mt-2 space-y-3"
+              >
+                <div>
+                  <p class="mb-1 text-xs font-medium text-highlighted">
+                    Personnage (avec les photos de référence)
+                  </p>
+                  <pre class="max-h-64 overflow-auto rounded-lg bg-elevated p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-muted">{{ preview.character }}</pre>
+                </div>
+                <div>
+                  <p class="mb-1 text-xs font-medium text-highlighted">
+                    Décor
+                  </p>
+                  <pre class="max-h-64 overflow-auto rounded-lg bg-elevated p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-muted">{{ preview.scene }}</pre>
+                </div>
               </div>
-              <div>
-                <p class="mb-1 text-xs font-medium text-highlighted">
-                  Décor
-                </p>
-                <pre class="max-h-64 overflow-auto rounded-lg bg-elevated p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-muted">{{ preview.scene }}</pre>
-              </div>
-            </div>
-          </template>
-        </UCollapsible>
-      </section>
+            </template>
+          </UCollapsible>
+        </section>
+      </template>
     </template>
 
     <template
@@ -420,12 +432,12 @@ async function generate() {
       #footer
     >
       <UButton
-        :label="card.finalImageUrl ? 'Régénérer' : 'Générer'"
-        :icon="card.finalImageUrl ? 'i-lucide-refresh-cw' : 'i-lucide-sparkles'"
+        :label="classic ? (card.finalImageUrl ? 'Redessiner' : 'Dessiner') : (card.finalImageUrl ? 'Régénérer' : 'Générer')"
+        :icon="classic ? 'i-lucide-spade' : card.finalImageUrl ? 'i-lucide-refresh-cw' : 'i-lucide-sparkles'"
         block
         size="lg"
         :loading="busy"
-        :disabled="!card.sourcePersonId || Boolean(job)"
+        :disabled="(!card.sourcePersonId && !classic) || Boolean(job)"
         @click="generate"
       />
     </template>

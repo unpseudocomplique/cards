@@ -6,7 +6,7 @@ import { cardRole, cardSuit, faceRoles, isGeneratable, roleMeta, suitMeta } from
 type StatusFilter = CardStatusFilter
 
 const toast = useToast()
-const { deckId, cards, theme, format, isOutdated, personFor, persons, stats, job, generateCards, assignCards } = useDeckWorkspace()
+const { deckId, deck, cards, theme, format, isOutdated, isUnassigned, personFor, persons, stats, job, generateCards, assignCards } = useDeckWorkspace()
 
 const filters = useDeckCardFilters(deckId)
 
@@ -15,7 +15,7 @@ const statusMatchers: Record<StatusFilter, (card: DeckCard) => boolean> = {
   todo: card => card.status !== 'ready',
   ready: card => card.status === 'ready',
   failed: card => card.status === 'failed',
-  unassigned: card => !card.sourcePersonId,
+  unassigned: card => isUnassigned(card),
   outdated: card => isOutdated(card)
 }
 
@@ -142,7 +142,7 @@ function generateSelection() {
 }
 
 function generatePending() {
-  void generateCards(cards.value.filter(isGeneratable))
+  void generateCards(cards.value.filter(card => isGeneratable(card, deck.value?.settings)))
 }
 
 // Only bound while selecting: a matched shortcut prevents the key's default,

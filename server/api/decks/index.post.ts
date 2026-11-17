@@ -1,7 +1,9 @@
 import { z } from 'zod'
 import { defaultRolePrompts, defaultSuitPrompts } from '~~/shared/utils/cardPromptPresets'
 import { cardThemeIds, defaultCardThemeId } from '~~/shared/utils/cardThemes'
+import { pipCardStyles } from '~~/shared/utils/classicCards'
 import { getCardCatalog } from '~~/server/utils/cardCatalog'
+import { syncClassicCards } from '~~/server/utils/classicCards'
 import { db, deckCards, decks } from '~~/server/utils/db'
 import { defaultCardFormatForDeckType } from '~~/shared/utils/printSpec'
 
@@ -11,7 +13,8 @@ const createDeckSchema = z.object({
   type: z.enum(['classic52', 'tarot56', 'tarot78']),
   allowPhotoReuse: z.boolean().default(true),
   visualStyle: z.string().min(3).max(160).default('illustration royale contemporaine'),
-  colorTheme: z.enum(cardThemeIds).default(defaultCardThemeId)
+  colorTheme: z.enum(cardThemeIds).default(defaultCardThemeId),
+  pipCardStyle: z.enum(pipCardStyles).default('classic')
 })
 
 export default defineEventHandler(async (event) => {
@@ -44,6 +47,7 @@ export default defineEventHandler(async (event) => {
           visualStyle: input.visualStyle,
           colorTheme: input.colorTheme,
           cardFormat: defaultCardFormatForDeckType(input.type),
+          pipCardStyle: input.pipCardStyle,
           rolePrompts: defaultRolePrompts,
           suitPrompts: defaultSuitPrompts
         }
@@ -73,6 +77,14 @@ export default defineEventHandler(async (event) => {
 
     return createdDeck
   })
+
+  // Aces and numerals come with their classic design straight away. Best
+  // effort: a failure leaves them "to generate", which draws them again.
+  try {
+    await syncClassicCards(deck)
+  } catch (error) {
+    console.error('[deck.create] classic cards failed', { deckId: deck.id, error })
+  }
 
   return deck
 })

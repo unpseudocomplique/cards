@@ -853,6 +853,135 @@ export async function renderCardImage(
 }
 
 /**
+ * Traditional pip positions for numerals: [column, row] with column 0 = left,
+ * 0.5 = centre, 1 = right and row 0 = top, 1 = bottom. Pips in the lower half
+ * are drawn upside down, like on a printed deck.
+ */
+const pipLayouts: Record<number, Array<[number, number]>> = {
+  2: [[0.5, 0], [0.5, 1]],
+  3: [[0.5, 0], [0.5, 0.5], [0.5, 1]],
+  4: [[0, 0], [1, 0], [0, 1], [1, 1]],
+  5: [[0, 0], [1, 0], [0.5, 0.5], [0, 1], [1, 1]],
+  6: [[0, 0], [1, 0], [0, 0.5], [1, 0.5], [0, 1], [1, 1]],
+  7: [[0, 0], [1, 0], [0.5, 0.25], [0, 0.5], [1, 0.5], [0, 1], [1, 1]],
+  8: [[0, 0], [1, 0], [0.5, 0.25], [0, 0.5], [1, 0.5], [0.5, 0.75], [0, 1], [1, 1]],
+  9: [[0, 0], [1, 0], [0, 1 / 3], [1, 1 / 3], [0.5, 0.5], [0, 2 / 3], [1, 2 / 3], [0, 1], [1, 1]],
+  10: [[0, 0], [1, 0], [0.5, 1 / 6], [0, 1 / 3], [1, 1 / 3], [0, 2 / 3], [1, 2 / 3], [0.5, 5 / 6], [0, 1], [1, 1]]
+}
+
+/** Number of pips of a pip card (ace = 1), or null for any other card. */
+export function getPipCount(card: RenderCard) {
+  if (card.role === 'ace' || card.rank === 'A') {
+    return 1
+  }
+
+  const value = Number.parseInt(card.rank || card.shortLabel, 10)
+
+  return Number.isInteger(value) && value >= 1 && value <= 10 ? value : null
+}
+
+/** Ace: one large pip centred on the card, nothing around it. */
+function drawAcePip(card: RenderCard, area: Rect, color: string) {
+  const cx = area.x + area.width / 2
+  const cy = area.y + area.height / 2
+  const size = Math.min(area.width * 0.55, area.height * 0.34)
+
+  return drawSuit(card.suit, cx, cy, size, color)
+}
+
+/**
+ * Pip area of a classic card. There is no illustration window: the pips sit
+ * between the index corners, with the same margin on every side so the
+ * layout reads balanced on both poker and tarot cards.
+ */
+function getPipArea(layout: CardLayout): Rect {
+  const { contour, index } = layout
+  const margin = layout.contentWidth * 0.04
+  const indexRight = index.x + index.width
+  const indexBottom = index.y + index.height
+  // Side indices (poker): pips between the index columns, full height.
+  // Band indices (tarot): pips below the top index row, full width.
+  const band = layout.window.y > indexBottom
+  const left = band ? index.x + margin : indexRight + margin
+  const top = band ? indexBottom + margin : index.y + margin
+
+  return {
+    x: left,
+    y: top,
+    width: contour.x * 2 + contour.width - left * 2,
+    height: contour.y * 2 + contour.height - top * 2,
+    radius: 0
+  }
+}
+
+function drawPips(card: RenderCard, layout: CardLayout, theme: CardTheme) {
+  const color = getInk(card, theme)
+  const count = getPipCount(card)
+
+  if (!count) {
+    return ''
+  }
+
+  const pipArea = getPipArea(layout)
+
+  if (count === 1) {
+    return drawAcePip(card, pipArea, color)
+  }
+
+  const positions = pipLayouts[count] ?? []
+  // Columns sit a quarter in from the sides, like a printed deck.
+  const insetX = pipArea.width * 0.12
+  const area = {
+    x: pipArea.x + insetX,
+    y: pipArea.y,
+    width: pipArea.width - insetX * 2,
+    height: pipArea.height
+  }
+  const size = Math.min(area.width * 0.34, area.height * 0.16)
+
+  return positions.map(([column, row]) => {
+    const cx = area.x + size / 2 + column * (area.width - size)
+    const cy = area.y + size / 2 + row * (area.height - size)
+    const pip = drawSuit(card.suit, cx, cy, size, color)
+
+    // Lower half upside down; the centre row stays upright.
+    return row > 0.5 ? `<g transform="rotate(180 ${round(cx)} ${round(cy)})">${pip}</g>` : pip
+  }).join('')
+}
+
+/**
+ * Classic design for aces and numerals: same paper, contour and indices as
+ * the illustrated faces, with the suit pips laid out the traditional way
+ * between the indices (no illustration window). No AI image, so it is instant and free.
+ */
+export async function renderClassicCardImage(card: RenderCard, options: RenderOptions = {}) {
+  await ensureIndexFont()
+  const profile = options.profile || 'screen'
+  const theme = getCardTheme(options.theme)
+  const layout = getCardLayout(getCardFormat(options.format), profile)
+  const { width, height, cardRadius } = layout
+  const pips = Buffer.from(`
+    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+      ${drawPips(card, layout, theme)}
+    </svg>
+  `)
+
+  const flat = await sharp(buildBaseLayer(layout, theme))
+    .composite([
+      { input: pips, top: 0, left: 0 },
+      { input: buildIndexLayer(card, layout, theme), top: 0, left: 0 }
+    ])
+    .png()
+    .toBuffer()
+
+  if (profile === 'print') {
+    return flat
+  }
+
+  return applyCardCornerMask(flat, width, height, cardRadius)
+}
+
+/**
  * The deck's single card back: same paper, same contour and same frame as the
  * faces, with the generated pattern inside. Rendered once per deck and reused
  * for every card, so all backs are strictly identical.

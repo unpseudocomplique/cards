@@ -2,6 +2,8 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { mergeRolePrompts, mergeSuitPrompts } from '~~/shared/utils/cardPromptPresets'
 import { cardThemeIds } from '~~/shared/utils/cardThemes'
+import { pipCardStyles } from '~~/shared/utils/classicCards'
+import { syncClassicCards } from '~~/server/utils/classicCards'
 import { requireOwnedDeck } from '~~/server/utils/deckAccess'
 import { db, decks } from '~~/server/utils/db'
 
@@ -29,8 +31,9 @@ const updateDeckPromptSchema = z.object({
   rolePrompts: rolePromptsSchema.optional(),
   suitPrompts: suitPromptsSchema.optional(),
   cardBackPrompt: z.string().trim().max(1600).nullable().optional(),
-  colorTheme: z.enum(cardThemeIds).optional()
-}).refine(input => input.visualStyle || input.rolePrompts || input.suitPrompts || input.colorTheme || input.cardBackPrompt !== undefined, {
+  colorTheme: z.enum(cardThemeIds).optional(),
+  pipCardStyle: z.enum(pipCardStyles).optional()
+}).refine(input => input.visualStyle || input.rolePrompts || input.suitPrompts || input.colorTheme || input.pipCardStyle || input.cardBackPrompt !== undefined, {
   message: 'Aucun prompt à sauvegarder'
 })
 
@@ -61,6 +64,7 @@ export default defineEventHandler(async (event) => {
         ...deck.settings,
         visualStyle: result.data.visualStyle || deck.settings.visualStyle,
         colorTheme: result.data.colorTheme || deck.settings.colorTheme,
+        pipCardStyle: result.data.pipCardStyle || deck.settings.pipCardStyle,
         rolePrompts: result.data.rolePrompts
           ? mergeRolePrompts({ ...deck.settings.rolePrompts, ...result.data.rolePrompts })
           : mergeRolePrompts(deck.settings.rolePrompts),
@@ -75,6 +79,12 @@ export default defineEventHandler(async (event) => {
     })
     .where(eq(decks.id, deck.id))
     .returning()
+
+  // Classic aces and numerals follow the theme and the pip card style at once.
+  if (updatedDeck && (result.data.colorTheme || result.data.pipCardStyle)) {
+    const classicCardsChanged = await syncClassicCards(updatedDeck)
+    return { ...updatedDeck, classicCardsChanged }
+  }
 
   return updatedDeck
 })

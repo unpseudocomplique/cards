@@ -4,13 +4,14 @@ import type { CardRolePromptKey, DeckPerson } from '~/types/deck'
 import { cardRole, roleMeta } from '~/utils/deckLabels'
 
 const toast = useToast()
-const { cards, persons, personById, assignRole } = useDeckWorkspace()
+const { cards, persons, personById, assignRole, isClassic } = useDeckWorkspace()
 
 const busyRole = shallowRef<CardRolePromptKey | null>(null)
 
 const groups = computed(() => {
   const byRole = new Map<CardRolePromptKey, typeof cards.value>()
-  for (const card of cards.value) {
+  // Classic aces and numerals need no person.
+  for (const card of cards.value.filter(entry => !isClassic(entry))) {
     const role = cardRole(card)
     byRole.set(role, [...(byRole.get(role) ?? []), card])
   }
