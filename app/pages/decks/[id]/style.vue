@@ -3,11 +3,13 @@ import type { CardRolePromptKey, CardSuitPromptKey, DeckSettings } from '~/types
 import type { CardThemeId } from '~~/shared/utils/cardThemes'
 import { getCardTheme } from '~~/shared/utils/cardThemes'
 import { mergeRolePrompts, mergeSuitPrompts } from '~~/shared/utils/cardPromptPresets'
+import type { PipCardStyle } from '~~/shared/utils/classicCards'
+import { isPipCardRole, resolvePipCardStyle } from '~~/shared/utils/classicCards'
 import { cardRole, cardSuit, roleMeta, suitMeta } from '~/utils/deckLabels'
 import { visualStylePresets } from '~/utils/stylePresets'
 
 const toast = useToast()
-const { deckId, deck, cards, stats, format, patchSettings } = useDeckWorkspace()
+const { deckId, deck, cards, stats, format, patchSettings, refresh } = useDeckWorkspace()
 
 const settings = computed(() => deck.value!.settings)
 
@@ -15,8 +17,26 @@ const presentRoles = computed(() => {
   const present = new Set(cards.value.map(cardRole))
   return (Object.keys(roleMeta) as CardRolePromptKey[])
     .filter(role => present.has(role))
+    // Classic aces and numerals have no AI prompt.
+    .filter(role => draft.value.pipCardStyle !== 'classic' || !isPipCardRole(role))
     .sort((a, b) => roleMeta[a].order - roleMeta[b].order)
 })
+
+const hasPipCards = computed(() => cards.value.some(card => isPipCardRole(cardRole(card))))
+const pipCardCount = computed(() => cards.value.filter(card => isPipCardRole(cardRole(card))).length)
+
+const pipStyleItems = [
+  {
+    value: 'classic',
+    label: 'Design classique',
+    description: 'Symboles disposés comme sur un jeu traditionnel, dans le cadre et les couleurs du thème. Prêtes tout de suite, sans génération ni personne.'
+  },
+  {
+    value: 'illustrated',
+    label: 'Illustrées',
+    description: 'Une illustration générée avec une personne, comme les têtes et les atouts.'
+  }
+]
 
 const presentSuits = computed(() => {
   const present = new Set(cards.value.map(cardSuit).filter(Boolean))
@@ -26,6 +46,7 @@ const presentSuits = computed(() => {
 function snapshot(source: DeckSettings) {
   return {
     colorTheme: getCardTheme(source.colorTheme).id as CardThemeId,
+    pipCardStyle: resolvePipCardStyle(source) as PipCardStyle,
     visualStyle: source.visualStyle ?? '',
     rolePrompts: { ...mergeRolePrompts(source.rolePrompts) } as Record<CardRolePromptKey, string>,
     suitPrompts: { ...mergeSuitPrompts(source.suitPrompts) } as Record<CardSuitPromptKey, string>
@@ -43,7 +64,8 @@ const changedRoles = computed(() => presentRoles.value.filter(role => draft.valu
 const changedSuits = computed(() => presentSuits.value.filter(suit => draft.value.suitPrompts[suit].trim() !== saved.value.suitPrompts[suit]))
 const themeChanged = computed(() => draft.value.colorTheme !== saved.value.colorTheme)
 const styleChanged = computed(() => draft.value.visualStyle.trim() !== saved.value.visualStyle)
-const dirty = computed(() => themeChanged.value || styleChanged.value || changedRoles.value.length > 0 || changedSuits.value.length > 0)
+const pipStyleChanged = computed(() => draft.value.pipCardStyle !== saved.value.pipCardStyle)
+const dirty = computed(() => themeChanged.value || pipStyleChanged.value || styleChanged.value || changedRoles.value.length > 0 || changedSuits.value.length > 0)
 
 const roleTab = shallowRef<CardRolePromptKey | undefined>()
 const suitTab = shallowRef<CardSuitPromptKey | undefined>()
@@ -93,11 +115,18 @@ async function save() {
     if (changedSuits.value.length) {
       body.suitPrompts = Object.fromEntries(changedSuits.value.map(suit => [suit, draft.value.suitPrompts[suit].trim()]))
     }
-    const updated = await $fetch<{ settings: DeckSettings }>(`/api/decks/${deckId.value}/prompt`, {
+    if (pipStyleChanged.value) {
+      body.pipCardStyle = draft.value.pipCardStyle
+    }
+    const updated = await $fetch<{ settings: DeckSettings, classicCardsChanged?: number }>(`/api/decks/${deckId.value}/prompt`, {
       method: 'PATCH',
       body
     })
     patchSettings(updated.settings)
+    if (updated.classicCardsChanged) {
+      // Classic aces and numerals were redrawn (or reset) on the server.
+      await refresh()
+    }
     toast.add({
       title: 'Style enregistré',
       description: stats.value.ready ? 'Les prochaines générations l’utiliseront. Régénérez les cartes prêtes pour harmoniser le jeu.' : undefined,
@@ -133,6 +162,40 @@ async function save() {
         icon="i-lucide-palette"
         title="Pensez à régénérer"
         :description="`${stats.ready} carte${stats.ready > 1 ? 's' : ''} et le dos utilisent encore l’ancien thème.`"
+      />
+    </section>
+
+    <section v-if="hasPipCards">
+      <h2 class="text-lg font-semibold text-highlighted">
+        As et cartes chiffrées
+      </h2>
+      <p class="mt-1 mb-4 text-sm text-muted">
+        Les têtes, les atouts et l’Excuse sont toujours illustrés. Les {{ pipCardCount }} cartes chiffrées peuvent garder un design classique.
+      </p>
+      <URadioGroup
+        v-model="draft.pipCardStyle"
+        :items="pipStyleItems"
+        variant="card"
+        indicator="end"
+        :ui="{ fieldset: 'gap-2 sm:grid sm:grid-cols-2', item: 'items-start' }"
+      />
+      <UAlert
+        v-if="pipStyleChanged && draft.pipCardStyle === 'classic'"
+        class="mt-4"
+        color="info"
+        variant="subtle"
+        icon="i-lucide-spade"
+        title="Dessinées à l’enregistrement"
+        description="Les As et cartes chiffrées passent au design classique dès l’enregistrement, y compris celles déjà générées."
+      />
+      <UAlert
+        v-else-if="pipStyleChanged"
+        class="mt-4"
+        color="warning"
+        variant="subtle"
+        icon="i-lucide-sparkles"
+        title="À générer"
+        description="Les cartes chiffrées repassent « à générer » : affectez-leur une personne puis lancez la génération."
       />
     </section>
 

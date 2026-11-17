@@ -11,6 +11,7 @@ import {
 } from 'drizzle-orm/pg-core'
 import type { CardThemeId } from '../../shared/utils/cardThemes'
 import type { CardFormatId } from '../../shared/utils/printSpec'
+import type { PipCardStyle } from '../../shared/utils/classicCards'
 
 const id = () => text('id').primaryKey().$defaultFn(() => crypto.randomUUID())
 
@@ -37,6 +38,8 @@ export type DeckStyleSettings = {
   cardFormat?: CardFormatId
   /** Format the current back was rendered in. Absent = poker. */
   cardBackFormat?: CardFormatId
+  /** Aces and numerals: classic pips (default) or AI illustration like the other cards. */
+  pipCardStyle?: PipCardStyle
 }
 
 export type DeckCardMetadata = {
@@ -53,6 +56,10 @@ export type DeckCardMetadata = {
   format?: CardFormatId
   /** Character layer (chroma-key cutout) of the last generation, to recompose without AI. */
   foregroundImageUrl?: string
+  /** Set when the face is the classic pip design (no AI image). */
+  design?: 'classic'
+  /** Colour theme the classic face was drawn with, to redraw it when the theme changes. */
+  theme?: CardThemeId
 }
 
 export const users = pgTable('users', {

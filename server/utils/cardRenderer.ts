@@ -853,6 +853,115 @@ export async function renderCardImage(
 }
 
 /**
+ * Traditional pip positions for numerals: [column, row] with column 0 = left,
+ * 0.5 = centre, 1 = right and row 0 = top, 1 = bottom. Pips in the lower half
+ * are drawn upside down, like on a printed deck.
+ */
+const pipLayouts: Record<number, Array<[number, number]>> = {
+  2: [[0.5, 0], [0.5, 1]],
+  3: [[0.5, 0], [0.5, 0.5], [0.5, 1]],
+  4: [[0, 0], [1, 0], [0, 1], [1, 1]],
+  5: [[0, 0], [1, 0], [0.5, 0.5], [0, 1], [1, 1]],
+  6: [[0, 0], [1, 0], [0, 0.5], [1, 0.5], [0, 1], [1, 1]],
+  7: [[0, 0], [1, 0], [0.5, 0.25], [0, 0.5], [1, 0.5], [0, 1], [1, 1]],
+  8: [[0, 0], [1, 0], [0.5, 0.25], [0, 0.5], [1, 0.5], [0.5, 0.75], [0, 1], [1, 1]],
+  9: [[0, 0], [1, 0], [0, 1 / 3], [1, 1 / 3], [0.5, 0.5], [0, 2 / 3], [1, 2 / 3], [0, 1], [1, 1]],
+  10: [[0, 0], [1, 0], [0.5, 1 / 6], [0, 1 / 3], [1, 1 / 3], [0, 2 / 3], [1, 2 / 3], [0.5, 5 / 6], [0, 1], [1, 1]]
+}
+
+/** Number of pips of a pip card (ace = 1), or null for any other card. */
+export function getPipCount(card: RenderCard) {
+  if (card.role === 'ace' || card.rank === 'A') {
+    return 1
+  }
+
+  const value = Number.parseInt(card.rank || card.shortLabel, 10)
+
+  return Number.isInteger(value) && value >= 1 && value <= 10 ? value : null
+}
+
+/** Ace: one large pip, framed by two thin rings in the theme colours. */
+function drawAcePip(card: RenderCard, window: Rect, theme: CardTheme, color: string) {
+  const cx = window.x + window.width / 2
+  const cy = window.y + window.height / 2
+  const size = Math.min(window.width * 0.42, window.height * 0.3)
+  const ring = size * 0.92
+  const stroke = Math.max(1, size * 0.018)
+
+  return [
+    `<circle cx="${round(cx)}" cy="${round(cy)}" r="${round(ring)}" fill="none" stroke="${theme.colors.hairline}" stroke-width="${round(stroke)}"/>`,
+    `<circle cx="${round(cx)}" cy="${round(cy)}" r="${round(ring * 1.08)}" fill="none" stroke="${theme.colors.frame}" stroke-width="${round(stroke * 0.6)}"/>`,
+    drawSuit(card.suit, cx, cy, size, color)
+  ].join('')
+}
+
+function drawPips(card: RenderCard, window: Rect, theme: CardTheme) {
+  const color = getInk(card, theme)
+  const count = getPipCount(card)
+
+  if (!count) {
+    return ''
+  }
+
+  if (count === 1) {
+    return drawAcePip(card, window, theme, color)
+  }
+
+  const positions = pipLayouts[count] ?? []
+  const insetX = window.width * 0.16
+  const insetY = window.height * 0.09
+  const area = {
+    x: window.x + insetX,
+    y: window.y + insetY,
+    width: window.width - insetX * 2,
+    height: window.height - insetY * 2
+  }
+  const size = Math.min(area.width * 0.36, area.height * 0.17)
+
+  return positions.map(([column, row]) => {
+    const cx = area.x + size / 2 + column * (area.width - size)
+    const cy = area.y + size / 2 + row * (area.height - size)
+    const pip = drawSuit(card.suit, cx, cy, size, color)
+
+    // Lower half upside down; the centre row stays upright.
+    return row > 0.5 ? `<g transform="rotate(180 ${round(cx)} ${round(cy)})">${pip}</g>` : pip
+  }).join('')
+}
+
+/**
+ * Classic design for aces and numerals: same paper, contour, frame and
+ * indices as the illustrated faces, with the suit pips laid out the
+ * traditional way inside the frame. No AI image, so it is instant and free.
+ */
+export async function renderClassicCardImage(card: RenderCard, options: RenderOptions = {}) {
+  await ensureIndexFont()
+  const profile = options.profile || 'screen'
+  const theme = getCardTheme(options.theme)
+  const layout = getCardLayout(getCardFormat(options.format), profile)
+  const { width, height, cardRadius, window } = layout
+  const pips = Buffer.from(`
+    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+      ${drawPips(card, window, theme)}
+    </svg>
+  `)
+
+  const flat = await sharp(buildBaseLayer(layout, theme))
+    .composite([
+      { input: buildWindowFrame(layout, theme, window), top: 0, left: 0 },
+      { input: pips, top: 0, left: 0 },
+      { input: buildIndexLayer(card, layout, theme), top: 0, left: 0 }
+    ])
+    .png()
+    .toBuffer()
+
+  if (profile === 'print') {
+    return flat
+  }
+
+  return applyCardCornerMask(flat, width, height, cardRadius)
+}
+
+/**
  * The deck's single card back: same paper, same contour and same frame as the
  * faces, with the generated pattern inside. Rendered once per deck and reused
  * for every card, so all backs are strictly identical.

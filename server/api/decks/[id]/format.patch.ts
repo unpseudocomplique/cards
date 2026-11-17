@@ -1,5 +1,7 @@
 import { and, count, eq, inArray } from 'drizzle-orm'
 import { z } from 'zod'
+import { syncClassicCards } from '~~/server/utils/classicCards'
+import { usesClassicDesign } from '~~/shared/utils/classicCards'
 import { requireOwnedDeck } from '~~/server/utils/deckAccess'
 import { db, deckCards, decks } from '~~/server/utils/db'
 import {
@@ -47,7 +49,7 @@ export default defineEventHandler(async (event) => {
     return { deck, outdatedCount: 0 }
   }
 
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const cards = await tx
       .select({ id: deckCards.id, status: deckCards.status, metadata: deckCards.metadata, finalImageUrl: deckCards.finalImageUrl })
       .from(deckCards)
@@ -74,7 +76,10 @@ export default defineEventHandler(async (event) => {
       .from(deckCards)
       .where(and(eq(deckCards.deckId, deck.id), eq(deckCards.status, 'ready')))
     const readyCardCount = ready?.value ?? 0
-    const outdatedCount = cards.filter(card => card.finalImageUrl && resolveCardImageFormat(card.metadata).id !== target.id).length
+    // Classic aces and numerals are redrawn below: they never need a new generation.
+    const outdatedCount = cards.filter(card => card.finalImageUrl
+      && !usesClassicDesign(card.metadata.role, deck.settings)
+      && resolveCardImageFormat(card.metadata).id !== target.id).length
 
     const [updatedDeck] = await tx
       .update(decks)
@@ -89,4 +94,11 @@ export default defineEventHandler(async (event) => {
 
     return { deck: updatedDeck, outdatedCount }
   })
+
+  // Classic aces and numerals are redrawn in the new format right away.
+  if (result.deck) {
+    await syncClassicCards(result.deck)
+  }
+
+  return result
 })

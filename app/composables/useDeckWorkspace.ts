@@ -3,7 +3,7 @@ import type { CardRolePromptKey, DeckCard, DeckDetails, DeckPerson, DeckSettings
 import { getCardTheme } from '~~/shared/utils/cardThemes'
 import { cardFormatRatio, resolveCardImageFormat, resolveDeckCardFormat } from '~~/shared/utils/printSpec'
 import { patchDeckSettings, patchDeckWithCard } from '~/utils/deckState'
-import { isGeneratable } from '~/utils/deckLabels'
+import { isClassicCard, isGeneratable, needsPerson } from '~/utils/deckLabels'
 
 export type GenerationJob = {
   total: number
@@ -49,14 +49,26 @@ function createWorkspace(deckId: Ref<string>) {
     return counts
   })
 
+  const settings = computed(() => deck.value?.settings ?? null)
+
+  /** Ace or numeral drawn with the classic pip design (no AI, no person). */
+  function isClassic(card: DeckCard) {
+    return isClassicCard(card, settings.value)
+  }
+
+  /** Card waiting for a person before it can be generated. */
+  function isUnassigned(card: DeckCard) {
+    return !card.sourcePersonId && needsPerson(card, settings.value)
+  }
+
   const stats = computed(() => {
     const list = cards.value
     return {
       total: list.length,
       ready: list.filter(card => card.status === 'ready').length,
       failed: list.filter(card => card.status === 'failed').length,
-      unassigned: list.filter(card => !card.sourcePersonId).length,
-      generatable: list.filter(isGeneratable).length,
+      unassigned: list.filter(card => !card.sourcePersonId && needsPerson(card, settings.value)).length,
+      generatable: list.filter(card => isGeneratable(card, settings.value)).length,
       outdated: list.filter(isOutdated).length
     }
   })
@@ -118,7 +130,7 @@ function createWorkspace(deckId: Ref<string>) {
   }
 
   async function generateCards(targets: DeckCard[]) {
-    const queue = targets.filter(card => card.sourcePersonId)
+    const queue = targets.filter(card => card.sourcePersonId || isClassic(card))
     const skipped = targets.length - queue.length
 
     if (job.value) {
@@ -254,6 +266,8 @@ function createWorkspace(deckId: Ref<string>) {
     format,
     cardRatio,
     isOutdated,
+    isClassic,
+    isUnassigned,
     backOutdated,
     stats,
     personById,
