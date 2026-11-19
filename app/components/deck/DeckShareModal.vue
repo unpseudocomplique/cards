@@ -59,7 +59,7 @@ async function disable() {
   <UModal
     v-model:open="open"
     title="Partager ce deck"
-    description="Vos amis voient les cartes prêtes, sans compte et sans pouvoir rien modifier."
+    description="Vos amis voient les cartes prêtes et les variantes, sous leur nom, sans compte et sans pouvoir rien modifier."
   >
     <template #body>
       <div

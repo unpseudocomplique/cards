@@ -21,11 +21,20 @@ export function serializeVariantCard(card: VariantCardRow) {
 
 export type DeckVariantCardPayload = ReturnType<typeof serializeVariantCard>
 
-export type DeckVariantPayload = {
-  id: string
-  name: string
-  createdAt: string
+export type DeckVariantPayload = ReturnType<typeof serializeVariant> & {
   cards: DeckVariantCardPayload[]
+}
+
+export function serializeVariant(variant: typeof deckVariants.$inferSelect) {
+  return {
+    id: variant.id,
+    name: variant.name,
+    /** null = same back as the deck. */
+    back: variant.backImageUrl
+      ? { prompt: variant.backPrompt, imageUrl: variant.backImageUrl, format: variant.backFormat }
+      : null,
+    createdAt: variant.createdAt.toISOString()
+  }
 }
 
 /** Every variant of a deck with the cards it overrides, oldest first. */
@@ -36,9 +45,7 @@ export async function listDeckVariants(deckId: string): Promise<DeckVariantPaylo
   ])
 
   return variants.map(variant => ({
-    id: variant.id,
-    name: variant.name,
-    createdAt: variant.createdAt.toISOString(),
+    ...serializeVariant(variant),
     cards: cards.filter(card => card.variantId === variant.id).map(serializeVariantCard)
   }))
 }

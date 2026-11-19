@@ -105,6 +105,8 @@ export type DeckVariantCard = {
 export type DeckVariant = {
   id: string
   name: string
+  /** Back of its own; null = same back as the deck. */
+  back: { prompt: string | null, imageUrl: string, format: CardFormatId | null } | null
   createdAt: string
   cards: DeckVariantCard[]
 }

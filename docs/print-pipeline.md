@@ -69,9 +69,9 @@ Constantes : `PRINT_SLUG_MM`, `PRINT_CROP_MARK_*`, `PRINT_ICC_PROFILE` dans `sha
 
 ### Variantes d’impression
 
-Une variante (`deck_variants`) est le deck entier, sauf les cartes qu’elle surcharge (`deck_variant_cards` : autre personne, autre consigne, sa propre face générée). Les cartes non surchargées lisent toujours la face actuelle du deck : la variante suit le deck sans copie. Consigne `null` = celle de la carte du deck. Les as et numérales au design classique ne se surchargent pas.
+Une variante (`deck_variants`) est le deck entier, sauf les cartes qu’elle surcharge (`deck_variant_cards` : autre personne, autre consigne, sa propre face générée) et, si elle en a un, son dos (`back_*` : motif propre, mêmes couleurs et format que le deck). Les cartes non surchargées lisent toujours la face actuelle du deck : la variante suit le deck sans copie. Consigne `null` = celle de la carte du deck. Les as et numérales au design classique ne se surchargent pas.
 
-Le corps de l’export choisit les jeux : `{ includeBase: boolean, variantIds: string[] }` (corps vide = le deck seul, comme avant). Chaque jeu choisi donne un PDF recto complet (`{jeu}-recto.pdf`, `{jeu}-{variante}-recto.pdf`), le verso reste unique. `resolvePrintFaces` (`shared/utils/deckVariants.ts`) refuse d’exporter une variante dont une carte surchargée n’a pas de face au format du deck : on n’imprime jamais la carte du deck à sa place. Les faces communes ne sont converties en CMJN qu’une fois.
+Le corps de l’export choisit les jeux : `{ includeBase: boolean, variantIds: string[] }` (corps vide = le deck seul, comme avant). Un seul jeu : `{jeu}-recto.pdf` et `{jeu}-verso.pdf` à la racine, comme avant. Plusieurs jeux : un dossier par jeu (`{jeu}/`, `{jeu}-{variante}/`) avec son PDF recto complet et son PDF verso (dos de la variante, sinon dos du deck). Un dos de variante à l’ancien format bloque l’export, comme une carte surchargée manquante. `resolvePrintFaces` (`shared/utils/deckVariants.ts`) refuse d’exporter une variante dont une carte surchargée n’a pas de face au format du deck : on n’imprime jamais la carte du deck à sa place. Les faces et dos communs ne sont convertis en CMJN qu’une fois. La page de partage montre aussi les variantes, sous leur nom.
 
 ## Fichiers clés
 

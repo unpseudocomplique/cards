@@ -19,6 +19,24 @@ const versionRows = computed(() => variants.value.map((variant) => {
   return { variant, status, selected: printVariantIds.value.includes(variant.id) }
 }))
 
+function variantSummary(status: ReturnType<typeof printStatus>) {
+  if (status.missing) {
+    return `${status.missing} carte${status.missing > 1 ? 's' : ''} modifiée${status.missing > 1 ? 's' : ''} à générer`
+  }
+  if (status.backOutdated) {
+    return 'Dos à régénérer au format du deck'
+  }
+  const parts = [
+    status.overridden ? `${status.overridden} carte${status.overridden > 1 ? 's' : ''} modifiée${status.overridden > 1 ? 's' : ''}` : null,
+    status.ownBack ? 'dos propre' : null
+  ].filter(Boolean)
+  if (!parts.length) {
+    return 'Identique au deck'
+  }
+  const text = `${parts.join(', ')}, ${status.cardCount} cartes au total`
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
 function toggleVariant(variantId: string, on: boolean) {
   printVariantIds.value = on
     ? [...new Set([...printVariantIds.value, variantId])]
@@ -26,7 +44,7 @@ function toggleVariant(variantId: string, on: boolean) {
 }
 
 const selectedCount = computed(() => (printBase.value ? 1 : 0) + printVariantIds.value.length)
-const blockedVariants = computed(() => versionRows.value.filter(row => row.selected && row.status.missing))
+const blockedVariants = computed(() => versionRows.value.filter(row => row.selected && (row.status.missing || row.status.backOutdated)))
 const canExport = computed(() => selectedCount.value > 0 && stats.value.ready > 0 && !blockedVariants.value.length)
 
 /* Card format */
@@ -151,7 +169,7 @@ const specs = computed(() => [
   {
     label: 'Contenu',
     value: selectedCount.value > 1
-      ? `${selectedCount.value} PDF recto (un par jeu), PDF verso, print-spec.json`
+      ? `Un dossier par jeu (PDF recto + PDF verso), print-spec.json`
       : 'PDF recto (une carte par page), PDF verso, print-spec.json',
     icon: 'i-lucide-folder-archive'
   }
@@ -338,12 +356,8 @@ const specs = computed(() => [
                 :key="row.variant.id"
                 :model-value="row.selected"
                 :label="row.variant.name"
-                :description="row.status.missing
-                  ? `${row.status.missing} carte${row.status.missing > 1 ? 's' : ''} modifiée${row.status.missing > 1 ? 's' : ''} à générer`
-                  : row.status.overridden
-                    ? `${row.status.overridden} carte${row.status.overridden > 1 ? 's' : ''} modifiée${row.status.overridden > 1 ? 's' : ''}, ${row.status.cardCount} au total`
-                    : 'Identique au deck'"
-                :ui="row.status.missing ? { description: 'text-warning' } : undefined"
+                :description="variantSummary(row.status)"
+                :ui="row.status.missing || row.status.backOutdated ? { description: 'text-warning' } : undefined"
                 @update:model-value="toggleVariant(row.variant.id, Boolean($event))"
               />
               <UAlert
@@ -351,12 +365,12 @@ const specs = computed(() => [
                 color="warning"
                 variant="subtle"
                 icon="i-lucide-triangle-alert"
-                :title="`Cartes à générer dans ${blockedVariants.map(row => `« ${row.variant.name} »`).join(', ')}`"
-                description="Une carte modifiée n’est jamais remplacée par celle du deck : générez-la avant d’imprimer."
+                :title="`À générer dans ${blockedVariants.map(row => `« ${row.variant.name} »`).join(', ')}`"
+                description="Une carte ou un dos modifié n’est jamais remplacé par celui du deck : générez-le avant d’imprimer."
                 :actions="[{ label: 'Ouvrir la variante', color: 'warning', variant: 'outline', to: { path: `/decks/${deckId}/variantes`, query: { v: blockedVariants[0]!.variant.id } } }]"
               />
               <p class="text-xs text-muted">
-                Chaque jeu choisi est exporté en entier, avec son propre PDF recto. Le dos est commun.
+                Chaque jeu choisi est exporté en entier, dans son propre dossier : un PDF recto pour les faces et un PDF verso pour le dos.
               </p>
               <USeparator class="pt-1" />
             </fieldset>

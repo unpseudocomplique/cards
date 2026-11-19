@@ -50,6 +50,11 @@ export function useDeckVariants() {
     return variant?.cards.find(card => card.baseCardId === cardId) ?? null
   }
 
+  /** The variant has its own back, rendered in another format than the deck's. */
+  function backOutdatedFor(variant: DeckVariant | null) {
+    return Boolean(variant?.back) && (variant!.back!.format || 'poker') !== format.value.id
+  }
+
   /** What printing this variant would give right now. */
   function printStatus(variant: DeckVariant | null) {
     const result = resolvePrintFaces(cards.value, variant?.cards ?? [], format.value.id)
@@ -57,7 +62,53 @@ export function useDeckVariants() {
       cardCount: result.faces.length,
       overridden: variant?.cards.length ?? 0,
       missing: result.missing.length,
-      skipped: result.skipped.length
+      skipped: result.skipped.length,
+      ownBack: Boolean(variant?.back),
+      backOutdated: backOutdatedFor(variant)
+    }
+  }
+
+  const generatingBacks = useState(`deck-variant-back-generating-${deckId.value}`, () => [] as string[])
+
+  function isGeneratingBack(variantId: string) {
+    return generatingBacks.value.includes(variantId)
+  }
+
+  function setVariantBack(variantId: string, back: DeckVariant['back']) {
+    patchVariants(list => list.map(variant => variant.id === variantId ? { ...variant, back } : variant))
+  }
+
+  /** Generate a back of its own for the variant (the deck back does not change). */
+  async function generateVariantBack(variantId: string, prompt: string | null) {
+    if (isGeneratingBack(variantId)) {
+      return false
+    }
+    generatingBacks.value = [...generatingBacks.value, variantId]
+    try {
+      const updated = await $fetch<DeckVariant>(`/api/decks/${deckId.value}/variants/${variantId}/back/generate`, {
+        method: 'POST',
+        body: { prompt: prompt || undefined }
+      })
+      setVariantBack(variantId, updated.back)
+      toast.add({ title: 'Dos de la variante généré', color: 'success', icon: 'i-lucide-sparkles' })
+      return true
+    } catch (err) {
+      toast.add({ title: 'Génération du dos impossible', description: getApiErrorMessage(err), color: 'error', icon: 'i-lucide-circle-alert' })
+      return false
+    } finally {
+      generatingBacks.value = generatingBacks.value.filter(id => id !== variantId)
+    }
+  }
+
+  /** The variant uses the deck back again. */
+  async function resetVariantBack(variantId: string) {
+    try {
+      await $fetch(`/api/decks/${deckId.value}/variants/${variantId}/back`, { method: 'DELETE' })
+      setVariantBack(variantId, null)
+      return true
+    } catch (err) {
+      toast.add({ title: 'Impossible de revenir au dos du deck', description: getApiErrorMessage(err), color: 'error', icon: 'i-lucide-circle-alert' })
+      return false
     }
   }
 
@@ -201,7 +252,11 @@ export function useDeckVariants() {
     findVariant,
     overrideFor,
     printStatus,
+    backOutdatedFor,
     isGenerating,
+    isGeneratingBack,
+    generateVariantBack,
+    resetVariantBack,
     createVariant,
     renameVariant,
     deleteVariant,

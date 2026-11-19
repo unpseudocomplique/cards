@@ -180,12 +180,18 @@ export const deckCards = pgTable('deck_cards', {
   index('deck_cards_source_person_id_idx').on(table.sourcePersonId)
 ])
 
-/** Print variant of a deck: every card of the deck, except the ones it overrides. */
+/** Print variant of a deck: every card and the back of the deck, except what it overrides. */
 export const deckVariants = pgTable('deck_variants', {
   id: id(),
   deckId: text('deck_id').notNull().references(() => decks.id, { onDelete: 'cascade' }),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
+  /** Back of this variant. All null = same back as the deck. */
+  backPrompt: text('back_prompt'),
+  backImageKey: text('back_image_key'),
+  backImageUrl: text('back_image_url'),
+  /** Format the variant back was rendered in. */
+  backFormat: text('back_format').$type<CardFormatId>(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull()
 }, table => [

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { requireOwnedDeck } from '~~/server/utils/deckAccess'
 import { db, deckVariants } from '~~/server/utils/db'
+import { serializeVariant } from '~~/server/utils/deckVariants'
 import { parseBody } from '~~/server/utils/validation'
 import { VARIANT_NAME_MAX } from '~~/shared/utils/deckVariants'
 
@@ -24,10 +25,5 @@ export default defineEventHandler(async (event) => {
     .values({ deckId: deck.id, userId: session.user.id, name })
     .returning()
 
-  return {
-    id: variant!.id,
-    name: variant!.name,
-    createdAt: variant!.createdAt.toISOString(),
-    cards: []
-  }
+  return { ...serializeVariant(variant!), cards: [] }
 })

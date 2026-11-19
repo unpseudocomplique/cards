@@ -3,6 +3,10 @@ CREATE TABLE "deck_variants" (
 	"deck_id" text NOT NULL,
 	"user_id" text NOT NULL,
 	"name" text NOT NULL,
+	"back_prompt" text,
+	"back_image_key" text,
+	"back_image_url" text,
+	"back_format" text,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );

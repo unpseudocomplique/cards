@@ -220,6 +220,8 @@ const menu = computed<DropdownMenuItem[][]>(() => [[
         </div>
       </div>
 
+      <DeckVariantBack :variant-id="variant.id" />
+
       <UAlert
         v-if="status.missing"
         color="warning"

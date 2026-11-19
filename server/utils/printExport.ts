@@ -72,7 +72,12 @@ export async function buildPrintExportZip(options: {
       .orderBy(asc(deckCards.sortOrder)),
     variantIds.length
       ? db
-          .select({ id: deckVariants.id, name: deckVariants.name })
+          .select({
+            id: deckVariants.id,
+            name: deckVariants.name,
+            backImageUrl: deckVariants.backImageUrl,
+            backFormat: deckVariants.backFormat
+          })
           .from(deckVariants)
           .where(and(
             eq(deckVariants.deckId, options.deckId),
@@ -102,19 +107,31 @@ export async function buildPrintExportZip(options: {
   const format = resolveDeckCardFormat(options.settings)
   const slug = slugifyName(options.deckTitle)
   const variantSlugs = uniqueSlugs(variants.map(variant => variant.name))
+  const deckBackUrl = options.settings.cardBackImageUrl
+    && resolveDeckCardFormat({ cardFormat: options.settings.cardBackFormat }).id === format.id
+    ? options.settings.cardBackImageUrl
+    : null
 
   // Each printed version is the complete deck: the deck's faces, with the
   // variant's own faces in place of the cards it overrides.
   const versions = [
     ...(selection.includeBase
-      ? [{ id: 'base', name: options.deckTitle, isBase: true, fileSlug: slug, overrides: [] as typeof overrides }]
+      ? [{
+          id: 'base',
+          name: options.deckTitle,
+          isBase: true,
+          fileSlug: slug,
+          overrides: [] as typeof overrides,
+          ownBack: null as { url: string, format: string | null } | null
+        }]
       : []),
     ...variants.map((variant, index) => ({
       id: variant.id,
       name: variant.name,
       isBase: false,
       fileSlug: `${slug}-${variantSlugs[index]}`,
-      overrides: overrides.filter(override => override.variantId === variant.id)
+      overrides: overrides.filter(override => override.variantId === variant.id),
+      ownBack: variant.backImageUrl ? { url: variant.backImageUrl, format: variant.backFormat } : null
     }))
   ].map(version => ({
     ...version,
@@ -129,6 +146,10 @@ export async function buildPrintExportZip(options: {
     if (!version.faces.length) {
       return [`« ${version.name} » : aucune carte prête au format ${formatTrimLabel(format)}`]
     }
+    // Like an overridden card, a variant back is never replaced by the deck back.
+    if (version.ownBack && (version.ownBack.format || 'poker') !== format.id) {
+      return [`« ${version.name} » : dos de la variante à régénérer au format ${formatTrimLabel(format)}`]
+    }
     return []
   })
 
@@ -136,14 +157,8 @@ export async function buildPrintExportZip(options: {
     throw new Error(problems.join(' · '))
   }
 
-  const backUrl = options.settings.cardBackImageUrl
-    && resolveDeckCardFormat({ cardFormat: options.settings.cardBackFormat }).id === format.id
-    ? options.settings.cardBackImageUrl
-    : null
-
   const theme = getCardTheme(options.settings.colorTheme)
   const canvas = getPrintCanvasPx(format)
-  const versoName = `${slug}-verso.pdf`
 
   // Cards shared by several versions are rendered and converted to CMYK once.
   const jpegCache = new Map<string, Promise<Buffer>>()
@@ -166,15 +181,30 @@ export async function buildPrintExportZip(options: {
     return jpeg
   }
 
+  // Back pages are converted once, even when several decks share the deck back.
+  const backJpegCache = new Map<string, Promise<Buffer>>()
+
+  function backJpeg(url: string) {
+    let jpeg = backJpegCache.get(url)
+    if (!jpeg) {
+      jpeg = (async () => toPrintCmykJpeg(await upscaleToPrintCanvas(await readRemoteBuffer(url), theme.id, format.id)))()
+      backJpegCache.set(url, jpeg)
+    }
+    return jpeg
+  }
+
   const zip = new JSZip()
   const printed = []
+  // Several decks: one folder per deck, each with its recto and its verso.
+  const inFolders = versions.length > 1
 
-  // Recto: every face of the version in the deck order, one card per page.
   for (const version of versions) {
-    const rectoName = `${version.fileSlug}-recto.pdf`
+    const folder = inFolders ? `${version.fileSlug}/` : ''
+    const rectoName = `${folder}${version.fileSlug}-recto.pdf`
     const title = version.isBase ? options.deckTitle : `${options.deckTitle} - ${version.name}`
     const pages = []
 
+    // Recto: every face of the deck in order, one card per page.
     for (const [index, face] of version.faces.entries()) {
       pages.push({
         cmykJpeg: await printJpeg(face),
@@ -183,32 +213,39 @@ export async function buildPrintExportZip(options: {
     }
 
     zip.file(rectoName, await buildPrintPdf({ title: `${title} - recto`, format, pages }))
+
+    // Verso: the variant's own back, or the deck back.
+    const backUrl = version.ownBack?.url ?? deckBackUrl
+    const versoName = backUrl ? `${folder}${version.fileSlug}-verso.pdf` : null
+
+    if (backUrl && versoName) {
+      zip.file(versoName, await buildPrintPdf({
+        title: `${title} - verso`,
+        format,
+        pages: [{
+          cmykJpeg: await backJpeg(backUrl),
+          label: `${title} - verso (dos commun aux ${version.faces.length} cartes)`
+        }]
+      }))
+    }
+
     printed.push({
       id: version.id,
       name: version.name,
       file: rectoName,
+      versoFile: versoName,
+      ownBack: Boolean(version.ownBack),
       cardCount: version.faces.length,
       overriddenCount: version.faces.filter(face => face.overridden).length
     })
   }
 
-  // Verso: one back for the whole deck and all its variants.
   const totalCards = printed.reduce((sum, version) => sum + version.cardCount, 0)
+  const hasCardBack = printed.some(version => version.versoFile)
 
-  if (backUrl) {
-    zip.file(versoName, await buildPrintPdf({
-      title: `${options.deckTitle} - verso`,
-      format,
-      pages: [{
-        image: await upscaleToPrintCanvas(await readRemoteBuffer(backUrl), theme.id, format.id),
-        label: `${options.deckTitle} - verso (dos commun aux ${totalCards} cartes)`
-      }]
-    }))
-  }
-
-  const rectoInstruction = printed.length === 1
-    ? `${printed[0]!.file} : les ${printed[0]!.cardCount} faces, une carte par page.`
-    : `${printed.length} jeux complets, un PDF recto par jeu (une carte par page) : ${printed.map(version => `${version.file} (${version.name}, ${version.cardCount} cartes)`).join(', ')}.`
+  const instruction = printed.length === 1
+    ? `${printed[0]!.file} : les ${printed[0]!.cardCount} faces, une carte par page.${printed[0]!.versoFile ? ` ${printed[0]!.versoFile} : le dos, identique pour toutes les cartes.` : ''}`
+    : `${printed.length} jeux complets, un dossier par jeu avec son PDF recto (une carte par page) et son PDF verso (le dos de toutes ses cartes) : ${printed.map(version => `${version.name} (${version.cardCount} cartes${version.ownBack ? ', dos propre' : ''})`).join(', ')}.`
 
   const spec = {
     ...getPrintSpecSummary(format),
@@ -218,12 +255,12 @@ export async function buildPrintExportZip(options: {
       type: options.deckType,
       colorTheme: theme.id,
       cardCount: printed[0]!.cardCount,
-      hasCardBack: Boolean(backUrl)
+      hasCardBack
     },
     versions: printed,
     canvas,
     instructions: [
-      `${rectoInstruction} ${backUrl ? `${versoName} : le dos, identique pour toutes les cartes${printed.length > 1 ? ' de tous les jeux' : ''}.` : ''}`.trim(),
+      instruction,
       `Couleurs en CMJN, profil ${PRINT_ICC_PROFILE.description}.`,
       `Fond perdu : ${PRINT_BLEED_MM} mm inclus de chaque côté, à couper au format ${formatTrimLabel(format)} (TrimBox du PDF). Traits de coupe de ${PRINT_CROP_MARK_LENGTH_MM} mm, hors fond perdu.`,
       format.layout === 'band'
@@ -249,6 +286,6 @@ export async function buildPrintExportZip(options: {
     url,
     cardCount: totalCards,
     versions: printed,
-    hasCardBack: Boolean(backUrl)
+    hasCardBack
   }
 }
