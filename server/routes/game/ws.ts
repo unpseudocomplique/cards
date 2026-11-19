@@ -9,9 +9,18 @@ type WsPeerContext = {
   userId: string
   seat: number | null
   helloReceived: boolean
+  handle: PeerHandle | null
 }
 
 const peerContext = new WeakMap<object, WsPeerContext>()
+/**
+ * `open` reads the session asynchronously and crossws does not wait for it, so
+ * the client's first `hello` can arrive before the context exists (seen on page
+ * refresh). Messages wait for the open to finish instead of being rejected.
+ */
+const peerReady = new WeakMap<object, Promise<void>>()
+
+type WsPeer = { request: { url: string }, send: (data: string) => void, close: (code?: number, reason?: string) => void }
 
 function resolveSeat(code: string, userId: string): number | null {
   const state = gameStore.get(code)
@@ -62,6 +71,7 @@ function attachPeer(peer: object, ctx: WsPeerContext): PeerHandle {
       sendJson(peer as { send: (data: string) => void }, data)
     },
   }
+  ctx.handle = handle
   gameStore.setPeer(ctx.code, ctx.userId, handle)
   return handle
 }
@@ -91,101 +101,123 @@ function readCode(peer: { request: { url: string } }): string {
   return url.searchParams.get('code')?.trim() ?? ''
 }
 
+async function openPeer(peer: WsPeer): Promise<void> {
+  const code = readCode(peer)
+  if (!code) {
+    peer.close(4400, 'Missing code')
+    return
+  }
+
+  if (!gameStore.get(code)) {
+    peer.close(4404, 'Unknown table')
+    return
+  }
+
+  try {
+    const session = await requireUserSession(peer as unknown as Parameters<typeof requireUserSession>[0]) as { user: { id: string } }
+    peerContext.set(peer, {
+      code,
+      userId: session.user.id,
+      seat: resolveSeat(code, session.user.id),
+      helloReceived: false,
+      handle: null,
+    })
+  } catch {
+    peer.close(4401, 'Unauthorized')
+  }
+}
+
+function handleMessage(peer: WsPeer, message: unknown): void {
+  const ctx = peerContext.get(peer)
+  if (!ctx) {
+    sendError(peer, 'UNAUTHORIZED', 'Session not established')
+    return
+  }
+
+  const parsed = parseMessage(message)
+  if (!parsed?.type) {
+    sendError(peer, 'INVALID_MESSAGE', 'Expected JSON message with type')
+    return
+  }
+
+  if (parsed.type === 'hello') {
+    if (ctx.helloReceived) {
+      const seat = resolveSeat(ctx.code, ctx.userId)
+      if (seat !== null) {
+        sendPrivate(peer, ctx.code, seat)
+      }
+      return
+    }
+
+    const seat = resolveSeat(ctx.code, ctx.userId)
+    if (seat === null) {
+      sendError(peer, 'NOT_SEATED', 'Join the table before sending hello')
+      return
+    }
+
+    completeHello(peer, ctx)
+    return
+  }
+
+  if (parsed.type === 'intent') {
+    if (!parsed.intent) {
+      sendError(peer, 'INVALID_MESSAGE', 'Intent message requires intent')
+      return
+    }
+
+    if (!ctx.helloReceived && parsed.intent.type !== 'join') {
+      sendError(peer, 'NOT_CONNECTED', 'Send hello before intents')
+      return
+    }
+
+    const actor = {
+      userId: ctx.userId,
+      seat: ctx.seat ?? undefined,
+    }
+    const result = gameStore.applyIntent(ctx.code, parsed.intent, actor)
+    // Several players (or the fallback timer) can press "Donne suivante" at
+    // once: only the first counts, the others just get the fresh state.
+    if (!result.ok && parsed.intent.type === 'continue' && result.error === 'WRONG_PHASE' && ctx.seat !== null) {
+      sendPrivate(peer, ctx.code, ctx.seat)
+      return
+    }
+    if (!result.ok) {
+      sendError(peer, result.error, result.reason)
+      return
+    }
+
+    if (parsed.intent.type === 'join') {
+      completeHello(peer, ctx)
+      return
+    }
+
+    if (ctx.seat !== null) {
+      sendPrivate(peer, ctx.code, ctx.seat)
+    }
+    return
+  }
+
+  sendError(peer, 'INVALID_MESSAGE', `Unknown message type: ${parsed.type}`)
+}
+
 export default defineWebSocketHandler({
   async upgrade(request) {
     await requireUserSession(request)
   },
 
-  async open(peer) {
-    const code = readCode(peer)
-    if (!code) {
-      peer.close(4400, 'Missing code')
-      return
-    }
-
-    if (!gameStore.get(code)) {
-      peer.close(4404, 'Unknown table')
-      return
-    }
-
-    try {
-      const session = await requireUserSession(peer) as { user: { id: string } }
-      peerContext.set(peer, {
-        code,
-        userId: session.user.id,
-        seat: resolveSeat(code, session.user.id),
-        helloReceived: false,
-      })
-    } catch {
-      peer.close(4401, 'Unauthorized')
-    }
+  open(peer) {
+    const ready = openPeer(peer as unknown as WsPeer)
+    peerReady.set(peer, ready)
+    return ready
   },
 
   message(peer, message) {
-    const ctx = peerContext.get(peer)
-    if (!ctx) {
-      sendError(peer, 'UNAUTHORIZED', 'Session not established')
-      return
+    const ready = peerReady.get(peer)
+    if (!peerContext.has(peer) && ready) {
+      // Still reading the session: answer once it is known (keeps order).
+      return ready.then(() => handleMessage(peer as unknown as WsPeer, message))
     }
-
-    const parsed = parseMessage(message)
-    if (!parsed?.type) {
-      sendError(peer, 'INVALID_MESSAGE', 'Expected JSON message with type')
-      return
-    }
-
-    if (parsed.type === 'hello') {
-      if (ctx.helloReceived) {
-        const seat = resolveSeat(ctx.code, ctx.userId)
-        if (seat !== null) {
-          sendPrivate(peer, ctx.code, seat)
-        }
-        return
-      }
-
-      const seat = resolveSeat(ctx.code, ctx.userId)
-      if (seat === null) {
-        sendError(peer, 'NOT_SEATED', 'Join the table before sending hello')
-        return
-      }
-
-      completeHello(peer, ctx)
-      return
-    }
-
-    if (parsed.type === 'intent') {
-      if (!parsed.intent) {
-        sendError(peer, 'INVALID_MESSAGE', 'Intent message requires intent')
-        return
-      }
-
-      if (!ctx.helloReceived && parsed.intent.type !== 'join') {
-        sendError(peer, 'NOT_CONNECTED', 'Send hello before intents')
-        return
-      }
-
-      const actor = {
-        userId: ctx.userId,
-        seat: ctx.seat ?? undefined,
-      }
-      const result = gameStore.applyIntent(ctx.code, parsed.intent, actor)
-      if (!result.ok) {
-        sendError(peer, result.error, result.reason)
-        return
-      }
-
-      if (parsed.intent.type === 'join') {
-        completeHello(peer, ctx)
-        return
-      }
-
-      if (ctx.seat !== null) {
-        sendPrivate(peer, ctx.code, ctx.seat)
-      }
-      return
-    }
-
-    sendError(peer, 'INVALID_MESSAGE', `Unknown message type: ${parsed.type}`)
+    handleMessage(peer as unknown as WsPeer, message)
   },
 
   close(peer) {
@@ -195,8 +227,10 @@ export default defineWebSocketHandler({
     }
 
     peerContext.delete(peer)
-    if (ctx.helloReceived) {
-      gameStore.removePeer(ctx.code, ctx.userId)
+    peerReady.delete(peer)
+    // Only the user's current socket counts: a late close from a refreshed tab
+    // must not mark a player who is already back as gone.
+    if (ctx.helloReceived && gameStore.removePeer(ctx.code, ctx.userId, ctx.handle ?? undefined)) {
       onDisconnect(ctx.code, ctx.userId)
     }
   },

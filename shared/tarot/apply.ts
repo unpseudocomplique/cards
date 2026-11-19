@@ -122,6 +122,7 @@ function resetDealFields(state: GameState): GameState {
     ...state,
     hands: Array.from({ length: state.playerCount }, () => [] as CardId[]),
     chien: [],
+    dogShown: undefined,
     ecart: [],
     bidState: null,
     bid: null,
@@ -199,14 +200,27 @@ function enterContractWon(state: GameState, seat: number, contract: Contract): G
     }
   }
 
+  const dogEcarta: GameState = {
+    ...base,
+    phase: 'DogEcarta',
+    currentSeat: seat,
+  }
+  // 5 players: the taker calls a king before the dog is turned over.
+  if (state.playerCount === 5) {
+    return dogEcarta
+  }
+  return takeDog(dogEcarta, seat)
+}
+
+/** Turn the dog face up for everyone and put it in the taker's hand. */
+function takeDog(state: GameState, seat: number): GameState {
   const takerHand = mergeChienIntoHand(state.hands[seat]!, state.chien)
   const hands = state.hands.map((hand, index) => (index === seat ? takerHand : [...hand]))
   return {
-    ...base,
-    phase: 'DogEcarta',
+    ...state,
     hands,
+    dogShown: [...state.chien],
     chien: [],
-    currentSeat: seat,
   }
 }
 
@@ -546,15 +560,15 @@ function handleCallKing(state: GameState, intent: Extract<Intent, { type: 'callK
     return failure('NOT_YOUR_TURN', 'Only the taker may call a king')
   }
 
+  // A king left in the dog means the taker plays alone (resolved before taking it).
   const partnerSeat = resolvePartnerSeat(state, intent.king, state.bid.seat)
-  return success(
-    {
-      ...state,
-      calledKing: intent.king,
-      partnerSeat,
-    },
-    [],
-  )
+  const called: GameState = {
+    ...state,
+    calledKing: intent.king,
+    partnerSeat,
+  }
+  const dogStillHidden = state.phase === 'DogEcarta' && state.chien.length > 0
+  return success(dogStillHidden ? takeDog(called, seat) : called, [])
 }
 
 function requireCalledKingIfNeeded(state: GameState): ApplyResult | null {
@@ -598,6 +612,7 @@ function handleDiscard(state: GameState, intent: Extract<Intent, { type: 'discar
       ...state,
       phase: 'ReadyToPlay',
       hands,
+      dogShown: undefined,
       ecart: [...intent.cards],
       currentSeat: firstLeaderSeat(state),
       trick: [],

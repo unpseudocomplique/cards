@@ -51,6 +51,11 @@ export type GameState = {
   seats: SeatInfo[]
   hands: CardId[][]
   chien: CardId[]
+  /**
+   * Prise / garde: the dog cards turned face up for everyone until the taker
+   * discards (5 players: once the king is called). Never set for garde sans/contre.
+   */
+  dogShown?: CardId[]
   ecart: CardId[]
   bidState: BidState | null
   bid: { seat: number, contract: Contract } | null

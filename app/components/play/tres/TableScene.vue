@@ -241,7 +241,38 @@ function spawnSeatFlight(seat: number, card: CardId) {
   })
 }
 
+/** The finished trick is still on show (hold, then sweep to the winner). */
+function collectInProgress() {
+  return holdTimer !== null || collectTimer !== null
+}
+
+/**
+ * After a sweep, catch up with cards played meanwhile (another player can lead
+ * the next trick while we are still showing the last one).
+ */
+function syncLiveTrick() {
+  const next = props.publicState.trick ?? []
+  const shown = new Set(displayTrick.value.map(entry => `${entry.seat}:${entry.card}`))
+  for (const entry of next) {
+    if (shown.has(`${entry.seat}:${entry.card}`)) {
+      continue
+    }
+    spawnSeatFlight(entry.seat, entry.card)
+    if (entry.seat !== localSeat.value) {
+      celebrateBout(entry.card, entry.seat)
+    }
+  }
+  displayTrick.value = next.map(entry => ({ ...entry }))
+  knownTrickKey = next.map(entry => `${entry.seat}:${entry.card}`).join('|')
+}
+
 function onHandPlay(card: CardId, origin?: DOMRect) {
+  if (collectInProgress()) {
+    // The last trick is still on the felt: the card joins the table after the sweep.
+    celebrateBout(card, localSeat.value)
+    emit('play', card)
+    return
+  }
   const scene = measureScene()
   const fallbackHeight = 105
   const fallbackWidth = Math.round(fallbackHeight * cardRatio.value)
@@ -311,6 +342,7 @@ function beginCollect(winnerSeat: number, trickCards: TrickEntry[]) {
       collectingToSeat.value = null
       trickSummaryLine.value = null
       collectTimer = null
+      syncLiveTrick()
     }, steal.stolen ? TRICK_COLLECT_MS + 250 : TRICK_COLLECT_MS)
   }, steal.stolen ? TRICK_HOLD_MS + 400 : TRICK_HOLD_MS)
 }
@@ -353,6 +385,12 @@ watch(
     }
 
     if (key === knownTrickKey) {
+      return
+    }
+
+    // Next trick already started while the last one is still shown: keep the
+    // finished trick readable, the new cards come in after the sweep.
+    if (collectInProgress()) {
       return
     }
 

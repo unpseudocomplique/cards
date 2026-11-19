@@ -55,6 +55,11 @@ watch([connected, publicState, privateState], () => {
 
 const inviteUrl = computed(() => `${String(config.public.siteUrl).replace(/\/$/, '')}/play/${code.value}`)
 const isLobby = computed(() => publicState.value?.phase === 'Lobby')
+/**
+ * After a refresh mid-game the public table arrives before our own seat and
+ * hand: wait for them instead of drawing the table from seat 0 without a hand.
+ */
+const rejoining = computed(() => Boolean(publicState.value && !isLobby.value && alreadySeated.value && !privateState.value))
 const isHost = computed(() => Boolean(user.value && publicState.value?.seats[0]?.userId === user.value.id))
 const localSeat = computed(() => privateState.value?.seat ?? null)
 const phase = computed(() => publicState.value?.phase)
@@ -136,7 +141,21 @@ function play(card: CardId) {
 
 <template>
   <div
-    v-if="publicState && !isLobby"
+    v-if="rejoining"
+    class="grid h-dvh w-full place-items-center bg-neutral-950 text-white/70"
+    role="status"
+  >
+    <p class="flex items-center gap-2 text-sm">
+      <UIcon
+        name="i-lucide-loader-circle"
+        class="size-4 animate-spin"
+      />
+      Retour à la table…
+    </p>
+  </div>
+
+  <div
+    v-else-if="publicState && !isLobby"
     class="relative h-dvh w-full overflow-hidden overscroll-none bg-neutral-950"
     :style="{ '--table-card-ratio': cardRatio }"
   >
@@ -160,6 +179,7 @@ function play(card: CardId) {
           :state="publicState"
           :local-seat="localSeat"
           :degraded="publicSyncDegraded"
+          :offline="!connected"
           :called-partner="isCalledPartner"
           @leave="leaveOpen = true"
         />
