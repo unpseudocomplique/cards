@@ -85,11 +85,39 @@ export type DeckSettings = {
   pipCardStyle?: PipCardStyle
 }
 
+/** A card overridden in a print variant; every other field comes from the deck card. */
+export type DeckVariantCard = {
+  id: string
+  variantId: string
+  baseCardId: string
+  sourcePersonId: string | null
+  sourcePhotoId: string | null
+  /** null = same prompt as the deck card. */
+  prompt: string | null
+  status: DeckCard['status']
+  metadata: { format?: CardFormatId }
+  rawImageUrl: string | null
+  finalImageUrl: string | null
+  errorMessage: string | null
+}
+
+/** Print variant: the whole deck, except the cards listed in `cards`. */
+export type DeckVariant = {
+  id: string
+  name: string
+  /** Back of its own; null = same back as the deck. */
+  back: { prompt: string | null, imageUrl: string, format: CardFormatId | null } | null
+  createdAt: string
+  cards: DeckVariantCard[]
+}
+
 export type DeckDetails = {
   deck: DeckSummary & {
     settings: DeckSettings
   }
   cards: DeckCard[]
   persons: DeckPerson[]
+  /** Absent on payloads that predate variants. */
+  variants?: DeckVariant[]
   photos: DeckPhoto[]
 }

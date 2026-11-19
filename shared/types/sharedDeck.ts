@@ -12,6 +12,16 @@ export type SharedDeck = {
   cardFormat: CardFormatId | null
   backImageUrl: string | null
   cards: SharedDeckCard[]
+  /** Print variants of the deck, each a complete deck with its name. */
+  variants: SharedDeckVariant[]
+}
+
+export type SharedDeckVariant = {
+  key: number
+  name: string
+  /** Own back, or the deck back. */
+  backImageUrl: string | null
+  cards: SharedDeckCard[]
 }
 
 export type SharedDeckCard = {
@@ -21,4 +31,6 @@ export type SharedDeckCard = {
   suit: string | null
   role: string | null
   imageUrl: string
+  /** Card changed in this variant (variants only). */
+  changed?: boolean
 }

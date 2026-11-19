@@ -11,7 +11,7 @@ const route = useRoute()
 const toast = useToast()
 const deckId = computed(() => String(route.params.id))
 const workspace = provideDeckWorkspace(deckId)
-const { deck, stats, persons, job, error, status, refresh, stopGeneration } = workspace
+const { deck, stats, persons, variants, job, error, status, refresh, stopGeneration } = workspace
 
 await workspace.request
 
@@ -36,6 +36,11 @@ const tabs = computed<NavigationMenuItem[]>(() => [{
   label: 'Style',
   icon: 'i-lucide-palette',
   to: `${base.value}/style`
+}, {
+  label: 'Variantes',
+  icon: 'i-lucide-copy-plus',
+  to: `${base.value}/variantes`,
+  badge: variants.value.length || undefined
 }, {
   label: 'Dos & impression',
   icon: 'i-lucide-printer',

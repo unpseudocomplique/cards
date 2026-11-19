@@ -96,9 +96,16 @@ export async function toPrintCmykJpeg(source: Buffer) {
     .toBuffer()
 }
 
-export type PrintPdfPage = {
-  /** Card image at trim + bleed (from upscaleToPrintCanvas). */
-  image: Buffer
+export type PrintPdfPage = (
+  | {
+    /** Card image at trim + bleed (from upscaleToPrintCanvas). */
+    image: Buffer
+  }
+  | {
+    /** Same, already converted with toPrintCmykJpeg (reused across PDFs). */
+    cmykJpeg: Buffer
+  }
+) & {
   /** Small text in the slug, outside the bleed, to identify the page. */
   label: string
 }
@@ -179,7 +186,7 @@ export async function buildPrintPdf(options: {
     page.setBleedBox(slug - bleed, slug - bleed, trimWidth + bleed * 2, trimHeight + bleed * 2)
     page.setTrimBox(trim.x, trim.y, trim.width, trim.height)
 
-    const image = await doc.embedJpg(await toPrintCmykJpeg(entry.image))
+    const image = await doc.embedJpg('cmykJpeg' in entry ? entry.cmykJpeg : await toPrintCmykJpeg(entry.image))
     page.drawImage(image, {
       x: slug - bleed,
       y: slug - bleed,

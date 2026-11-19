@@ -15,11 +15,23 @@ const { data: deck, error } = await useFetch<SharedDeck>(() => `/api/share/${tok
 const theme = computed(() => getCardTheme(deck.value?.colorTheme))
 const format = computed(() => resolveDeckCardFormat({ cardFormat: deck.value?.cardFormat }))
 const ratio = computed(() => String(cardFormatRatio(format.value)))
-const cards = computed(() => deck.value?.cards ?? [])
+/* Versions: the deck, then its named variants. */
+const variants = computed(() => deck.value?.variants ?? [])
+const version = shallowRef('base')
+const currentVariant = computed(() => version.value === 'base'
+  ? null
+  : variants.value.find(variant => String(variant.key) === version.value) ?? null)
+const versionItems = computed(() => [
+  { label: 'Version originale', value: 'base' },
+  ...variants.value.map(variant => ({ label: variant.name, value: String(variant.key) }))
+])
+const cards = computed(() => currentVariant.value?.cards ?? deck.value?.cards ?? [])
+const backImageUrl = computed(() => currentVariant.value ? currentVariant.value.backImageUrl : deck.value?.backImageUrl ?? null)
+const changedCount = computed(() => cards.value.filter(card => card.changed).length)
 
 /** Most recognisable faces first, for the cover and link previews. */
 const coverRoles = ['king', 'queen', 'knight', 'jack', 'trump', 'excuse']
-const coverUrls = computed(() => [...cards.value]
+const coverUrls = computed(() => [...(deck.value?.cards ?? [])]
   .sort((a, b) => rolePriority(a) - rolePriority(b))
   .slice(0, 3)
   .map(card => card.imageUrl))
@@ -71,6 +83,10 @@ const viewerOpen = computed({
       openIndex.value = null
     }
   }
+})
+
+watch(version, () => {
+  openIndex.value = null
 })
 
 function open(index: number) {
@@ -154,6 +170,33 @@ function isRed(card: SharedDeckCard) {
 
       <template v-else>
         <div
+          v-if="variants.length"
+          class="mt-10 flex flex-col items-center gap-2"
+        >
+          <div class="-mx-1 max-w-full overflow-x-auto px-1">
+            <UTabs
+              v-model="version"
+              :items="versionItems"
+              :content="false"
+              size="sm"
+              class="w-max"
+            />
+          </div>
+          <p
+            v-if="currentVariant"
+            class="text-sm text-muted"
+          >
+            Variante « {{ currentVariant.name }} » :
+            <template v-if="changedCount">
+              {{ changedCount }} carte{{ changedCount > 1 ? 's' : '' }} différente{{ changedCount > 1 ? 's' : '' }} de la version originale.
+            </template>
+            <template v-else>
+              mêmes faces que la version originale.
+            </template>
+          </p>
+        </div>
+
+        <div
           v-if="suitItems.length > 2"
           class="mt-10 -mx-1 overflow-x-auto px-1"
         >
@@ -170,20 +213,26 @@ function isRed(card: SharedDeckCard) {
         <div class="mt-8 grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-x-4 gap-y-6 sm:grid-cols-[repeat(auto-fill,minmax(10.5rem,1fr))]">
           <button
             v-for="(card, index) in visibleCards"
-            :key="card.key"
+            :key="`${version}-${card.key}`"
             type="button"
             class="group block w-full rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-4 focus-visible:ring-offset-(--ui-bg)"
             :aria-label="`Agrandir ${card.label}`"
             @click="open(index)"
           >
-            <img
-              :src="card.imageUrl"
-              :alt="card.label"
-              class="w-full rounded-[6%] object-cover shadow-sm ring-1 ring-black/5 transition duration-200 group-hover:-translate-y-1 group-hover:shadow-lg dark:ring-white/5"
-              :style="{ aspectRatio: ratio }"
-              loading="lazy"
-              draggable="false"
-            >
+            <span class="relative block">
+              <img
+                :src="card.imageUrl"
+                :alt="card.label"
+                class="w-full rounded-[6%] object-cover shadow-sm ring-1 ring-black/5 transition duration-200 group-hover:-translate-y-1 group-hover:shadow-lg dark:ring-white/5"
+                :style="{ aspectRatio: ratio }"
+                loading="lazy"
+                draggable="false"
+              >
+              <span
+                v-if="card.changed"
+                class="absolute top-[5%] right-[5%] rounded-full bg-primary px-2 py-0.5 text-[11px] font-medium text-inverted shadow"
+              >Variante</span>
+            </span>
             <span
               class="mt-2 block truncate px-0.5 text-xs font-medium"
               :class="isRed(card) ? 'text-error' : 'text-default'"
@@ -217,7 +266,7 @@ function isRed(card: SharedDeckCard) {
             :style="{ '--card-ratio': ratio }"
           >
             <img
-              :src="showBack && deck.backImageUrl ? deck.backImageUrl : openCard.imageUrl"
+              :src="showBack && backImageUrl ? backImageUrl : openCard.imageUrl"
               :alt="showBack ? 'Dos de carte' : openCard.label"
               class="w-full rounded-[5%] object-cover shadow-xl shadow-black/30"
               :style="{ aspectRatio: ratio, backgroundColor: theme.colors.paper }"
@@ -233,7 +282,7 @@ function isRed(card: SharedDeckCard) {
               @click="step(-1)"
             />
             <UButton
-              v-if="deck.backImageUrl"
+              v-if="backImageUrl"
               :label="showBack ? 'Voir la face' : 'Voir le dos'"
               icon="i-lucide-repeat"
               color="neutral"
