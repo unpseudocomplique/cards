@@ -40,6 +40,16 @@ export type DeckStyleSettings = {
   cardBackFormat?: CardFormatId
   /** Aces and numerals: classic pips (default) or AI illustration like the other cards. */
   pipCardStyle?: PipCardStyle
+  /** Set on a deck saved from someone else's share link (faces copied, no AI). */
+  copiedFrom?: DeckCopySource
+}
+
+export type DeckCopySource = {
+  deckId: string
+  /** Variant the copy was made from (null = the deck itself). */
+  variantId: string | null
+  ownerName: string
+  copiedAt: string
 }
 
 export type DeckCardMetadata = {

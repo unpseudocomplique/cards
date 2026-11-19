@@ -83,6 +83,8 @@ export type DeckSettings = {
   cardBackFormat?: CardFormatId
   /** Aces and numerals: classic pips (default) or AI illustration. */
   pipCardStyle?: PipCardStyle
+  /** Set on a deck saved from someone else's share link. */
+  copiedFrom?: { deckId: string, variantId: string | null, ownerName: string, copiedAt: string }
 }
 
 /** A card overridden in a print variant; every other field comes from the deck card. */

@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import type { SharedDeck, SharedDeckCard } from '~~/shared/types/sharedDeck'
+import type { SavedSharedDeck, SharedDeck, SharedDeckCard } from '~~/shared/types/sharedDeck'
 import type { CardSuitPromptKey } from '~/types/deck'
 import { getCardTheme } from '~~/shared/utils/cardThemes'
 import { cardFormatRatio, resolveDeckCardFormat } from '~~/shared/utils/printSpec'
 import { deckTypeLabels, suitMeta } from '~/utils/deckLabels'
 
 const route = useRoute()
+const router = useRouter()
+const toast = useToast()
+const { loggedIn } = useUserSession()
 const token = computed(() => String(route.params.token))
 
 const { data: deck, error } = await useFetch<SharedDeck>(() => `/api/share/${token.value}`, {
@@ -17,7 +20,7 @@ const format = computed(() => resolveDeckCardFormat({ cardFormat: deck.value?.ca
 const ratio = computed(() => String(cardFormatRatio(format.value)))
 /* Versions: the deck, then its named variants. */
 const variants = computed(() => deck.value?.variants ?? [])
-const version = shallowRef('base')
+const version = shallowRef(typeof route.query.version === 'string' ? route.query.version : 'base')
 const currentVariant = computed(() => version.value === 'base'
   ? null
   : variants.value.find(variant => String(variant.key) === version.value) ?? null)
@@ -55,6 +58,70 @@ useSeoMeta({
   ogDescription: () => deck.value ? `Un jeu de cartes créé par ${deck.value.ownerName}.` : undefined,
   ogImage: () => ogImage.value,
   robots: 'noindex, nofollow'
+})
+
+/* Save a copy / play: copies the finished faces, never generates anything. */
+type ShareAction = 'save' | 'play'
+const canPlay = computed(() => deck.value?.type === 'tarot78')
+const busy = shallowRef<ShareAction | null>(null)
+
+async function run(action: ShareAction) {
+  if (busy.value) {
+    return
+  }
+
+  if (!loggedIn.value) {
+    const back = `/partage/${token.value}?action=${action}&version=${version.value}`
+    await navigateTo({ path: '/auth/login', query: { redirect: back } })
+    return
+  }
+
+  busy.value = action
+  try {
+    const saved = await $fetch<SavedSharedDeck>(`/api/share/${token.value}/save`, {
+      method: 'POST',
+      body: { variant: currentVariant.value ? currentVariant.value.key : null }
+    })
+    // The library and the play setup read the deck list from this cache.
+    await refreshNuxtData('decks').catch(() => {})
+
+    if (action === 'play') {
+      await navigateTo({ path: '/play', query: { deck: saved.deckId } })
+      return
+    }
+
+    toast.add({
+      title: saved.created ? 'Deck sauvegardé' : 'Déjà dans vos decks',
+      description: saved.created
+        ? 'Une copie de ce deck est maintenant dans votre bibliothèque.'
+        : 'Vous avez déjà ce deck : rien n’a été dupliqué.',
+      color: 'success',
+      icon: 'i-lucide-check',
+      actions: [{ label: 'Ouvrir', to: `/decks/${saved.deckId}`, color: 'neutral', variant: 'outline' }]
+    })
+  } catch (err) {
+    toast.add({
+      title: action === 'play' ? 'Impossible de lancer la partie' : 'Sauvegarde impossible',
+      description: getApiErrorMessage(err),
+      color: 'error',
+      icon: 'i-lucide-circle-alert'
+    })
+  } finally {
+    busy.value = null
+  }
+}
+
+// Back from the login page: finish what the visitor asked for.
+onMounted(() => {
+  const action = route.query.action
+  if ((action === 'save' || action === 'play') && deck.value) {
+    const { action: _action, version: _version, ...query } = route.query
+    router.replace({ query })
+    if (action === 'play' && !canPlay.value) {
+      return
+    }
+    run(action)
+  }
 })
 
 /* Suit filter */
@@ -157,6 +224,34 @@ function isRed(card: SharedDeckCard) {
             {{ deck.description }}
           </p>
         </div>
+        <div
+          v-if="cards.length"
+          class="flex flex-wrap items-center justify-center gap-2"
+        >
+          <UButton
+            v-if="canPlay"
+            label="Jouer avec ce deck"
+            icon="i-lucide-play"
+            :loading="busy === 'play'"
+            :disabled="busy !== null"
+            @click="run('play')"
+          />
+          <UButton
+            label="Sauvegarder dans mes decks"
+            icon="i-lucide-bookmark-plus"
+            color="neutral"
+            variant="outline"
+            :loading="busy === 'save'"
+            :disabled="busy !== null"
+            @click="run('save')"
+          />
+        </div>
+        <p
+          v-if="cards.length && currentVariant"
+          class="-mt-3 text-xs text-muted"
+        >
+          La variante « {{ currentVariant.name }} » sera utilisée.
+        </p>
       </header>
 
       <UEmpty
