@@ -9,6 +9,7 @@ type WsPeerContext = {
   userId: string
   seat: number | null
   helloReceived: boolean
+  handle: PeerHandle | null
 }
 
 const peerContext = new WeakMap<object, WsPeerContext>()
@@ -62,6 +63,7 @@ function attachPeer(peer: object, ctx: WsPeerContext): PeerHandle {
       sendJson(peer as { send: (data: string) => void }, data)
     },
   }
+  ctx.handle = handle
   gameStore.setPeer(ctx.code, ctx.userId, handle)
   return handle
 }
@@ -115,6 +117,7 @@ export default defineWebSocketHandler({
         userId: session.user.id,
         seat: resolveSeat(code, session.user.id),
         helloReceived: false,
+        handle: null,
       })
     } catch {
       peer.close(4401, 'Unauthorized')
@@ -169,6 +172,12 @@ export default defineWebSocketHandler({
         seat: ctx.seat ?? undefined,
       }
       const result = gameStore.applyIntent(ctx.code, parsed.intent, actor)
+      // Several players (or the fallback timer) can press "Donne suivante" at
+      // once: only the first counts, the others just get the fresh state.
+      if (!result.ok && parsed.intent.type === 'continue' && result.error === 'WRONG_PHASE' && ctx.seat !== null) {
+        sendPrivate(peer, ctx.code, ctx.seat)
+        return
+      }
       if (!result.ok) {
         sendError(peer, result.error, result.reason)
         return
@@ -195,8 +204,9 @@ export default defineWebSocketHandler({
     }
 
     peerContext.delete(peer)
-    if (ctx.helloReceived) {
-      gameStore.removePeer(ctx.code, ctx.userId)
+    // Only the user's current socket counts: a late close from a refreshed tab
+    // must not mark a player who is already back as gone.
+    if (ctx.helloReceived && gameStore.removePeer(ctx.code, ctx.userId, ctx.handle ?? undefined)) {
       onDisconnect(ctx.code, ctx.userId)
     }
   },

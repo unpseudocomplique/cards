@@ -160,6 +160,7 @@ function play(card: CardId) {
           :state="publicState"
           :local-seat="localSeat"
           :degraded="publicSyncDegraded"
+          :offline="!connected"
           :called-partner="isCalledPartner"
           @leave="leaveOpen = true"
         />

@@ -238,7 +238,7 @@ describe('publicView secrecy', () => {
     expect(toPublicView(state).deckId).toBe('deck-abc')
   })
 
-  it('reveals garde_sans chien only during ReadyToPlay', () => {
+  it('never reveals the dog in garde sans / garde contre', () => {
     const dog = [c('hearts-2'), c('spades-a'), c('diamonds-k'), c('clubs-3'), c('trump-4'), c('spades-j')]
     const base = createEmptyGame({
       hostUserId: HOST,
@@ -247,22 +247,60 @@ describe('publicView secrecy', () => {
       endValue: 1,
       deckId: 'deck-test',
     })
-    const ready: GameState = {
-      ...base,
-      phase: 'ReadyToPlay',
-      bid: { seat: 0, contract: 'garde_sans' },
-      chien: dog,
-      currentSeat: 1,
+    for (const contract of ['garde_sans', 'garde_contre'] as const) {
+      const ready: GameState = {
+        ...base,
+        phase: 'ReadyToPlay',
+        bid: { seat: 0, contract },
+        chien: dog,
+        currentSeat: 1,
+      }
+      expect(toPublicView(ready).chienRevealed).toBeNull()
     }
-    expect(toPublicView(ready).chienRevealed).toEqual(dog)
+  })
 
-    const playing: GameState = {
-      ...ready,
-      phase: 'Trick',
-      trick: [{ seat: 1, card: c('diamonds-5') }],
-      currentSeat: 2,
+  it('shows the prise / garde dog to everyone until the taker discards', () => {
+    const dog = [c('hearts-2'), c('spades-a'), c('diamonds-k'), c('clubs-3'), c('trump-4'), c('spades-j')]
+    const base = createEmptyGame({
+      hostUserId: HOST,
+      playerCount: 4,
+      endMode: 'deals',
+      endValue: 1,
+      deckId: 'deck-test',
+    })
+    const ecarta: GameState = {
+      ...base,
+      phase: 'DogEcarta',
+      bid: { seat: 0, contract: 'garde' },
+      dogShown: dog,
+      currentSeat: 0,
     }
-    expect(toPublicView(playing).chienRevealed).toBeNull()
+    expect(toPublicView(ecarta).chienRevealed).toEqual(dog)
+    expect(toPublicView({ ...ecarta, phase: 'ReadyToPlay', dogShown: undefined }).chienRevealed).toBeNull()
+  })
+
+  it('keeps the called partner secret until the called king is played', () => {
+    const base = createEmptyGame({
+      hostUserId: HOST,
+      playerCount: 5,
+      endMode: 'deals',
+      endValue: 1,
+      deckId: 'deck-test',
+    })
+    const king = c('hearts-k')
+    const playing: GameState = {
+      ...base,
+      phase: 'Trick',
+      bid: { seat: 0, contract: 'garde' },
+      calledKing: king,
+      partnerSeat: 3,
+      trick: [{ seat: 1, card: c('hearts-2') }],
+    }
+    expect(toPublicView(playing).partnerSeat).toBeUndefined()
+    expect(toPrivateView(playing, 3).partnerSeat).toBeUndefined()
+    expect(toPublicView({ ...playing, trick: [...playing.trick, { seat: 3, card: king }] }).partnerSeat).toBe(3)
+    expect(toPublicView({ ...playing, trick: [], pilesDefense: [king] }).partnerSeat).toBe(3)
+    expect(toPublicView({ ...playing, phase: 'Scoring', trick: [] }).partnerSeat).toBe(3)
   })
 })
 

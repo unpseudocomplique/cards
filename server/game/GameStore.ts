@@ -6,19 +6,23 @@ import type { PeerHandle, Room } from './types'
 const CODE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 const DISCONNECT_GRACE_MS = 8_000
 const TRICK_RESOLVE_PAUSE_MS = 3_600
+/**
+ * Scoring with people at the table: wait for someone to press "Donne suivante",
+ * and only move on alone if nobody does for this long.
+ */
+const SCORING_HUMAN_FALLBACK_MS = 45_000
 
-type BotDelayKind = 'bid' | 'playLead' | 'playFollow' | 'discard' | 'king' | 'scoring' | 'trickPause' | 'chienReveal'
+type BotDelayKind = 'bid' | 'playLead' | 'playFollow' | 'king' | 'scoring' | 'trickPause' | 'chienReveal'
 
 const BOT_DELAY_MS: Record<BotDelayKind, { min: number, max: number }> = {
   bid: { min: 900, max: 2_400 },
   playLead: { min: 700, max: 1_600 },
   playFollow: { min: 450, max: 1_200 },
-  discard: { min: 1_400, max: 2_800 },
   king: { min: 1_100, max: 2_200 },
   scoring: { min: 1_600, max: 2_600 },
   // Match client hold + collect so bots don't play over the summary.
   trickPause: { min: TRICK_RESOLVE_PAUSE_MS, max: TRICK_RESOLVE_PAUSE_MS + 500 },
-  // Let everyone read garde_sans / garde_contre dog before first card.
+  // Prise / garde: let everyone read the dog before a bot taker discards it.
   chienReveal: { min: 4_800, max: 5_400 },
 }
 
@@ -53,14 +57,6 @@ function botDelayForState(state: GameState): number {
     return randomDelayMs('bid')
   }
   if (state.phase === 'DogEcarta') {
-    return randomDelayMs('discard')
-  }
-  if (
-    state.phase === 'ReadyToPlay'
-    && state.trick.length === 0
-    && state.chien.length > 0
-    && (state.bid?.contract === 'garde_sans' || state.bid?.contract === 'garde_contre')
-  ) {
     return randomDelayMs('chienReveal')
   }
   if (state.phase === 'Trick' || state.phase === 'ReadyToPlay') {
@@ -74,6 +70,10 @@ function botDelayForState(state: GameState): number {
 function findSeatByUserId(state: GameState, userId: string): number | null {
   const seat = state.seats.find(s => s.userId === userId)
   return seat?.seatId ?? null
+}
+
+function humanAtTable(state: GameState): boolean {
+  return state.seats.some(seat => seat.userId && seat.controlledBy === 'human' && seat.connected)
 }
 
 class GameStore {
@@ -118,6 +118,9 @@ class GameStore {
       deckId: opts.deckId,
       code,
     })
+    // The engine deals from a counter; start each table somewhere random or
+    // every table would get the very same deals.
+    state.rngCounter = randomBytes(4).readUInt32BE(0) % 0x7fffffff
 
     this.rooms.set(code, {
       state,
@@ -145,12 +148,21 @@ class GameStore {
     room.peers.set(userId, peer)
   }
 
-  removePeer(code: string, userId: string): void {
+  /**
+   * Forget a closed socket. Returns false when that user already has a newer
+   * socket (refresh / reconnect where the old close arrives late): the player
+   * is still here and must not be marked as gone.
+   */
+  removePeer(code: string, userId: string, peer?: PeerHandle): boolean {
     const room = this.rooms.get(code)
     if (!room) {
-      return
+      return false
+    }
+    if (peer && room.peers.get(userId) !== peer) {
+      return false
     }
     room.peers.delete(userId)
+    return true
   }
 
   applyIntent(code: string, intent: Intent, actor: Actor): ApplyResult {
@@ -238,6 +250,9 @@ class GameStore {
     const state: GameState = { ...room.state, seats, version: room.state.version + 1 }
     room.state = state
     this.afterStateUpdate(code)
+    // The bot timer was cancelled above (it may have been for this seat); re-arm
+    // it for whoever is next, or the table would wait forever on a bot turn.
+    this.scheduleIfBotTurn(code)
     return { ok: true, state, events: [] }
   }
 
@@ -254,8 +269,10 @@ class GameStore {
       ? randomDelayMs(delayKind)
       : botDelayForState(state)
 
-    // Scoring: auto-continue after a short pause so the phase is observable.
+    // Scoring: bots-only tables move on after a short pause; with people at the
+    // table, someone presses "Donne suivante" (fallback if everyone is away).
     if (state.phase === 'Scoring') {
+      const scoringDelay = humanAtTable(state) ? SCORING_HUMAN_FALLBACK_MS : delayMs
       room.botTimer = setTimeout(() => {
         room.botTimer = null
         const current = this.rooms.get(code)
@@ -263,7 +280,7 @@ class GameStore {
           return
         }
         this.applyIntent(code, { type: 'continue' }, { userId: current.state.hostUserId })
-      }, delayMs)
+      }, scoringDelay)
       return
     }
 

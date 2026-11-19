@@ -8,6 +8,8 @@ const props = defineProps<{
   state: PublicGameView
   localSeat: number | null
   degraded?: boolean
+  /** Game socket down: the app is reconnecting on its own. */
+  offline?: boolean
   /** The local player holds the called king: the taker's (secret) partner. */
   calledPartner?: boolean
 }>()
@@ -109,8 +111,19 @@ const goal = computed(() => props.state.endMode === 'threshold'
         </span>
       </Transition>
       <div class="ml-auto flex shrink-0 items-center gap-2">
+        <span
+          v-if="offline"
+          class="flex items-center gap-1.5 rounded-md bg-amber-500/15 px-2 py-1 text-xs font-medium text-amber-200 ring-1 ring-amber-300/30"
+          role="status"
+        >
+          <UIcon
+            name="i-lucide-loader-circle"
+            class="size-3.5 animate-spin"
+          />
+          Reconnexion…
+        </span>
         <UTooltip
-          v-if="degraded"
+          v-else-if="degraded"
           text="Synchronisation partielle : la partie continue via le serveur de jeu."
         >
           <div class="grid size-8 place-items-center rounded-full bg-amber-500/15 text-amber-300 ring-1 ring-amber-300/30">
@@ -164,6 +177,18 @@ const goal = computed(() => props.state.endMode === 'threshold'
               aria-label="À son tour"
             />
             <span class="truncate">{{ localSeat === index ? 'Vous' : seat.name }}</span>
+            <UIcon
+              v-if="seat.userId && !seat.connected && seat.controlledBy === 'human'"
+              name="i-lucide-wifi-off"
+              class="size-3 shrink-0 text-white/40"
+              aria-label="Déconnecté"
+            />
+            <UIcon
+              v-else-if="seat.userId && !seat.connected && seat.controlledBy === 'bot'"
+              name="i-lucide-bot"
+              class="size-3 shrink-0 text-sky-300/70"
+              aria-label="Remplacé par un robot"
+            />
             <UIcon
               v-if="takerSeat === index"
               name="i-lucide-crown"

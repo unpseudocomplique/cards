@@ -15,7 +15,7 @@ describe('BotRunner', () => {
     gameStore.resetForTests()
   })
 
-  it('schedules a bot bid within 400-800ms when a bot seat is active in bidding', () => {
+  it('schedules a bot bid within the bid delay when a bot seat is active in bidding', () => {
     const { code } = gameStore.createTable({
       hostUserId: HOST_ID,
       hostName: 'Alice',
@@ -44,7 +44,7 @@ describe('BotRunner', () => {
     const beforeBid = gameStore.get(code)!
     expect(beforeBid.bidSpoken).toHaveLength(0)
 
-    vi.advanceTimersByTime(800)
+    vi.advanceTimersByTime(2_400)
 
     const afterBid = gameStore.get(code)!
     expect(afterBid.bidSpoken.length).toBeGreaterThan(0)

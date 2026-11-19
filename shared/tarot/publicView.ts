@@ -20,15 +20,30 @@ function publicSeats(state: GameState): PublicSeatInfo[] {
 }
 
 function chienRevealed(state: GameState): CardId[] | null {
-  // Show the dog only before the first card (ReadyToPlay). For garde_sans/contre the
-  // cards stay in state.chien until scoring — they must not remain on screen during Trick.
-  if (state.phase !== 'ReadyToPlay') {
+  // FFT: prise / garde turn the dog face up for everyone (5 players: after the
+  // king call) until the taker discards. Garde sans / contre: nobody sees it.
+  if (state.phase !== 'DogEcarta' || !state.dogShown?.length) {
     return null
   }
-  if (state.bid?.contract !== 'garde_sans' && state.bid?.contract !== 'garde_contre') {
-    return null
+  return [...state.dogShown]
+}
+
+/**
+ * 5 players: the called partner stays secret until the called king is played
+ * (or the deal is scored). Before that, only the partner knows, from their hand.
+ */
+function revealedPartnerSeat(state: GameState): number | undefined {
+  if (state.partnerSeat === undefined || !state.calledKing) {
+    return state.partnerSeat
   }
-  return state.chien.length > 0 ? state.chien : null
+  if (state.phase === 'Scoring' || state.phase === 'MatchOver') {
+    return state.partnerSeat
+  }
+  const king = state.calledKing
+  const played = state.trick.some(entry => entry.card === king)
+    || state.pilesAttack.includes(king)
+    || state.pilesDefense.includes(king)
+  return played ? state.partnerSeat : undefined
 }
 
 function computeLegalMoves(state: GameState, seat: number): CardId[] {
@@ -64,7 +79,7 @@ export function toPublicView(state: GameState): PublicGameView {
     ecartCount: state.ecart.length,
     bid: state.bid ? { ...state.bid } : null,
     bidSpoken: state.bidSpoken.map(entry => ({ ...entry })),
-    partnerSeat: state.partnerSeat,
+    partnerSeat: revealedPartnerSeat(state),
     calledKing: state.calledKing,
     scores: [...state.scores],
     dealIndex: state.dealIndex,

@@ -37,6 +37,18 @@ function localizeGameError(reason: string | undefined, fallback: string | undefi
   if (/bidding round is already complete/i.test(raw)) {
     return 'Les enchères sont terminées.'
   }
+  if (/can only join during lobby/i.test(raw)) {
+    return 'La partie a déjà commencé : vous ne pouvez plus vous asseoir à cette table.'
+  }
+  if (/no empty seats/i.test(raw)) {
+    return 'La table est complète.'
+  }
+  if (/expected seat \d+, got \d+/i.test(raw)) {
+    return 'Ce n’est pas votre tour.'
+  }
+  if (/is not a legal move/i.test(raw)) {
+    return 'Cette carte ne peut pas être jouée maintenant.'
+  }
   return raw
 }
 
@@ -65,6 +77,10 @@ export function useTarotGame(code: Ref<string> | string) {
   let awarenessChangeHandler: (() => void) | null = null
   let disposed = false
   let generation = 0
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  let reconnectAttempts = 0
+  /** Server closed for good (unknown table, not signed in): don't retry. */
+  let reconnectBlocked = false
 
   function displayName(): string {
     return user.value?.username ?? 'Player'
@@ -119,10 +135,22 @@ export function useTarotGame(code: Ref<string> | string) {
     sendIntent({ type: 'join', name: name ?? displayName() })
   }
 
+  /**
+   * Public state arrives from three places (private snapshot, Yjs, HTTP
+   * fallback) that can land out of order: never step back to an older version.
+   */
+  function setPublicState(view: PublicGameView) {
+    const current = publicState.value
+    if (current && current.code === view.code && view.version < current.version) {
+      return
+    }
+    publicState.value = view
+  }
+
   function applyPrivateView(view: PrivateGameView) {
     privateState.value = view
     const { seat: _seat, hand: _hand, legalMoves: _legalMoves, ...publicView } = view
-    publicState.value = publicView
+    setPublicState(publicView)
     syncAwarenessLocalState(view.seat)
     error.value = null
   }
@@ -133,7 +161,7 @@ export function useTarotGame(code: Ref<string> | string) {
       return
     }
     try {
-      publicState.value = await $fetch<PublicGameView>(`/api/game/${gameCode}`)
+      setPublicState(await $fetch<PublicGameView>(`/api/game/${gameCode}`))
     } catch {
       // Keep last known public snapshot.
     }
@@ -184,6 +212,14 @@ export function useTarotGame(code: Ref<string> | string) {
     doc?.destroy()
     doc = null
 
+    closeSocket()
+  }
+
+  function closeSocket() {
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
     if (ws) {
       ws.onopen = null
       ws.onmessage = null
@@ -191,6 +227,82 @@ export function useTarotGame(code: Ref<string> | string) {
       ws.onerror = null
       ws.close()
       ws = null
+    }
+  }
+
+  /**
+   * Game socket. Phones drop it when the screen locks or the network changes:
+   * reconnect on our own so the player gets their seat back from the bot.
+   */
+  function openSocket(gameCode: string, setupGeneration: number) {
+    closeSocket()
+    const wsOrigin = requestURL.origin.replace(/^http/, 'ws')
+    const socket = new WebSocket(`${wsOrigin}/game/ws?code=${encodeURIComponent(gameCode)}`)
+    ws = socket
+
+    socket.onopen = () => {
+      if (isStaleSetup(setupGeneration) || ws !== socket) {
+        return
+      }
+      reconnectAttempts = 0
+      connected.value = true
+      error.value = null
+      sendHello()
+    }
+
+    socket.onmessage = handleWsMessage
+    socket.onclose = (event: CloseEvent) => {
+      if (ws !== socket) {
+        return
+      }
+      connected.value = false
+      ws = null
+      // 4400 / 4401 / 4404: bad code, signed out, table gone. Retrying won't help.
+      if (event.code >= 4400 && event.code < 4500) {
+        reconnectBlocked = true
+        if (event.code === 4404) {
+          error.value = 'Cette table n’existe plus.'
+        }
+        return
+      }
+      scheduleReconnect(gameCode, setupGeneration)
+    }
+    socket.onerror = () => {
+      // onclose follows and handles the retry.
+    }
+  }
+
+  function scheduleReconnect(gameCode: string, setupGeneration: number) {
+    if (isStaleSetup(setupGeneration) || reconnectBlocked || reconnectTimer) {
+      return
+    }
+    const delay = Math.min(500 * 2 ** reconnectAttempts, 5_000)
+    reconnectAttempts++
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null
+      if (isStaleSetup(setupGeneration) || ws) {
+        return
+      }
+      openSocket(gameCode, setupGeneration)
+    }, delay)
+  }
+
+  /** Back to the tab / network is back: reconnect right away instead of waiting. */
+  function reconnectNow() {
+    const gameCode = codeRef.value
+    if (!import.meta.client || disposed || reconnectBlocked || !gameCode) {
+      return
+    }
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+      return
+    }
+    reconnectAttempts = 0
+    openSocket(gameCode, generation)
+  }
+
+  function onVisibilityChange() {
+    if (document.visibilityState === 'visible') {
+      reconnectNow()
     }
   }
 
@@ -214,6 +326,8 @@ export function useTarotGame(code: Ref<string> | string) {
 
     error.value = null
     privateState.value = null
+    reconnectAttempts = 0
+    reconnectBlocked = false
 
     try {
       publicState.value = await $fetch<PublicGameView>(`/api/game/${gameCode}`)
@@ -225,27 +339,7 @@ export function useTarotGame(code: Ref<string> | string) {
       return
     }
 
-    const wsOrigin = requestURL.origin.replace(/^http/, 'ws')
-    ws = new WebSocket(`${wsOrigin}/game/ws?code=${encodeURIComponent(gameCode)}`)
-
-    ws.onopen = () => {
-      if (isStaleSetup(setupGeneration)) {
-        return
-      }
-      connected.value = true
-      sendHello()
-    }
-
-    ws.onmessage = handleWsMessage
-    ws.onclose = () => {
-      connected.value = false
-    }
-    ws.onerror = () => {
-      if (isStaleSetup(setupGeneration)) {
-        return
-      }
-      error.value = 'WebSocket connection failed'
-    }
+    openSocket(gameCode, setupGeneration)
 
     if (isStaleSetup(setupGeneration)) {
       closeConnections()
@@ -256,9 +350,10 @@ export function useTarotGame(code: Ref<string> | string) {
     const publicMap = doc.getMap('public')
 
     publicMapObserver = () => {
-      const snapshot = publicMap.get('snapshot')
-      if (snapshot) {
-        publicState.value = snapshot as PublicGameView
+      const snapshot = publicMap.get('snapshot') as PublicGameView | undefined
+      // The Yjs room can hold a snapshot from an older table with the same code.
+      if (snapshot && snapshot.code === gameCode) {
+        setPublicState(snapshot)
       }
     }
     publicMap.observe(publicMapObserver)
@@ -333,7 +428,16 @@ export function useTarotGame(code: Ref<string> | string) {
     { immediate: true },
   )
 
+  if (import.meta.client) {
+    window.addEventListener('online', reconnectNow)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+  }
+
   onUnmounted(() => {
+    if (import.meta.client) {
+      window.removeEventListener('online', reconnectNow)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
     teardown()
   })
 
