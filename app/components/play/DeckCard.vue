@@ -125,23 +125,5 @@ const indexLabel = computed(() => label.value.shortLabel)
         {{ indexLabel }}
       </div>
     </div>
-
-    <!-- Readable indices on custom faces (esp. atouts) -->
-    <template v-if="faceUrl">
-      <div
-        class="pointer-events-none absolute top-1 left-1 rounded-sm bg-black/55 px-1 py-0.5 font-bold text-amber-50 shadow-sm backdrop-blur-[2px]"
-        :class="indexTextClass"
-        :style="indexStyle"
-      >
-        {{ indexLabel }}
-      </div>
-      <div
-        class="pointer-events-none absolute right-1 bottom-1 rotate-180 rounded-sm bg-black/55 px-1 py-0.5 font-bold text-amber-50 shadow-sm backdrop-blur-[2px]"
-        :class="indexTextClass"
-        :style="indexStyle"
-      >
-        {{ indexLabel }}
-      </div>
-    </template>
   </div>
 </template>
