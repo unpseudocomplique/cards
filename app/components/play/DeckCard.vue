@@ -21,6 +21,12 @@ const props = withDefaults(defineProps<{
   indexPx: null,
 })
 
+/**
+ * Corner radius of a real card: 5 % of the width (cardRadius in
+ * shared/utils/printSpec.ts, same as CardArt), whatever the card size.
+ */
+const cardCornerRadius = '5% / calc(5% * var(--table-card-ratio, 2 / 3))'
+
 const indexStyle = computed(() => props.indexPx ? { fontSize: `${props.indexPx}px` } : undefined)
 const glyphStyle = computed(() => props.indexPx ? { fontSize: `${Math.round(props.indexPx * 2.2)}px` } : undefined)
 
@@ -78,8 +84,8 @@ const indexLabel = computed(() => label.value.shortLabel)
 
 <template>
   <div
-    class="relative shrink-0 overflow-hidden rounded-xl border bg-[#f7f1e6] shadow-[0_10px_24px_-8px_rgba(0,0,0,0.7)]"
-    :style="{ aspectRatio: 'var(--table-card-ratio, 2 / 3)' }"
+    class="relative shrink-0 overflow-hidden border bg-[#f7f1e6] shadow-[0_10px_24px_-8px_rgba(0,0,0,0.7)]"
+    :style="{ aspectRatio: 'var(--table-card-ratio, 2 / 3)', borderRadius: cardCornerRadius }"
     :class="[
       sizeClass,
       highlighted ? 'border-amber-300 ring-2 ring-amber-300/60' : 'border-stone-300/80',
@@ -123,14 +129,14 @@ const indexLabel = computed(() => label.value.shortLabel)
     <!-- Readable indices on custom faces (esp. atouts) -->
     <template v-if="faceUrl">
       <div
-        class="pointer-events-none absolute top-1 left-1 rounded bg-black/55 px-1 py-0.5 font-bold text-amber-50 shadow-sm backdrop-blur-[2px]"
+        class="pointer-events-none absolute top-1 left-1 rounded-sm bg-black/55 px-1 py-0.5 font-bold text-amber-50 shadow-sm backdrop-blur-[2px]"
         :class="indexTextClass"
         :style="indexStyle"
       >
         {{ indexLabel }}
       </div>
       <div
-        class="pointer-events-none absolute right-1 bottom-1 rotate-180 rounded bg-black/55 px-1 py-0.5 font-bold text-amber-50 shadow-sm backdrop-blur-[2px]"
+        class="pointer-events-none absolute right-1 bottom-1 rotate-180 rounded-sm bg-black/55 px-1 py-0.5 font-bold text-amber-50 shadow-sm backdrop-blur-[2px]"
         :class="indexTextClass"
         :style="indexStyle"
       >
