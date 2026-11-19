@@ -138,6 +138,9 @@ function play(card: CardId) {
       @play="play"
     />
 
+    <!-- Soft shade behind the HUD so it reads without a heavy panel -->
+    <div class="pointer-events-none absolute inset-x-0 top-0 z-30 h-36 bg-gradient-to-b from-black/75 via-black/35 to-transparent short:h-24" />
+
     <!-- HUD -->
     <div class="pointer-events-none absolute inset-0 z-40 flex flex-col px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4 short:pt-[max(0.5rem,env(safe-area-inset-top))] short:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
       <div class="pointer-events-auto mx-auto w-full max-w-5xl">
