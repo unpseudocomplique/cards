@@ -377,7 +377,11 @@ describe('real-time multiplayer table', () => {
     }
     if (scored.partnerSeat !== undefined) {
       expect(checkedBeforeReveal).toBe(true)
-      expect(checkedAfterReveal).toBe(true)
+      // When the king falls in the very last trick, the deal is scored at once.
+      const kingInLastTrick = scored.lastTrick?.some(entry => entry.card === scored.calledKing)
+      if (!kingInLastTrick) {
+        expect(checkedAfterReveal).toBe(true)
+      }
     }
     expectNoLeaks(clients)
   })
