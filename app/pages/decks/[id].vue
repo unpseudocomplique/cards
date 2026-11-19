@@ -44,10 +44,12 @@ const tabs = computed<NavigationMenuItem[]>(() => [{
 
 const percent = computed(() => stats.value.total ? Math.round((stats.value.ready / stats.value.total) * 100) : 0)
 
+const shareOpen = shallowRef(false)
 const deleteOpen = shallowRef(false)
 const deleting = shallowRef(false)
 
 const menu = computed<DropdownMenuItem[][]>(() => [[
+  { label: 'Partager en lecture seule', icon: 'i-lucide-share-2', onSelect: () => { shareOpen.value = true } },
   ...(deck.value?.type === 'tarot78'
     ? [{ label: 'Jouer avec ce deck', icon: 'i-lucide-spade', to: { path: '/play', query: { deck: deckId.value } } }]
     : []),
@@ -141,6 +143,16 @@ async function deleteDeck() {
               size="sm"
             />
           </div>
+          <UButton
+            v-if="deck"
+            :label="deck.shareToken ? 'Partagé' : 'Partager'"
+            :icon="deck.shareToken ? 'i-lucide-link' : 'i-lucide-share-2'"
+            color="neutral"
+            :variant="deck.shareToken ? 'subtle' : 'outline'"
+            size="sm"
+            class="hidden sm:inline-flex"
+            @click="shareOpen = true"
+          />
           <UDropdownMenu
             :items="menu"
             :content="{ align: 'end' }"
@@ -179,6 +191,11 @@ async function deleteDeck() {
         class="mx-auto mt-10 max-w-md"
       />
       <NuxtPage v-else-if="deck" />
+
+      <DeckShareModal
+        v-if="deck"
+        v-model:open="shareOpen"
+      />
 
       <UModal
         v-model:open="deleteOpen"

@@ -14,6 +14,8 @@ export type DeckSummary = {
   status: 'draft' | 'queued' | 'generating' | 'ready' | 'failed'
   cardCount: number
   readyCardCount: number
+  /** Token of the public read-only link (null/absent = not shared). */
+  shareToken?: string | null
   createdAt: string
   updatedAt: string
   /** Up to three ready faces picked for the deck cover (list endpoint only). */

@@ -111,6 +111,8 @@ export const decks = pgTable('decks', {
   }),
   cardCount: integer('card_count').default(0).notNull(),
   readyCardCount: integer('ready_card_count').default(0).notNull(),
+  /** Unguessable token of the public read-only link (null = not shared). */
+  shareToken: text('share_token').unique(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   deletedAt: timestamp('deleted_at')
