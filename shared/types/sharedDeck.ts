@@ -34,3 +34,10 @@ export type SharedDeckCard = {
   /** Card changed in this variant (variants only). */
   changed?: boolean
 }
+
+/** Answer of POST /api/share/[token]/save. */
+export type SavedSharedDeck = {
+  deckId: string
+  /** false when the visitor already had this copy (or owns the deck). */
+  created: boolean
+}
