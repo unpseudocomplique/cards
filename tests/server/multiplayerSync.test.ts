@@ -472,6 +472,52 @@ describe('real-time multiplayer table', () => {
     expectInSync(code, clients)
   })
 
+  it('a hello sent before the server has read the session is still answered (refresh)', async () => {
+    const { code, clients } = await seatHumans(4, 4)
+    clients[0]!.intent({ type: 'start' })
+    const guest = clients[3]!
+    guest.disconnect()
+    guest.view = null
+    // Do not wait for open: the browser says hello as soon as the socket opens.
+    const opening = guest.connect()
+    guest.hello()
+    await opening
+    await Promise.resolve()
+    expect(guest.errors).toEqual([])
+    expect(guest.view).not.toBeNull()
+    expect(serverState(code).seats[3]).toMatchObject({ connected: true, controlledBy: 'human' })
+    expectInSync(code, clients)
+  })
+
+  it('a refresh during a bot game keeps the bots playing', async () => {
+    const { code, clients } = await seatHumans(4, 1)
+    const host = clients[0]!
+    host.intent({ type: 'start' })
+    for (let i = 0; i < 5; i++) {
+      if (!humanStep(code, clients)) {
+        vi.advanceTimersByTime(6_000)
+      }
+      host.disconnect()
+      await host.connect()
+      host.hello()
+    }
+    let guard = 0
+    while (serverState(code).phase !== 'MatchOver' && guard < 3_000) {
+      if (!humanStep(code, clients)) {
+        vi.advanceTimersByTime(6_000)
+      }
+      if (guard % 7 === 0) {
+        host.disconnect()
+        await host.connect()
+        host.hello()
+      }
+      expectInSync(code, clients)
+      guard++
+    }
+    expect(serverState(code).phase).toBe('MatchOver')
+    expect(host.errors).toEqual([])
+  })
+
   it('a player who drops is replaced by a bot, then takes the seat back with the same hand', async () => {
     const { code, clients } = await seatHumans(4, 4)
     clients[0]!.intent({ type: 'start' })
