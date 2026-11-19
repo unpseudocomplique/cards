@@ -116,7 +116,7 @@ const spring = computed(() =>
           />
           <p
             v-if="seatLabel(entry.seat) && collectingToSeat == null"
-            class="mx-auto mt-1 w-fit max-w-[4.5rem] truncate rounded-full bg-black/55 px-1.5 py-px text-center text-[10px] text-white/85 backdrop-blur-sm sm:text-xs"
+            class="mx-auto mt-1 w-fit max-w-[4.5rem] truncate rounded-md bg-black/55 px-1.5 py-px text-center text-[10px] text-white/85 backdrop-blur-sm sm:text-xs"
           >
             {{ seatLabel(entry.seat) }}
           </p>
@@ -125,7 +125,7 @@ const spring = computed(() =>
 
       <motion.div
         v-if="collectingToSeat != null && winnerName"
-        class="pointer-events-none absolute -top-10 left-1/2 upright:top-auto upright:-bottom-10 -translate-x-1/2 whitespace-nowrap rounded-full border border-amber-200/30 bg-black/70 px-3 py-1 text-xs font-semibold tracking-wide text-amber-100 uppercase"
+        class="pointer-events-none absolute -top-10 left-1/2 upright:top-auto upright:-bottom-10 -translate-x-1/2 whitespace-nowrap rounded-lg border border-amber-200/30 bg-black/70 px-3 py-1 text-xs font-semibold tracking-wide text-amber-100 uppercase"
         :initial="{ opacity: 0, y: 8, scale: 0.9 }"
         :animate="{ opacity: 1, y: 0, scale: 1 }"
         :transition="{ type: 'spring', stiffness: 320, damping: 22 }"

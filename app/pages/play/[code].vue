@@ -62,6 +62,18 @@ const phase = computed(() => publicState.value?.phase)
 const myTurn = computed(() => localSeat.value !== null && publicState.value?.currentSeat === localSeat.value)
 const isTaker = computed(() => localSeat.value !== null && publicState.value?.bid?.seat === localSeat.value)
 
+/**
+ * 5 players: the local player holds the called king (or already played it),
+ * so they are the taker's secret partner. Only they can see it.
+ */
+const isCalledPartner = computed(() => {
+  const king = publicState.value?.calledKing
+  if (!king || isTaker.value || localSeat.value === null) {
+    return false
+  }
+  return Boolean(privateState.value?.hand?.includes(king)) || publicState.value?.partnerSeat === localSeat.value
+})
+
 const needsKingCall = computed(() =>
   publicState.value?.playerCount === 5
   && isTaker.value
@@ -148,6 +160,7 @@ function play(card: CardId) {
           :state="publicState"
           :local-seat="localSeat"
           :degraded="publicSyncDegraded"
+          :called-partner="isCalledPartner"
           @leave="leaveOpen = true"
         />
       </div>

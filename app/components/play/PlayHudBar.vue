@@ -8,6 +8,8 @@ const props = defineProps<{
   state: PublicGameView
   localSeat: number | null
   degraded?: boolean
+  /** The local player holds the called king: the taker's (secret) partner. */
+  calledPartner?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -90,6 +92,22 @@ const goal = computed(() => props.state.endMode === 'threshold'
           >Donne {{ state.dealIndex + 1 }} · {{ goal }}</span>
         </p>
       </div>
+      <Transition
+        enter-active-class="transition duration-300 ease-out"
+        enter-from-class="scale-90 opacity-0"
+      >
+        <span
+          v-if="calledPartner"
+          class="flex shrink-0 items-center gap-1 rounded-md bg-sky-400/20 px-2 py-1 text-xs font-semibold text-sky-100 ring-1 ring-sky-300/50"
+          title="Vous avez le roi appelé : vous jouez avec le preneur. Les autres ne le savent pas encore."
+        >
+          <UIcon
+            name="i-lucide-handshake"
+            class="size-3.5"
+          />
+          Vous êtes appelé
+        </span>
+      </Transition>
       <div class="ml-auto flex shrink-0 items-center gap-2">
         <UTooltip
           v-if="degraded"
@@ -109,7 +127,7 @@ const goal = computed(() => props.state.endMode === 'threshold'
           color="neutral"
           variant="ghost"
           size="sm"
-          class="rounded-full bg-black/40 text-white/80 ring-1 ring-white/10 backdrop-blur-md hover:bg-black/60 hover:text-white"
+          class="rounded-lg bg-black/40 text-white/80 ring-1 ring-white/10 backdrop-blur-md hover:bg-black/60 hover:text-white"
           :aria-expanded="scoresOpen"
           :aria-label="scoresOpen ? 'Masquer les scores' : 'Afficher les scores'"
           @click="scoresOpen = !scoresOpen"

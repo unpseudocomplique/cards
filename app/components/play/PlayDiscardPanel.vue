@@ -64,7 +64,7 @@ const shownTrumps = computed(() => validation.value?.ok ? validation.value.shown
   >
     <template #aside>
       <span
-        class="rounded-full px-2.5 py-1 text-sm font-semibold tabular-nums"
+        class="rounded-md px-2.5 py-1 text-sm font-semibold tabular-nums"
         :class="selected.length === size ? 'bg-amber-300 text-neutral-950' : 'bg-white/10 text-white'"
       >
         {{ selected.length }}/{{ size }}

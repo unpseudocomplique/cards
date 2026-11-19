@@ -84,7 +84,7 @@ function layers(won: number) {
       >
         <button
           type="button"
-          class="pointer-events-auto flex max-w-[8rem] items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium shadow-sm ring-1 backdrop-blur-sm transition duration-300 sm:text-xs"
+          class="pointer-events-auto flex max-w-[8rem] items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium shadow-sm ring-1 backdrop-blur-sm transition duration-300 sm:text-xs"
           :class="[
             activeSeat === opponent.seat
               ? 'bg-amber-300 text-neutral-950 ring-amber-200'
