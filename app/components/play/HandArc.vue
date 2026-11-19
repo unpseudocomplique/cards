@@ -48,24 +48,27 @@ function clamp(value: number, min: number, max: number) {
  */
 const cardHeight = computed(() => {
   if (isShort.value) {
-    return clamp(Math.round(viewportHeight.value * 0.24), 72, 104)
+    return clamp(Math.round(viewportHeight.value * 0.28), 80, 120)
   }
   if (isPortrait.value) {
-    return clamp(Math.round(viewportHeight.value * 0.135), 92, 124)
+    return clamp(Math.round(viewportHeight.value * 0.175), 112, 156)
   }
   return isMobile.value ? 104 : 148
 })
 const cardWidth = computed(() => cardHeight.value * 0.7)
 /** Index size on the faces. */
 const cardSize = computed<'sm' | 'md'>(() => cardHeight.value < 100 ? 'sm' : 'md')
+/** Phones: the cards overlap a lot, so only the corner index shows; make it big. */
+const isPhone = computed(() => isPortrait.value || isShort.value)
+const indexPx = computed(() => isPhone.value ? Math.round(cardHeight.value * 0.13) : null)
 
 /** Above this many cards the hand is laid out on two rows so it stays on screen. */
 const rowThreshold = computed(() => {
   if (isShort.value) {
     // Landscape phones have width but no height: keep one row while each card
     // still shows its index (about 40% of a card).
-    const maxSpread = Math.max(0, viewportWidth.value - cardWidth.value - 48)
-    return Math.max(9, Math.floor(maxSpread / (cardWidth.value * 0.4)) + 1)
+    const maxSpread = Math.max(0, viewportWidth.value - cardWidth.value - 28)
+    return Math.max(9, Math.floor(maxSpread / (cardWidth.value * 0.36)) + 1)
   }
   return isMobile.value ? 9 : 12
 })
@@ -102,7 +105,7 @@ const rowLift = computed(() => twoRows.value ? Math.round(cardHeight.value * 0.4
 
 /** Room under the fan for the lower corners of the most rotated cards. */
 const rotationOverhang = computed(() => {
-  const maxArc = isMobile.value ? 26 : 32
+  const maxArc = isPhone.value ? 7 : isMobile.value ? 26 : 32
   return Math.round((cardHeight.value * 0.35) * Math.sin((maxArc * Math.PI) / 180))
 })
 
@@ -167,17 +170,24 @@ function cardMotion(card: CardId) {
   const t = total <= 1 ? 0 : dist / Math.max(mid, 1)
   const vw = viewportWidth.value
 
-  const arc = isMobile.value
-    ? (hovered.value ? 26 : 16)
-    : (hovered.value ? 32 : 20)
+  // Phones: a flat fan over the full width, so every corner index stays upright and visible.
+  const arc = isPhone.value
+    ? 7
+    : isMobile.value
+      ? (hovered.value ? 26 : 16)
+      : (hovered.value ? 32 : 20)
   // Never wider than the viewport minus one card, so edge cards stay visible.
-  const maxSpread = Math.max(0, vw - cardWidth.value - 48)
-  const spread = Math.min(maxSpread, isMobile.value
-    ? (hovered.value ? 70 + total * 28 : 52 + total * 24)
-    : (hovered.value ? Math.min(1180, 120 + total * 52) : Math.min(980, 90 + total * 46)))
-  const yOffset = isMobile.value
-    ? (hovered.value ? 14 : 8)
-    : (hovered.value ? 22 : 10)
+  const maxSpread = Math.max(0, vw - cardWidth.value - (isPhone.value ? 28 : 48))
+  const spread = isPhone.value
+    ? Math.min(maxSpread, (total - 1) * cardWidth.value * 0.8)
+    : Math.min(maxSpread, isMobile.value
+        ? (hovered.value ? 70 + total * 28 : 52 + total * 24)
+        : (hovered.value ? Math.min(1180, 120 + total * 52) : Math.min(980, 90 + total * 46)))
+  const yOffset = isPhone.value
+    ? 5
+    : isMobile.value
+      ? (hovered.value ? 14 : 8)
+      : (hovered.value ? 22 : 10)
 
   const rotate = t * arc
   const x = t * (spread / 2)
@@ -186,11 +196,14 @@ function cardMotion(card: CardId) {
   const playableBoost = props.dimUnplayable && isPlayable(card)
     ? (isMobile.value ? -10 : -16)
     : 0
-  const scale = hovered.value && Math.abs(dist) < 0.75 ? 1.06 : 1
+  const scale = !isPhone.value && hovered.value && Math.abs(dist) < 0.75 ? 1.06 : 1
 
   // Back row sits behind the front row; playable cards rise within their row.
   const rowBase = backRow ? 0 : 100
-  const zIndex = rowBase + (isPlayable(card) ? 50 : 0) + 40 - Math.abs(Math.round(dist * 2))
+  // Phones: stack left to right like a hand of cards, so every top-left index shows.
+  const zIndex = isPhone.value
+    ? rowBase + index
+    : rowBase + (isPlayable(card) ? 50 : 0) + 40 - Math.abs(Math.round(dist * 2))
 
   return {
     x,
@@ -286,6 +299,7 @@ function onPlay(card: CardId, event: MouseEvent) {
             :card-id="card"
             :face-url="faceUrlFor(card)"
             :size="cardSize"
+            :index-px="indexPx"
             fill
             :highlighted="isPlayable(card) && !!dimUnplayable"
             :dimmed="shouldDim(card)"

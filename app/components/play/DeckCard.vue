@@ -10,13 +10,19 @@ const props = withDefaults(defineProps<{
   dimmed?: boolean
   /** Fill the parent box instead of using a preset height (the parent sets the size). */
   fill?: boolean
+  /** Corner index size in px, to scale it with a card sized by its parent. */
+  indexPx?: number | null
 }>(), {
   faceUrl: null,
   size: 'md',
   highlighted: false,
   dimmed: false,
   fill: false,
+  indexPx: null,
 })
+
+const indexStyle = computed(() => props.indexPx ? { fontSize: `${props.indexPx}px` } : undefined)
+const glyphStyle = computed(() => props.indexPx ? { fontSize: `${Math.round(props.indexPx * 2.2)}px` } : undefined)
 
 const label = computed(() => tarotCardLabel(props.cardId))
 
@@ -37,6 +43,9 @@ const sizeClass = computed(() => {
 })
 
 const indexTextClass = computed(() => {
+  if (props.indexPx) {
+    return ''
+  }
   switch (props.size) {
     case 'xs':
       return 'text-[0.55rem]'
@@ -91,18 +100,21 @@ const indexLabel = computed(() => label.value.shortLabel)
       <div
         class="text-left leading-none font-bold"
         :class="[colorClass, indexTextClass]"
+        :style="indexStyle"
       >
         {{ indexLabel }}
       </div>
       <div
-        class="text-center text-2xl leading-none font-bold sm:text-3xl"
-        :class="colorClass"
+        class="text-center leading-none font-bold"
+        :class="[colorClass, indexPx ? '' : 'text-2xl sm:text-3xl']"
+        :style="glyphStyle"
       >
         {{ centerGlyph }}
       </div>
       <div
         class="self-end rotate-180 text-left leading-none font-bold"
         :class="[colorClass, indexTextClass]"
+        :style="indexStyle"
       >
         {{ indexLabel }}
       </div>
@@ -113,12 +125,14 @@ const indexLabel = computed(() => label.value.shortLabel)
       <div
         class="pointer-events-none absolute top-1 left-1 rounded bg-black/55 px-1 py-0.5 font-bold text-amber-50 shadow-sm backdrop-blur-[2px]"
         :class="indexTextClass"
+        :style="indexStyle"
       >
         {{ indexLabel }}
       </div>
       <div
         class="pointer-events-none absolute right-1 bottom-1 rotate-180 rounded bg-black/55 px-1 py-0.5 font-bold text-amber-50 shadow-sm backdrop-blur-[2px]"
         :class="indexTextClass"
+        :style="indexStyle"
       >
         {{ indexLabel }}
       </div>

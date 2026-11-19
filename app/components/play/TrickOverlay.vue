@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { AnimatePresence, motion } from 'motion-v'
 import type { CardId } from '~~/shared/tarot'
-import { trickZone, wonPileAnchor } from '~/utils/seatLayout'
+import { isPortraitView, trickZone, wonPileAnchor } from '~/utils/seatLayout'
 
 export type TrickEntry = { seat: number, card: CardId }
 
@@ -22,6 +22,25 @@ const props = defineProps<{
 }>()
 
 const prefersReduced = usePreferredReducedMotion()
+
+/**
+ * Phones: the trick gets the full width of the felt, so cards are
+ * sized from it (a full trick fits side by side) instead of the small preset.
+ */
+const trickCardHeight = computed(() => {
+  const view = { width: props.sceneWidth, height: props.sceneHeight }
+  // Landscape phones: little height, but still bigger than the preset.
+  if (props.sceneHeight > 0 && props.sceneHeight <= 520) {
+    return 84
+  }
+  if (!isPortraitView(view)) {
+    return null
+  }
+  const ratio = 0.62
+  const gap = 6
+  const cardWidth = (props.sceneWidth - 24 - gap * (props.playerCount - 1)) / props.playerCount
+  return Math.round(Math.min(170, Math.max(96, cardWidth / ratio)))
+})
 
 function faceUrlFor(card: CardId): string | null {
   const urls = props.faceUrls
@@ -82,7 +101,20 @@ const spring = computed(() =>
             : spring"
           :style="{ zIndex: index + 1 }"
         >
+          <div
+            v-if="trickCardHeight"
+            :style="{ height: `${trickCardHeight}px`, aspectRatio: 'var(--table-card-ratio, 2 / 3)' }"
+          >
+            <PlayDeckCard
+              :card-id="entry.card"
+              :face-url="faceUrlFor(entry.card)"
+              size="md"
+              fill
+              :index-px="Math.max(13, Math.round(trickCardHeight * 0.12))"
+            />
+          </div>
           <PlayDeckCard
+            v-else
             :card-id="entry.card"
             :face-url="faceUrlFor(entry.card)"
             size="sm"

@@ -92,7 +92,14 @@ export function trickZone(view: TableViewport) {
     ? 0.21
     : isPortraitView(view) ? 0.08 : view.mobile ? 0.18 : 0.14
   const centerY = view.height * (1 - bottomPadding) / 2
-  const halfHeight = isShortView(view) ? 46 : view.mobile ? 58 : 70
+  // Phones size trick cards from the screen (TrickOverlay's trickCardHeight).
+  if (isShortView(view)) {
+    return { centerX: view.width / 2, centerY, halfWidth: view.mobile ? 140 : 200, halfHeight: 54 }
+  }
+  if (isPortraitView(view)) {
+    return { centerX: view.width / 2, centerY, halfWidth: view.width / 2 - 12, halfHeight: 88 }
+  }
+  const halfHeight = view.mobile ? 58 : 70
   const halfWidth = view.mobile ? 140 : 200
   return { centerX: view.width / 2, centerY, halfWidth, halfHeight }
 }
@@ -125,19 +132,25 @@ export function seatLabelAnchor(seat: number, localSeat: number, playerCount: nu
     Math.sin(angle) * GUEST_RADIUS
   ])
   const zone = trickZone(view)
+  const margin = LABEL_HALF_WIDTH + 8
+  if (isPortraitView(view)) {
+    // Side guests sit off screen upright: their tag is pulled in from the edge.
+    anchor.x = Math.min(view.width - margin, Math.max(margin, anchor.x))
+  }
   const behindTrick = Math.abs(anchor.x - zone.centerX) < zone.halfWidth
     && Math.abs(anchor.y - zone.centerY) < zone.halfHeight + 14
 
   let { x, y } = anchor
 
-  if (behindTrick) {
+  if (behindTrick && isPortraitView(view)) {
+    // Upright phones: the trick spans the width, so lift the tag above the cards.
+    y = Math.min(anchor.y, zone.centerY - zone.halfHeight - 16)
+  } else if (behindTrick) {
     const pile = wonPileAnchor(seat, localSeat, playerCount, view)
     const side = pile.x < zone.centerX ? 1 : -1
     x = zone.centerX + side * (zone.halfWidth + LABEL_HALF_WIDTH)
     y = Math.max(anchor.y, zone.centerY - zone.halfHeight + 24)
   }
-
-  const margin = LABEL_HALF_WIDTH + 8
 
   return {
     x: Math.min(view.width - margin, Math.max(margin, x)),
