@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { seatLabelAnchor, wonPileAnchor } from '~/utils/seatLayout'
+import { seatLabelAnchor, wonCountInTag, wonPileAnchor } from '~/utils/seatLayout'
 
 const props = defineProps<{
   tricksWonBySeat: number[]
@@ -15,6 +15,9 @@ const props = defineProps<{
 }>()
 
 const view = computed(() => ({ width: props.sceneWidth, height: props.sceneHeight, mobile: props.mobile }))
+
+/** Phones: no pile on the felt, the count sits in the name tag. */
+const countInTag = computed(() => wonCountInTag(view.value))
 
 /** Opponents only: the local player's tricks are counted in the HUD bar. */
 const opponents = computed(() => Array.from({ length: props.playerCount }, (_, seat) => seat)
@@ -53,11 +56,15 @@ function layers(won: number) {
           class="size-3 shrink-0 opacity-70"
         />
         <span class="truncate">{{ opponent.name }}</span>
+        <span
+          v-if="countInTag && opponent.won > 0"
+          class="shrink-0 tabular-nums opacity-70"
+        >· {{ opponent.won }} pli{{ opponent.won > 1 ? 's' : '' }}</span>
       </p>
 
       <!-- Won tricks, on the felt beside them -->
       <div
-        v-if="opponent.won > 0"
+        v-if="opponent.won > 0 && !countInTag"
         class="absolute -translate-x-1/2 -translate-y-1/2"
         :style="{ left: `${opponent.pile.x}px`, top: `${opponent.pile.y}px` }"
       >

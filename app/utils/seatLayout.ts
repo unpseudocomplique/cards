@@ -84,20 +84,38 @@ function isShortView(view: { height: number }) {
 }
 
 /**
+ * Height in px of the trick cards on phones, sized from the screen so a full
+ * trick fits side by side; null keeps TrickOverlay's preset size.
+ */
+export function trickCardHeight(view: { width: number, height: number }, playerCount: number): number | null {
+  // Landscape phones: little height, but still bigger than the preset.
+  if (isShortView(view)) {
+    return 84
+  }
+  if (!isPortraitView(view)) {
+    return null
+  }
+  const ratio = 0.62
+  const gap = 6
+  const cardWidth = (view.width - 24 - gap * (playerCount - 1)) / playerCount
+  return Math.round(Math.min(170, Math.max(96, cardWidth / ratio)))
+}
+
+/**
  * Box covered by the trick overlay (TrickOverlay centres it with a bottom
  * padding of 14vh, 18vh on narrow screens, 8vh upright, 21vh on short screens).
  */
-export function trickZone(view: TableViewport) {
+export function trickZone(view: TableViewport, playerCount = 4) {
   const bottomPadding = isShortView(view)
     ? 0.21
     : isPortraitView(view) ? 0.08 : view.mobile ? 0.18 : 0.14
   const centerY = view.height * (1 - bottomPadding) / 2
-  // Phones size trick cards from the screen (TrickOverlay's trickCardHeight).
-  if (isShortView(view)) {
-    return { centerX: view.width / 2, centerY, halfWidth: view.mobile ? 140 : 200, halfHeight: 54 }
-  }
-  if (isPortraitView(view)) {
-    return { centerX: view.width / 2, centerY, halfWidth: view.width / 2 - 12, halfHeight: 88 }
+  const cardHeight = trickCardHeight(view, playerCount)
+  if (cardHeight !== null) {
+    // Card + name tag under it + the tilt of the cards.
+    const halfHeight = Math.round((cardHeight + 26) / 2 + 8)
+    const halfWidth = isPortraitView(view) ? view.width / 2 - 12 : view.mobile ? 140 : 200
+    return { centerX: view.width / 2, centerY, halfWidth, halfHeight }
   }
   const halfHeight = view.mobile ? 58 : 70
   const halfWidth = view.mobile ? 140 : 200
@@ -131,7 +149,7 @@ export function seatLabelAnchor(seat: number, localSeat: number, playerCount: nu
     LABEL_Y,
     Math.sin(angle) * GUEST_RADIUS
   ])
-  const zone = trickZone(view)
+  const zone = trickZone(view, playerCount)
   const margin = LABEL_HALF_WIDTH + 8
   if (isPortraitView(view)) {
     // Side guests sit off screen upright: their tag is pulled in from the edge.
@@ -144,9 +162,9 @@ export function seatLabelAnchor(seat: number, localSeat: number, playerCount: nu
 
   if (behindTrick && isPortraitView(view)) {
     // Upright phones: the trick spans the width, so lift the tag above the cards.
-    y = Math.min(anchor.y, zone.centerY - zone.halfHeight - 16)
+    y = Math.min(anchor.y, zone.centerY - zone.halfHeight - 6)
   } else if (behindTrick) {
-    const pile = wonPileAnchor(seat, localSeat, playerCount, view)
+    const pile = feltPileAnchor(seat, localSeat, playerCount, view)
     const side = pile.x < zone.centerX ? 1 : -1
     x = zone.centerX + side * (zone.halfWidth + LABEL_HALF_WIDTH)
     y = Math.max(anchor.y, zone.centerY - zone.halfHeight + 24)
@@ -158,14 +176,31 @@ export function seatLabelAnchor(seat: number, localSeat: number, playerCount: nu
   }
 }
 
-/** Won-trick pile on the felt beside an opponent, toward the back of the table. */
-export function wonPileAnchor(seat: number, localSeat: number, playerCount: number, view: TableViewport): ScreenPoint {
-  if (seat === localSeat) {
-    return localAnchor(view)
-  }
+/** Phones (upright or landscape): no pile on the felt, the count sits in the name tag. */
+export function wonCountInTag(view: { width: number, height: number }) {
+  return isPortraitView(view) || isShortView(view)
+}
+
+/** Pile spot on the felt beside an opponent, toward the back of the table. */
+function feltPileAnchor(seat: number, localSeat: number, playerCount: number, view: TableViewport): ScreenPoint {
   const angle = seatAngle(seat, localSeat, playerCount)
   // Swing toward negative z (away from the camera) so piles never sit on the hand.
   const swing = Math.sin(angle + PILE_SWING) < Math.sin(angle - PILE_SWING) ? PILE_SWING : -PILE_SWING
   const pileAngle = angle + swing
   return project(view, [Math.cos(pileAngle) * PILE_RADIUS, 0.02, Math.sin(pileAngle) * PILE_RADIUS])
+}
+
+/**
+ * Where an opponent's won tricks go: their pile on the felt, or on phones their
+ * name tag (a pile there would sit on the trick or under the hand).
+ */
+export function wonPileAnchor(seat: number, localSeat: number, playerCount: number, view: TableViewport): ScreenPoint {
+  if (seat === localSeat) {
+    return localAnchor(view)
+  }
+  if (wonCountInTag(view)) {
+    const label = seatLabelAnchor(seat, localSeat, playerCount, view)
+    return { x: label.x, y: label.y - 12 }
+  }
+  return feltPileAnchor(seat, localSeat, playerCount, view)
 }

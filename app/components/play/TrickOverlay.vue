@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { AnimatePresence, motion } from 'motion-v'
 import type { CardId } from '~~/shared/tarot'
-import { isPortraitView, trickZone, wonPileAnchor } from '~/utils/seatLayout'
+import { trickCardHeight as trickCardHeightFor, trickZone, wonPileAnchor } from '~/utils/seatLayout'
 
 export type TrickEntry = { seat: number, card: CardId }
 
@@ -23,24 +23,13 @@ const props = defineProps<{
 
 const prefersReduced = usePreferredReducedMotion()
 
-/**
- * Phones: the trick gets the full width of the felt, so cards are
- * sized from it (a full trick fits side by side) instead of the small preset.
- */
-const trickCardHeight = computed(() => {
-  const view = { width: props.sceneWidth, height: props.sceneHeight }
-  // Landscape phones: little height, but still bigger than the preset.
-  if (props.sceneHeight > 0 && props.sceneHeight <= 520) {
-    return 84
-  }
-  if (!isPortraitView(view)) {
-    return null
-  }
-  const ratio = 0.62
-  const gap = 6
-  const cardWidth = (props.sceneWidth - 24 - gap * (props.playerCount - 1)) / props.playerCount
-  return Math.round(Math.min(170, Math.max(96, cardWidth / ratio)))
-})
+/** Phones: trick cards sized from the screen (see seatLayout's trickCardHeight). */
+const trickCardHeight = computed(() =>
+  trickCardHeightFor({ width: props.sceneWidth, height: props.sceneHeight }, props.playerCount))
+
+function seatLabel(seat: number) {
+  return seat === props.localSeat ? 'Vous' : props.seats?.[seat]?.name
+}
 
 function faceUrlFor(card: CardId): string | null {
   const urls = props.faceUrls
@@ -61,7 +50,7 @@ function collectOffset(seat: number) {
   const view = { width: props.sceneWidth, height: props.sceneHeight, mobile: props.mobile ?? false }
   // Fly to the winner's pile on the felt (the local player's tricks go to the hand).
   const target = wonPileAnchor(props.collectingToSeat, props.localSeat, props.playerCount, view)
-  const zone = trickZone(view)
+  const zone = trickZone(view, props.playerCount)
   const centerX = zone.centerX
   const centerY = zone.centerY
   return {
@@ -120,17 +109,17 @@ const spring = computed(() =>
             size="sm"
           />
           <p
-            v-if="seats?.[entry.seat]?.name && collectingToSeat == null"
+            v-if="seatLabel(entry.seat) && collectingToSeat == null"
             class="mx-auto mt-1 w-fit max-w-[4.5rem] truncate rounded-full bg-black/55 px-1.5 py-px text-center text-[10px] text-white/85 backdrop-blur-sm sm:text-xs"
           >
-            {{ seats[entry.seat]?.name }}
+            {{ seatLabel(entry.seat) }}
           </p>
         </motion.div>
       </AnimatePresence>
 
       <motion.div
         v-if="collectingToSeat != null && winnerName"
-        class="pointer-events-none absolute -top-10 left-1/2 -translate-x-1/2 rounded-full border border-amber-200/30 bg-black/70 px-3 py-1 text-xs font-semibold tracking-wide text-amber-100 uppercase"
+        class="pointer-events-none absolute -top-10 left-1/2 upright:top-auto upright:-bottom-10 -translate-x-1/2 rounded-full border border-amber-200/30 bg-black/70 px-3 py-1 text-xs font-semibold tracking-wide text-amber-100 uppercase"
         :initial="{ opacity: 0, y: 8, scale: 0.9 }"
         :animate="{ opacity: 1, y: 0, scale: 1 }"
         :transition="{ type: 'spring', stiffness: 320, damping: 22 }"
@@ -139,7 +128,7 @@ const spring = computed(() =>
       </motion.div>
       <motion.div
         v-else-if="holdBanner"
-        class="pointer-events-none absolute -top-12 left-1/2 max-w-[90vw] -translate-x-1/2 rounded-full border border-white/20 bg-black/75 px-3 py-1.5 text-center text-xs font-medium tracking-wide text-white/90 sm:text-sm"
+        class="pointer-events-none absolute -top-12 left-1/2 upright:top-auto upright:-bottom-12 max-w-[90vw] -translate-x-1/2 rounded-full border border-white/20 bg-black/75 px-3 py-1.5 text-center text-xs font-medium tracking-wide text-white/90 sm:text-sm"
         :initial="{ opacity: 0, y: 8, scale: 0.96 }"
         :animate="{ opacity: 1, y: 0, scale: 1 }"
         :transition="{ type: 'spring', stiffness: 300, damping: 22 }"
