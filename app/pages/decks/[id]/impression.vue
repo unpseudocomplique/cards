@@ -4,7 +4,30 @@ import type { CardFormatId } from '~~/shared/utils/printSpec'
 import { CARD_FORMATS, PRINT_BLEED_MM, PRINT_CROP_MARK_LENGTH_MM, PRINT_DPI, PRINT_ICC_PROFILE, PRINT_SAFE_MM, allowedCardFormatsForDeckType, cardFormatRatio, formatTrimLabel } from '~~/shared/utils/printSpec'
 
 const toast = useToast()
-const { deckId, deck, stats, theme, format, backOutdated, patchSettings, refresh } = useDeckWorkspace()
+const route = useRoute()
+const { deckId, deck, stats, theme, format, backOutdated, patchSettings, refresh, variants, printStatus } = useDeckVariants()
+
+/* Versions to print: the deck and/or its variants, each as a complete deck. */
+const preselected = typeof route.query.v === 'string' && variants.value.some(variant => variant.id === route.query.v)
+  ? route.query.v
+  : null
+const printBase = shallowRef(!preselected)
+const printVariantIds = shallowRef<string[]>(preselected ? [preselected] : [])
+
+const versionRows = computed(() => variants.value.map((variant) => {
+  const status = printStatus(variant)
+  return { variant, status, selected: printVariantIds.value.includes(variant.id) }
+}))
+
+function toggleVariant(variantId: string, on: boolean) {
+  printVariantIds.value = on
+    ? [...new Set([...printVariantIds.value, variantId])]
+    : printVariantIds.value.filter(id => id !== variantId)
+}
+
+const selectedCount = computed(() => (printBase.value ? 1 : 0) + printVariantIds.value.length)
+const blockedVariants = computed(() => versionRows.value.filter(row => row.selected && row.status.missing))
+const canExport = computed(() => selectedCount.value > 0 && stats.value.ready > 0 && !blockedVariants.value.length)
 
 /* Card format */
 const formatChoices = computed(() => allowedCardFormatsForDeckType(deck.value!.type).map(id => CARD_FORMATS[id]))
@@ -91,13 +114,17 @@ async function generateBack() {
 async function exportPack() {
   exporting.value = true
   try {
-    const result = await $fetch<{ url: string, cardCount: number, hasCardBack: boolean }>(`/api/decks/${deckId.value}/exports/print`, {
-      method: 'POST'
+    const result = await $fetch<{ url: string, cardCount: number, hasCardBack: boolean, versions: Array<{ name: string, cardCount: number }> }>(`/api/decks/${deckId.value}/exports/print`, {
+      method: 'POST',
+      body: { includeBase: printBase.value, variantIds: printVariantIds.value }
     })
     lastExportUrl.value = result.url
+    const versionCount = result.versions?.length ?? 1
     toast.add({
       title: 'Pack impression prêt',
-      description: `${result.cardCount} face${result.cardCount > 1 ? 's' : ''}${result.hasCardBack ? ' et le dos' : ''}.`,
+      description: versionCount > 1
+        ? `${versionCount} jeux complets (${result.cardCount} faces)${result.hasCardBack ? ' et le dos' : ''}.`
+        : `${result.cardCount} face${result.cardCount > 1 ? 's' : ''}${result.hasCardBack ? ' et le dos' : ''}.`,
       color: 'success',
       icon: 'i-lucide-package-check',
       actions: [{ label: 'Télécharger', to: result.url, target: '_blank' }]
@@ -121,7 +148,13 @@ const specs = computed(() => [
   },
   { label: 'Couleurs', value: `CMJN, ${PRINT_ICC_PROFILE.description}`, icon: 'i-lucide-palette' },
   { label: 'Traits de coupe', value: `${PRINT_CROP_MARK_LENGTH_MM} mm, hors fond perdu`, icon: 'i-lucide-scissors' },
-  { label: 'Contenu', value: 'PDF recto (une carte par page), PDF verso, print-spec.json', icon: 'i-lucide-folder-archive' }
+  {
+    label: 'Contenu',
+    value: selectedCount.value > 1
+      ? `${selectedCount.value} PDF recto (un par jeu), PDF verso, print-spec.json`
+      : 'PDF recto (une carte par page), PDF verso, print-spec.json',
+    icon: 'i-lucide-folder-archive'
+  }
 ])
 </script>
 
@@ -288,6 +321,45 @@ const specs = computed(() => [
 
         <template #footer>
           <div class="space-y-3">
+            <fieldset
+              v-if="variants.length"
+              class="space-y-2"
+            >
+              <legend class="mb-2 text-sm font-medium text-highlighted">
+                Jeux à imprimer
+              </legend>
+              <UCheckbox
+                v-model="printBase"
+                label="Le deck"
+                :description="`${stats.ready} carte${stats.ready > 1 ? 's' : ''} prête${stats.ready > 1 ? 's' : ''}`"
+              />
+              <UCheckbox
+                v-for="row in versionRows"
+                :key="row.variant.id"
+                :model-value="row.selected"
+                :label="row.variant.name"
+                :description="row.status.missing
+                  ? `${row.status.missing} carte${row.status.missing > 1 ? 's' : ''} modifiée${row.status.missing > 1 ? 's' : ''} à générer`
+                  : row.status.overridden
+                    ? `${row.status.overridden} carte${row.status.overridden > 1 ? 's' : ''} modifiée${row.status.overridden > 1 ? 's' : ''}, ${row.status.cardCount} au total`
+                    : 'Identique au deck'"
+                :ui="row.status.missing ? { description: 'text-warning' } : undefined"
+                @update:model-value="toggleVariant(row.variant.id, Boolean($event))"
+              />
+              <UAlert
+                v-if="blockedVariants.length"
+                color="warning"
+                variant="subtle"
+                icon="i-lucide-triangle-alert"
+                :title="`Cartes à générer dans ${blockedVariants.map(row => `« ${row.variant.name} »`).join(', ')}`"
+                description="Une carte modifiée n’est jamais remplacée par celle du deck : générez-la avant d’imprimer."
+                :actions="[{ label: 'Ouvrir la variante', color: 'warning', variant: 'outline', to: { path: `/decks/${deckId}/variantes`, query: { v: blockedVariants[0]!.variant.id } } }]"
+              />
+              <p class="text-xs text-muted">
+                Chaque jeu choisi est exporté en entier, avec son propre PDF recto. Le dos est commun.
+              </p>
+              <USeparator class="pt-1" />
+            </fieldset>
             <div class="flex items-center gap-3">
               <UProgress
                 :model-value="stats.ready"
@@ -315,12 +387,12 @@ const specs = computed(() => [
               :description="backOutdated ? 'Régénérez-le pour qu’il soit inclus dans le pack.' : 'Générez-le pour qu’il soit inclus dans le pack.'"
             />
             <UButton
-              label="Télécharger le pack"
+              :label="selectedCount > 1 ? `Télécharger les ${selectedCount} jeux` : 'Télécharger le pack'"
               icon="i-lucide-download"
               block
               size="lg"
               :loading="exporting"
-              :disabled="!stats.ready"
+              :disabled="!canExport"
               @click="exportPack"
             />
             <p

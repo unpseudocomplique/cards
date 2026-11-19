@@ -1,5 +1,5 @@
 import type { InjectionKey } from 'vue'
-import type { CardRolePromptKey, DeckCard, DeckDetails, DeckPerson, DeckSettings } from '~/types/deck'
+import type { CardRolePromptKey, DeckCard, DeckDetails, DeckPerson, DeckSettings, DeckVariant } from '~/types/deck'
 import { getCardTheme } from '~~/shared/utils/cardThemes'
 import { cardFormatRatio, resolveCardImageFormat, resolveDeckCardFormat } from '~~/shared/utils/printSpec'
 import { patchDeckSettings, patchDeckWithCard } from '~/utils/deckState'
@@ -26,6 +26,7 @@ function createWorkspace(deckId: Ref<string>) {
   const deck = computed(() => data.value?.deck ?? null)
   const cards = computed(() => data.value?.cards ?? [])
   const persons = computed(() => data.value?.persons ?? [])
+  const variants = computed(() => data.value?.variants ?? [])
   const theme = computed(() => getCardTheme(deck.value?.settings.colorTheme))
   const format = computed(() => resolveDeckCardFormat(deck.value?.settings))
   const cardRatio = computed(() => cardFormatRatio(format.value))
@@ -86,6 +87,13 @@ function createWorkspace(deckId: Ref<string>) {
   function patchSettings(settings: Partial<DeckSettings>) {
     if (data.value) {
       data.value = patchDeckSettings(data.value, settings)
+    }
+  }
+
+  /** Replace the variant list (print variants, see useDeckVariants). */
+  function patchVariants(update: (variants: DeckVariant[]) => DeckVariant[]) {
+    if (data.value) {
+      data.value = { ...data.value, variants: update(data.value.variants ?? []) }
     }
   }
 
@@ -262,6 +270,7 @@ function createWorkspace(deckId: Ref<string>) {
     deck,
     cards,
     persons,
+    variants,
     theme,
     format,
     cardRatio,
@@ -276,6 +285,7 @@ function createWorkspace(deckId: Ref<string>) {
     findCard,
     patchCard,
     patchSettings,
+    patchVariants,
     job: readonly(job),
     generatingIds: readonly(generatingIds),
     generateCard,

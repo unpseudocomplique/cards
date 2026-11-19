@@ -180,6 +180,55 @@ export const deckCards = pgTable('deck_cards', {
   index('deck_cards_source_person_id_idx').on(table.sourcePersonId)
 ])
 
+/** Print variant of a deck: every card of the deck, except the ones it overrides. */
+export const deckVariants = pgTable('deck_variants', {
+  id: id(),
+  deckId: text('deck_id').notNull().references(() => decks.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull()
+}, table => [
+  index('deck_variants_deck_id_idx').on(table.deckId)
+])
+
+export type DeckVariantCardMetadata = {
+  /** Format the stored face was rendered in. */
+  format?: CardFormatId
+  /** Character layer of the last generation. */
+  foregroundImageUrl?: string
+}
+
+/**
+ * A card a variant overrides. Everything else (label, suit, role, and the
+ * prompt when `prompt` is null) is read from the base card, so the variant
+ * follows the deck for every card it does not override.
+ */
+export const deckVariantCards = pgTable('deck_variant_cards', {
+  id: id(),
+  variantId: text('variant_id').notNull().references(() => deckVariants.id, { onDelete: 'cascade' }),
+  deckId: text('deck_id').notNull().references(() => decks.id, { onDelete: 'cascade' }),
+  baseCardId: text('base_card_id').notNull().references(() => deckCards.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  sourcePersonId: text('source_person_id').references(() => deckPersons.id, { onDelete: 'set null' }),
+  sourcePhotoId: text('source_photo_id').references(() => deckPhotos.id, { onDelete: 'set null' }),
+  /** Null = same prompt as the base card. */
+  prompt: text('prompt'),
+  status: cardStatusEnum('status').default('pending').notNull(),
+  metadata: jsonb('metadata').$type<DeckVariantCardMetadata>().notNull().default({}),
+  rawImageKey: text('raw_image_key'),
+  rawImageUrl: text('raw_image_url'),
+  finalImageKey: text('final_image_key'),
+  finalImageUrl: text('final_image_url'),
+  errorMessage: text('error_message'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull()
+}, table => [
+  unique().on(table.variantId, table.baseCardId),
+  index('deck_variant_cards_variant_id_idx').on(table.variantId),
+  index('deck_variant_cards_deck_id_idx').on(table.deckId)
+])
+
 export const generationJobs = pgTable('generation_jobs', {
   id: id(),
   deckId: text('deck_id').notNull().references(() => decks.id, { onDelete: 'cascade' }),

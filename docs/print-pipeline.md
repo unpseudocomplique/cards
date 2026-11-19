@@ -67,6 +67,12 @@ Chaque page PDF (`server/utils/printPdf.ts`) :
 
 Constantes : `PRINT_SLUG_MM`, `PRINT_CROP_MARK_*`, `PRINT_ICC_PROFILE` dans `shared/utils/printSpec.ts`.
 
+### Variantes d’impression
+
+Une variante (`deck_variants`) est le deck entier, sauf les cartes qu’elle surcharge (`deck_variant_cards` : autre personne, autre consigne, sa propre face générée). Les cartes non surchargées lisent toujours la face actuelle du deck : la variante suit le deck sans copie. Consigne `null` = celle de la carte du deck. Les as et numérales au design classique ne se surchargent pas.
+
+Le corps de l’export choisit les jeux : `{ includeBase: boolean, variantIds: string[] }` (corps vide = le deck seul, comme avant). Chaque jeu choisi donne un PDF recto complet (`{jeu}-recto.pdf`, `{jeu}-{variante}-recto.pdf`), le verso reste unique. `resolvePrintFaces` (`shared/utils/deckVariants.ts`) refuse d’exporter une variante dont une carte surchargée n’a pas de face au format du deck : on n’imprime jamais la carte du deck à sa place. Les faces communes ne sont converties en CMJN qu’une fois.
+
 ## Fichiers clés
 
 - `shared/utils/printSpec.ts` — constantes, formats `tarot` / `poker`
@@ -74,5 +80,6 @@ Constantes : `PRINT_SLUG_MM`, `PRINT_CROP_MARK_*`, `PRINT_ICC_PROFILE` dans `sha
 - `shared/utils/cardThemes.ts` — thèmes de couleurs
 - `server/utils/cardPromptBuilder.ts` — prompts décor / personnage / dos
 - `server/utils/cardRenderer.ts` — mise en page, cadre, index, dos, upscale
-- `server/utils/printExport.ts` — ZIP imprimeur
+- `server/utils/printExport.ts` — ZIP imprimeur (deck et variantes)
+- `shared/utils/deckVariants.ts` — faces imprimées d’une variante
 - `server/utils/printPdf.ts` — conversion CMJN, PDF une carte par page, traits de coupe
