@@ -7,7 +7,7 @@ import {
   isPetitStolen,
   resolveTrick,
 } from '~~/shared/tarot'
-import { TABLE_CAMERA, seatAnchor } from '~/utils/seatLayout'
+import { seatAnchor, tableCamera } from '~/utils/seatLayout'
 import type { TableFxEvent } from '~/components/play/TableFxOverlay.vue'
 
 const props = defineProps<{
@@ -464,7 +464,11 @@ const winnerName = computed(() => {
 const holdBanner = computed(() => trickSummaryLine.value)
 
 // Shared with the overlay projection (app/utils/seatLayout.ts).
-const cameraSpec = computed(() => isMobile.value ? TABLE_CAMERA.mobile : TABLE_CAMERA.desktop)
+const cameraSpec = computed(() => tableCamera({
+  width: sceneSize.value.width || (import.meta.client ? window.innerWidth : 1),
+  height: sceneSize.value.height || (import.meta.client ? window.innerHeight : 1),
+  mobile: isMobile.value
+}))
 const cameraPosition = computed<[number, number, number]>(() => [...cameraSpec.value.position])
 const cameraLookAt = computed<[number, number, number]>(() => [...cameraSpec.value.lookAt])
 

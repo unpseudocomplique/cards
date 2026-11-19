@@ -69,7 +69,7 @@ onUnmounted(() => {
     class="pointer-events-none absolute z-[80] origin-center"
     style="will-change: left, top, transform, opacity;"
   >
-    <div class="h-full w-full overflow-hidden rounded-xl shadow-[0_18px_40px_-8px_rgba(0,0,0,0.85)] [&>div]:h-full! [&>div]:w-full! [&>div]:max-h-full! [&>div]:max-w-full! [&>div]:shadow-none!">
+    <div class="h-full w-full overflow-hidden rounded-[5%/calc(5%*var(--table-card-ratio,2/3))] shadow-[0_18px_40px_-8px_rgba(0,0,0,0.85)] [&>div]:h-full! [&>div]:w-full! [&>div]:max-h-full! [&>div]:max-w-full! [&>div]:shadow-none!">
       <PlayDeckCard
         :card-id="cardId"
         :face-url="faceUrl"

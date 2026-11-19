@@ -8,29 +8,50 @@ const props = withDefaults(defineProps<{
   size?: 'xs' | 'sm' | 'md' | 'lg'
   highlighted?: boolean
   dimmed?: boolean
+  /** Fill the parent box instead of using a preset height (the parent sets the size). */
+  fill?: boolean
+  /** Corner index size in px, to scale it with a card sized by its parent. */
+  indexPx?: number | null
 }>(), {
   faceUrl: null,
   size: 'md',
   highlighted: false,
   dimmed: false,
+  fill: false,
+  indexPx: null,
 })
+
+/**
+ * Corner radius of a real card: 5 % of the width (cardRadius in
+ * shared/utils/printSpec.ts, same as CardArt), whatever the card size.
+ */
+const cardCornerRadius = '5% / calc(5% * var(--table-card-ratio, 2 / 3))'
+
+const indexStyle = computed(() => props.indexPx ? { fontSize: `${props.indexPx}px` } : undefined)
+const glyphStyle = computed(() => props.indexPx ? { fontSize: `${Math.round(props.indexPx * 2.2)}px` } : undefined)
 
 const label = computed(() => tarotCardLabel(props.cardId))
 
 const sizeClass = computed(() => {
+  if (props.fill) {
+    return 'h-full w-full'
+  }
   switch (props.size) {
     case 'xs':
-      return 'h-16 sm:h-[4.5rem]'
+      return 'h-16 sm:h-[4.5rem] short:h-14'
     case 'sm':
-      return 'h-[5.25rem] sm:h-24'
+      return 'h-[5.25rem] sm:h-24 short:h-[4.25rem]'
     case 'lg':
-      return 'h-28 sm:h-[9.25rem]'
+      return 'h-28 sm:h-[9.25rem] short:h-24'
     default:
-      return 'h-[6.5rem] sm:h-[9.25rem]'
+      return 'h-[6.5rem] sm:h-[9.25rem] short:h-[5.25rem]'
   }
 })
 
 const indexTextClass = computed(() => {
+  if (props.indexPx) {
+    return ''
+  }
   switch (props.size) {
     case 'xs':
       return 'text-[0.55rem]'
@@ -63,8 +84,8 @@ const indexLabel = computed(() => label.value.shortLabel)
 
 <template>
   <div
-    class="relative shrink-0 overflow-hidden rounded-xl border bg-[#f7f1e6] shadow-[0_10px_24px_-8px_rgba(0,0,0,0.7)]"
-    :style="{ aspectRatio: 'var(--table-card-ratio, 2 / 3)' }"
+    class="relative shrink-0 overflow-hidden border bg-[#f7f1e6] shadow-[0_10px_24px_-8px_rgba(0,0,0,0.7)]"
+    :style="{ aspectRatio: 'var(--table-card-ratio, 2 / 3)', borderRadius: cardCornerRadius }"
     :class="[
       sizeClass,
       highlighted ? 'border-amber-300 ring-2 ring-amber-300/60' : 'border-stone-300/80',
@@ -85,18 +106,21 @@ const indexLabel = computed(() => label.value.shortLabel)
       <div
         class="text-left leading-none font-bold"
         :class="[colorClass, indexTextClass]"
+        :style="indexStyle"
       >
         {{ indexLabel }}
       </div>
       <div
-        class="text-center text-2xl leading-none font-bold sm:text-3xl"
-        :class="colorClass"
+        class="text-center leading-none font-bold"
+        :class="[colorClass, indexPx ? '' : 'text-2xl sm:text-3xl']"
+        :style="glyphStyle"
       >
         {{ centerGlyph }}
       </div>
       <div
         class="self-end rotate-180 text-left leading-none font-bold"
         :class="[colorClass, indexTextClass]"
+        :style="indexStyle"
       >
         {{ indexLabel }}
       </div>
@@ -105,14 +129,16 @@ const indexLabel = computed(() => label.value.shortLabel)
     <!-- Readable indices on custom faces (esp. atouts) -->
     <template v-if="faceUrl">
       <div
-        class="pointer-events-none absolute top-1 left-1 rounded bg-black/55 px-1 py-0.5 font-bold text-amber-50 shadow-sm backdrop-blur-[2px]"
+        class="pointer-events-none absolute top-1 left-1 rounded-sm bg-black/55 px-1 py-0.5 font-bold text-amber-50 shadow-sm backdrop-blur-[2px]"
         :class="indexTextClass"
+        :style="indexStyle"
       >
         {{ indexLabel }}
       </div>
       <div
-        class="pointer-events-none absolute right-1 bottom-1 rotate-180 rounded bg-black/55 px-1 py-0.5 font-bold text-amber-50 shadow-sm backdrop-blur-[2px]"
+        class="pointer-events-none absolute right-1 bottom-1 rotate-180 rounded-sm bg-black/55 px-1 py-0.5 font-bold text-amber-50 shadow-sm backdrop-blur-[2px]"
         :class="indexTextClass"
+        :style="indexStyle"
       >
         {{ indexLabel }}
       </div>

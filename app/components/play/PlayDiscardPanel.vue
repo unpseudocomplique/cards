@@ -71,7 +71,7 @@ const shownTrumps = computed(() => validation.value?.ok ? validation.value.shown
       </span>
     </template>
 
-    <div class="flex max-h-[42vh] flex-wrap justify-center gap-1.5 overflow-y-auto p-1 sm:gap-2">
+    <div class="flex max-h-[42vh] flex-wrap justify-center gap-1.5 overflow-y-auto p-1 sm:gap-2 short:max-h-[48vh] short:gap-1">
       <button
         v-for="card in sorted"
         :key="card"

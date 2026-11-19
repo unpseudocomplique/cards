@@ -1,6 +1,11 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
 
+/* Landscape phones: plenty of width, very little height. */
+@custom-variant short (@media (max-height: 520px));
+/* Screens taller than wide (phone held upright); matches isPortraitView in app/utils/seatLayout.ts. */
+@custom-variant upright (@media (max-aspect-ratio: 17 / 20));
+
 @theme static {
   --font-sans: 'Geist', ui-sans-serif, system-ui, sans-serif;
   --font-display: 'Instrument Serif', ui-serif, Georgia, serif;
