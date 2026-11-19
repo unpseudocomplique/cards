@@ -1,6 +1,7 @@
 import { asc, eq } from 'drizzle-orm'
 import { requireOwnedDeck } from '~~/server/utils/deckAccess'
 import { listDeckPersons } from '~~/server/utils/deckPersons'
+import { listDeckVariants } from '~~/server/utils/deckVariants'
 import { db, deckCards, deckPhotos } from '~~/server/utils/db'
 
 export default defineEventHandler(async (event) => {
@@ -12,16 +13,18 @@ export default defineEventHandler(async (event) => {
   }
 
   const deck = await requireOwnedDeck(deckId, session.user.id)
-  const [cards, photos, persons] = await Promise.all([
+  const [cards, photos, persons, variants] = await Promise.all([
     db.select().from(deckCards).where(eq(deckCards.deckId, deck.id)).orderBy(asc(deckCards.sortOrder)),
     db.select().from(deckPhotos).where(eq(deckPhotos.deckId, deck.id)).orderBy(asc(deckPhotos.createdAt)),
-    listDeckPersons(deck.id)
+    listDeckPersons(deck.id),
+    listDeckVariants(deck.id)
   ])
 
   return {
     deck,
     cards,
     persons,
+    variants,
     photos: photos.map(photo => ({
       id: photo.id,
       personId: photo.personId,

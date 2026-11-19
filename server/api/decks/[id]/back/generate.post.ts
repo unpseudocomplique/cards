@@ -1,28 +1,14 @@
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
-import { generateCardImage } from '~~/server/utils/ai'
-import { buildCardBackPrompt } from '~~/server/utils/cardPromptBuilder'
-import { renderCardBackImage } from '~~/server/utils/cardRenderer'
+import { generateCardBack } from '~~/server/utils/cardBackGeneration'
 import { requireOwnedDeck } from '~~/server/utils/deckAccess'
 import { db, decks } from '~~/server/utils/db'
 import { assertCanGenerate } from '~~/server/utils/generationAccess'
 import { normalizeGenerationError } from '~~/server/utils/generationErrors'
-import { generateFileKey, uploadFile } from '~~/server/utils/s3'
-import { resolveDeckCardFormat } from '~~/shared/utils/printSpec'
 
 const bodySchema = z.object({
   prompt: z.string().trim().max(1600).optional()
 }).optional()
-
-function mediaTypeToExtension(mediaType?: string) {
-  const extensions: Record<string, string> = {
-    'image/jpeg': 'jpg',
-    'image/png': 'png',
-    'image/webp': 'webp'
-  }
-
-  return extensions[mediaType || ''] || 'png'
-}
 
 export default defineEventHandler(async (event) => {
   const session = await requireUserSession(event) as { user: { email: string, id: string } }
@@ -51,55 +37,14 @@ export default defineEventHandler(async (event) => {
     ...storedSettings,
     cardBackPrompt: promptOverride || deck.settings.cardBackPrompt
   }
-  // One back for the whole deck, in the single deck format.
-  const format = resolveDeckCardFormat(deck.settings)
-  const aspectRatio = format.backAspectRatio
 
   try {
-    let lastError: unknown
-    let image: { uint8Array?: Uint8Array, mediaType?: string } | null = null
-
-    for (let attempt = 1; attempt <= 3; attempt += 1) {
-      try {
-        const result = await generateCardImage({
-          prompt: buildCardBackPrompt(settings, promptOverride),
-          aspectRatio,
-          providerOptions: {
-            google: {
-              responseModalities: ['TEXT', 'IMAGE']
-            }
-          }
-        })
-
-        if (result.image?.uint8Array?.byteLength) {
-          image = result.image
-          break
-        }
-
-        lastError = new Error(`Aucune image générée pour le dos (tentative ${attempt}/3)`)
-      } catch (error) {
-        lastError = error
-      }
-    }
-
-    if (!image?.uint8Array) {
-      throw lastError instanceof Error ? lastError : new Error('Aucune image générée pour le dos')
-    }
-
-    const rawBuffer = Buffer.from(image.uint8Array)
-    const mediaType = image.mediaType || 'image/png'
-    const extension = mediaTypeToExtension(mediaType)
-    const prefix = `users/${session.user.id}/decks/${deck.id}/back`
-    const rawKey = generateFileKey(prefix, `raw.${extension}`)
-    await uploadFile(rawBuffer, rawKey, mediaType)
-
-    const finalBuffer = await renderCardBackImage(rawBuffer, {
-      profile: 'screen',
-      theme: settings.colorTheme,
-      format: format.id
+    const back = await generateCardBack({
+      settings,
+      promptOverride,
+      storagePrefix: `users/${session.user.id}/decks/${deck.id}/back`
     })
-    const finalKey = generateFileKey(prefix, 'final.png')
-    const finalUrl = await uploadFile(finalBuffer, finalKey, 'image/png')
+    const finalUrl = back.finalUrl
 
     const [updatedDeck] = await db
       .update(decks)
@@ -108,8 +53,8 @@ export default defineEventHandler(async (event) => {
           ...settings,
           cardBackPrompt: settings.cardBackPrompt || undefined,
           cardBackImageUrl: finalUrl,
-          cardBackFormat: format.id,
-          cardBackImageKey: finalKey
+          cardBackFormat: back.format,
+          cardBackImageKey: back.finalKey
         },
         updatedAt: new Date()
       })

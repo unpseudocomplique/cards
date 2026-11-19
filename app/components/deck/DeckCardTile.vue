@@ -14,6 +14,8 @@ const props = defineProps<{
   outdated?: boolean
   selectable?: boolean
   selected?: boolean
+  /** Short badge in the top-right corner (e.g. a card changed in a variant). */
+  tag?: string
 }>()
 
 defineEmits<{
@@ -106,6 +108,14 @@ const status = computed(() => cardStatusMeta[props.card.status])
         class="absolute inset-x-[8%] bottom-[16%] rounded-full bg-neutral-950/70 px-2 py-1 text-center text-[11px] font-medium text-white backdrop-blur"
       >
         Sans personne
+      </div>
+
+      <!-- Tag -->
+      <div
+        v-if="tag && !selectable && !busy && card.status !== 'failed'"
+        class="absolute top-[5%] right-[5%] rounded-full bg-primary px-2 py-0.5 text-[11px] font-medium text-inverted shadow"
+      >
+        {{ tag }}
       </div>
 
       <!-- Selection check -->

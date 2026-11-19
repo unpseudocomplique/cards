@@ -1,42 +1,11 @@
-import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
-import { and, asc, eq } from 'drizzle-orm'
-import { generateCardImage } from '~~/server/utils/ai'
-import { buildCardForegroundPrompt, buildCardScenePrompt } from '~~/server/utils/cardPromptBuilder'
-import { renderCardImage } from '~~/server/utils/cardRenderer'
+import { and, eq } from 'drizzle-orm'
+import { generatePersonCardFace, loadCardPerson } from '~~/server/utils/cardFaceGeneration'
 import { renderAndStoreClassicCard, updateDeckProgress } from '~~/server/utils/classicCards'
 import { requireOwnedDeck } from '~~/server/utils/deckAccess'
-import { MAX_PERSON_REFERENCE_PHOTOS } from '~~/server/utils/deckPersons'
-import { db, deckCards, deckPersons, deckPhotos, decks } from '~~/server/utils/db'
+import { db, deckCards, decks } from '~~/server/utils/db'
 import { assertCanGenerate } from '~~/server/utils/generationAccess'
 import { normalizeGenerationError } from '~~/server/utils/generationErrors'
-import { generateFileKey, uploadFile } from '~~/server/utils/s3'
 import { usesClassicDesign } from '~~/shared/utils/classicCards'
-import { resolveDeckCardFormat } from '~~/shared/utils/printSpec'
-
-function mediaTypeToExtension(mediaType?: string) {
-  const extensions: Record<string, string> = {
-    'image/jpeg': 'jpg',
-    'image/png': 'png',
-    'image/webp': 'webp'
-  }
-
-  return extensions[mediaType || ''] || 'png'
-}
-
-async function readPhotoBuffer(url: string) {
-  if (url.startsWith('/')) {
-    return readFile(join(process.cwd(), 'public', url.replace(/^\/+/, '')))
-  }
-
-  const response = await fetch(url)
-
-  if (!response.ok) {
-    throw new Error('Photo source inaccessible')
-  }
-
-  return Buffer.from(await response.arrayBuffer())
-}
 
 export default defineEventHandler(async (event) => {
   const session = await requireUserSession(event) as { user: { email: string, id: string } }
@@ -81,25 +50,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ status: 400, message: 'Affectez une personne à cette carte avant le test' })
   }
 
-  const referencePhotos = await db
-    .select()
-    .from(deckPhotos)
-    .where(and(
-      eq(deckPhotos.personId, personId),
-      eq(deckPhotos.deckId, deck.id)
-    ))
-    .orderBy(asc(deckPhotos.createdAt))
-    .limit(MAX_PERSON_REFERENCE_PHOTOS)
-
-  if (!referencePhotos.length) {
-    throw createError({ status: 400, message: 'Cette personne n\'a aucune photo de référence' })
-  }
-
-  const [person] = await db
-    .select({ label: deckPersons.label, prompt: deckPersons.prompt })
-    .from(deckPersons)
-    .where(and(eq(deckPersons.id, personId), eq(deckPersons.deckId, deck.id)))
-    .limit(1)
+  const person = await loadCardPerson(deck.id, personId)
 
   await db.transaction(async (tx) => {
     await tx
@@ -116,107 +67,26 @@ export default defineEventHandler(async (event) => {
   const currentCard = card
 
   try {
-    const referenceBuffers = await Promise.all(
-      referencePhotos.map(photo => readPhotoBuffer(photo.url))
-    )
-    const format = resolveDeckCardFormat(deck.settings)
-    // Layered prompt: deck → suit → card rank → person → this card (later wins).
-    const promptOptions = { cardPrompt: currentCard.prompt, person }
-    const scenePrompt = buildCardScenePrompt(currentCard.metadata, deck.settings, promptOptions)
-    const foregroundPrompt = buildCardForegroundPrompt(currentCard.metadata, deck.settings, promptOptions)
-    const imageProviderOptions = {
-      google: {
-        responseModalities: ['TEXT', 'IMAGE'] as Array<'TEXT' | 'IMAGE'>
-      }
-    }
-
-    async function generateWithRetry(
-      label: string,
-      input: Parameters<typeof generateCardImage>[0]
-    ) {
-      let lastError: unknown
-
-      for (let attempt = 1; attempt <= 3; attempt += 1) {
-        try {
-          const result = await generateCardImage(input)
-
-          if (result.image?.uint8Array?.byteLength) {
-            return result
-          }
-
-          lastError = new Error(`Aucune image générée (${label}, tentative ${attempt}/3)`)
-          console.warn('[card.generate] empty image', { deckId: deck.id, cardId: currentCard.id, label, attempt })
-        } catch (error) {
-          lastError = error
-          console.warn('[card.generate] attempt failed', {
-            deckId: deck.id,
-            cardId: currentCard.id,
-            label,
-            attempt,
-            message: error instanceof Error ? error.message : String(error)
-          })
-        }
-      }
-
-      throw lastError instanceof Error ? lastError : new Error(`Génération impossible (${label})`)
-    }
-
-    const [sceneResult, foregroundResult] = await Promise.all([
-      generateWithRetry('décor', {
-        prompt: scenePrompt,
-        aspectRatio: format.artAspectRatio,
-        providerOptions: imageProviderOptions
-      }),
-      generateWithRetry('personnage', {
-        prompt: {
-          text: foregroundPrompt,
-          images: referenceBuffers
-        },
-        aspectRatio: format.artAspectRatio,
-        providerOptions: imageProviderOptions
-      })
-    ])
-    const image = sceneResult.image
-    const foregroundImage = foregroundResult.image
-
-    if (!image?.uint8Array || !foregroundImage?.uint8Array) {
-      throw new Error('Aucune image générée')
-    }
-
-    const rawBuffer = Buffer.from(image.uint8Array)
-    const rawMediaType = image.mediaType || 'image/png'
-    const rawExtension = mediaTypeToExtension(rawMediaType)
-    const foregroundBuffer = Buffer.from(foregroundImage.uint8Array)
-    const foregroundMediaType = foregroundImage.mediaType || 'image/png'
-    const foregroundExtension = mediaTypeToExtension(foregroundMediaType)
-    const prefix = `users/${session.user.id}/decks/${deck.id}/cards/${currentCard.id}`
-    const rawImageKey = generateFileKey(prefix, `scene.${rawExtension}`)
-    const rawImageUrl = await uploadFile(rawBuffer, rawImageKey, rawMediaType)
-    // Character layer kept so the card can be recomposed later without a new AI call.
-    const foregroundImageUrl = await uploadFile(
-      foregroundBuffer,
-      generateFileKey(prefix, `foreground.${foregroundExtension}`),
-      foregroundMediaType
-    )
-    const finalBuffer = await renderCardImage(rawBuffer, currentCard.metadata, foregroundBuffer, {
-      theme: deck.settings.colorTheme,
-      format: format.id
-    }).catch((error) => {
-      throw new Error(`Assemblage de la carte impossible: ${error instanceof Error ? error.message : 'erreur inconnue'}`)
+    const face = await generatePersonCardFace({
+      deckId: deck.id,
+      cardId: currentCard.id,
+      settings: deck.settings,
+      metadata: currentCard.metadata,
+      cardPrompt: currentCard.prompt,
+      person,
+      storagePrefix: `users/${session.user.id}/decks/${deck.id}/cards/${currentCard.id}`
     })
-    const finalImageKey = generateFileKey(prefix, 'final.png')
-    const finalImageUrl = await uploadFile(finalBuffer, finalImageKey, 'image/png')
 
     const [updatedCard] = await db
       .update(deckCards)
       .set({
         status: 'ready',
-        rawImageKey,
-        rawImageUrl,
-        finalImageKey,
-        finalImageUrl,
+        rawImageKey: face.rawImageKey,
+        rawImageUrl: face.rawImageUrl,
+        finalImageKey: face.finalImageKey,
+        finalImageUrl: face.finalImageUrl,
         // Remember the format this face was rendered in (decks can change format).
-        metadata: { ...currentCard.metadata, format: format.id, foregroundImageUrl },
+        metadata: { ...currentCard.metadata, format: face.format, foregroundImageUrl: face.foregroundImageUrl },
         errorMessage: null,
         updatedAt: new Date()
       })
