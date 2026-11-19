@@ -100,11 +100,7 @@ const poigneeName = computed(() => {
   return `${poigneeLabels[index] ?? ''} poignée (${poigneeTier.value} atouts)`
 })
 
-/* Orientation */
 const debugGfx = computed(() => String(route.query.debugGfx ?? '') === '1')
-const tableActive = computed(() => Boolean(publicState.value) && !isLobby.value)
-const { isPhonePortrait, tryLockLandscape } = usePlayOrientation(tableActive)
-const needsLandscape = computed(() => tableActive.value && isPhonePortrait.value)
 
 /* Errors as toasts rather than banners covering the table. */
 watch(error, (message) => {
@@ -127,13 +123,8 @@ function play(card: CardId) {
 </script>
 
 <template>
-  <PlayRotatePrompt
-    v-if="needsLandscape"
-    @retry="tryLockLandscape"
-  />
-
   <div
-    v-else-if="publicState && !isLobby"
+    v-if="publicState && !isLobby"
     class="relative h-dvh w-full overflow-hidden overscroll-none bg-neutral-950"
     :style="{ '--table-card-ratio': cardRatio }"
   >
@@ -148,7 +139,7 @@ function play(card: CardId) {
     />
 
     <!-- HUD -->
-    <div class="pointer-events-none absolute inset-0 z-40 flex flex-col px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4">
+    <div class="pointer-events-none absolute inset-0 z-40 flex flex-col px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4 short:pt-[max(0.5rem,env(safe-area-inset-top))] short:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
       <div class="pointer-events-auto mx-auto w-full max-w-5xl">
         <PlayHudBar
           :state="publicState"
@@ -160,7 +151,7 @@ function play(card: CardId) {
 
       <div
         v-if="phase === 'Bidding'"
-        class="pointer-events-auto mt-3 w-full"
+        class="pointer-events-auto mt-3 w-full short:mt-2"
       >
         <PlayBidDock
           :state="publicState"
@@ -186,7 +177,7 @@ function play(card: CardId) {
 
       <div
         v-if="needsKingCall || canDiscard || showSummary"
-        class="pointer-events-auto m-auto w-full max-w-2xl py-3"
+        class="pointer-events-auto m-auto w-full max-w-2xl py-3 short:max-w-4xl short:py-1"
       >
         <PlayKingCallPanel
           v-if="needsKingCall"

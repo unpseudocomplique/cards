@@ -8,7 +8,7 @@ defineProps<{
 </script>
 
 <template>
-  <section class="w-full rounded-2xl bg-neutral-950/80 p-4 text-white shadow-2xl shadow-black/50 ring-1 ring-white/10 backdrop-blur-xl sm:p-5">
+  <section class="w-full rounded-2xl bg-neutral-950/80 p-4 text-white shadow-2xl shadow-black/50 ring-1 ring-white/10 backdrop-blur-xl sm:p-5 short:px-4 short:py-3">
     <header class="flex items-start gap-3">
       <div
         v-if="icon"
@@ -20,24 +20,24 @@ defineProps<{
         />
       </div>
       <div class="min-w-0 flex-1">
-        <h2 class="font-display text-2xl leading-tight text-amber-50">
+        <h2 class="font-display text-2xl leading-tight text-amber-50 short:text-xl">
           {{ title }}
         </h2>
         <p
           v-if="description"
-          class="mt-0.5 text-sm text-white/60"
+          class="mt-0.5 text-sm text-white/60 short:text-xs"
         >
           {{ description }}
         </p>
       </div>
       <slot name="aside" />
     </header>
-    <div class="mt-4">
+    <div class="mt-4 short:mt-2">
       <slot />
     </div>
     <footer
       v-if="$slots.footer"
-      class="mt-4 flex flex-wrap items-center justify-end gap-2"
+      class="mt-4 flex flex-wrap items-center justify-end gap-2 short:mt-2"
     >
       <slot name="footer" />
     </footer>

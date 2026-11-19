@@ -61,7 +61,7 @@ const spring = computed(() =>
 </script>
 
 <template>
-  <div class="pointer-events-none absolute inset-0 z-[15] flex items-center justify-center px-3 pb-[18vh] sm:pb-[14vh]">
+  <div class="pointer-events-none absolute inset-0 z-[15] flex items-center justify-center px-3 pb-[18vh] sm:pb-[14vh] upright:pb-[8vh] short:pb-[21vh]">
     <div class="relative flex max-w-full items-end justify-center gap-1.5 sm:gap-3">
       <AnimatePresence>
         <motion.div

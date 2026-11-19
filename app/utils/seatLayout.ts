@@ -10,8 +10,22 @@ import { PerspectiveCamera, Vector3 } from 'three'
 /** Table camera, shared with TableScene so overlays and 3D stay aligned. */
 export const TABLE_CAMERA = {
   desktop: { position: [0, 2.95, 6.05], lookAt: [0, 0.95, -0.25], fov: 42 },
-  mobile: { position: [0, 3.25, 6.35], lookAt: [0, 0.85, -0.2], fov: 46 }
+  mobile: { position: [0, 3.25, 6.35], lookAt: [0, 0.85, -0.2], fov: 46 },
+  /** Phone held upright: higher and further back so the whole felt fits the narrow width. */
+  portrait: { position: [0, 7.4, 6.6], lookAt: [0, -0.1, 0.25], fov: 62 }
 } as const satisfies Record<string, { position: readonly [number, number, number], lookAt: readonly [number, number, number], fov: number }>
+
+/** Screens taller than wide (phone in portrait) get the overhead camera. */
+export function isPortraitView(view: { width: number, height: number }) {
+  return view.width > 0 && view.width / Math.max(1, view.height) < 0.85
+}
+
+export function tableCamera(view: { width: number, height: number, mobile: boolean }) {
+  if (isPortraitView(view)) {
+    return TABLE_CAMERA.portrait
+  }
+  return view.mobile ? TABLE_CAMERA.mobile : TABLE_CAMERA.desktop
+}
 
 export type TableViewport = {
   width: number
@@ -43,7 +57,7 @@ const camera = new PerspectiveCamera()
 const point = new Vector3()
 
 function project(view: TableViewport, world: [number, number, number]): ScreenPoint {
-  const spec = view.mobile ? TABLE_CAMERA.mobile : TABLE_CAMERA.desktop
+  const spec = tableCamera(view)
   camera.fov = spec.fov
   camera.aspect = view.width / Math.max(1, view.height)
   const [px, py, pz] = spec.position
@@ -64,13 +78,21 @@ function localAnchor(view: TableViewport): ScreenPoint {
   return { x: view.width * 0.5, y: view.height * 0.86 }
 }
 
+/** Landscape phones (matches the `short` CSS variant). */
+function isShortView(view: { height: number }) {
+  return view.height > 0 && view.height <= 520
+}
+
 /**
  * Box covered by the trick overlay (TrickOverlay centres it with a bottom
- * padding of 14vh, 18vh on narrow screens).
+ * padding of 14vh, 18vh on narrow screens, 8vh upright, 21vh on short screens).
  */
 export function trickZone(view: TableViewport) {
-  const centerY = view.height * (view.mobile ? 0.41 : 0.43)
-  const halfHeight = view.mobile ? 58 : 70
+  const bottomPadding = isShortView(view)
+    ? 0.21
+    : isPortraitView(view) ? 0.08 : view.mobile ? 0.18 : 0.14
+  const centerY = view.height * (1 - bottomPadding) / 2
+  const halfHeight = isShortView(view) ? 46 : view.mobile ? 58 : 70
   const halfWidth = view.mobile ? 140 : 200
   return { centerX: view.width / 2, centerY, halfWidth, halfHeight }
 }

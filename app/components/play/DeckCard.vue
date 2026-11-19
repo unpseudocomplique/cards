@@ -8,25 +8,31 @@ const props = withDefaults(defineProps<{
   size?: 'xs' | 'sm' | 'md' | 'lg'
   highlighted?: boolean
   dimmed?: boolean
+  /** Fill the parent box instead of using a preset height (the parent sets the size). */
+  fill?: boolean
 }>(), {
   faceUrl: null,
   size: 'md',
   highlighted: false,
   dimmed: false,
+  fill: false,
 })
 
 const label = computed(() => tarotCardLabel(props.cardId))
 
 const sizeClass = computed(() => {
+  if (props.fill) {
+    return 'h-full w-full'
+  }
   switch (props.size) {
     case 'xs':
-      return 'h-16 sm:h-[4.5rem]'
+      return 'h-16 sm:h-[4.5rem] short:h-14'
     case 'sm':
-      return 'h-[5.25rem] sm:h-24'
+      return 'h-[5.25rem] sm:h-24 short:h-[4.25rem]'
     case 'lg':
-      return 'h-28 sm:h-[9.25rem]'
+      return 'h-28 sm:h-[9.25rem] short:h-24'
     default:
-      return 'h-[6.5rem] sm:h-[9.25rem]'
+      return 'h-[6.5rem] sm:h-[9.25rem] short:h-[5.25rem]'
   }
 })
 
