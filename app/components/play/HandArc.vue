@@ -260,7 +260,7 @@ function onPlay(card: CardId, event: MouseEvent) {
     >
       <p
         v-if="prompt"
-        class="pointer-events-none absolute left-1/2 z-[300] flex -translate-x-1/2 items-center gap-2 rounded-full bg-amber-300 px-3.5 py-1.5 text-sm font-semibold whitespace-nowrap text-neutral-950 short:py-1 short:text-xs shadow-lg shadow-black/40"
+        class="pointer-events-none absolute left-1/2 z-[300] flex -translate-x-1/2 items-center gap-2 rounded-lg bg-amber-300 px-3.5 py-1.5 text-sm font-semibold whitespace-nowrap text-neutral-950 short:py-1 short:text-xs shadow-lg shadow-black/40"
         :style="{ bottom: `${cardHeight + rowLift + rotationOverhang + (isShort ? 16 : 34)}px` }"
         role="status"
       >

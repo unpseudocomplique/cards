@@ -27,6 +27,12 @@ const prefersReduced = usePreferredReducedMotion()
 const trickCardHeight = computed(() =>
   trickCardHeightFor({ width: props.sceneWidth, height: props.sceneHeight }, props.playerCount))
 
+/** "Title — reason" from the table: title in bold, reason smaller below. */
+const bannerParts = computed(() => {
+  const [title, ...rest] = (props.holdBanner ?? '').split(' — ')
+  return { title, reason: rest.join(' — ') }
+})
+
 function seatLabel(seat: number) {
   return seat === props.localSeat ? 'Vous' : props.seats?.[seat]?.name
 }
@@ -110,7 +116,7 @@ const spring = computed(() =>
           />
           <p
             v-if="seatLabel(entry.seat) && collectingToSeat == null"
-            class="mx-auto mt-1 w-fit max-w-[4.5rem] truncate rounded-full bg-black/55 px-1.5 py-px text-center text-[10px] text-white/85 backdrop-blur-sm sm:text-xs"
+            class="mx-auto mt-1 w-fit max-w-[4.5rem] truncate rounded-md bg-black/55 px-1.5 py-px text-center text-[10px] text-white/85 backdrop-blur-sm sm:text-xs"
           >
             {{ seatLabel(entry.seat) }}
           </p>
@@ -119,7 +125,7 @@ const spring = computed(() =>
 
       <motion.div
         v-if="collectingToSeat != null && winnerName"
-        class="pointer-events-none absolute -top-10 left-1/2 upright:top-auto upright:-bottom-10 -translate-x-1/2 rounded-full border border-amber-200/30 bg-black/70 px-3 py-1 text-xs font-semibold tracking-wide text-amber-100 uppercase"
+        class="pointer-events-none absolute -top-10 left-1/2 upright:top-auto upright:-bottom-10 -translate-x-1/2 whitespace-nowrap rounded-lg border border-amber-200/30 bg-black/70 px-3 py-1 text-xs font-semibold tracking-wide text-amber-100 uppercase"
         :initial="{ opacity: 0, y: 8, scale: 0.9 }"
         :animate="{ opacity: 1, y: 0, scale: 1 }"
         :transition="{ type: 'spring', stiffness: 320, damping: 22 }"
@@ -128,12 +134,20 @@ const spring = computed(() =>
       </motion.div>
       <motion.div
         v-else-if="holdBanner"
-        class="pointer-events-none absolute -top-12 left-1/2 upright:top-auto upright:-bottom-12 max-w-[90vw] -translate-x-1/2 rounded-full border border-white/20 bg-black/75 px-3 py-1.5 text-center text-xs font-medium tracking-wide text-white/90 sm:text-sm"
+        class="pointer-events-none absolute -top-14 left-1/2 w-max max-w-[min(20rem,90vw)] -translate-x-1/2 rounded-2xl border border-white/15 bg-neutral-950/85 px-3.5 py-1.5 text-center shadow-xl backdrop-blur-md upright:top-auto upright:-bottom-14"
         :initial="{ opacity: 0, y: 8, scale: 0.96 }"
         :animate="{ opacity: 1, y: 0, scale: 1 }"
         :transition="{ type: 'spring', stiffness: 300, damping: 22 }"
       >
-        {{ holdBanner }}
+        <p class="font-display text-lg leading-tight text-amber-50">
+          {{ bannerParts.title }}
+        </p>
+        <p
+          v-if="bannerParts.reason"
+          class="text-[11px] leading-snug text-white/60"
+        >
+          {{ bannerParts.reason }}
+        </p>
       </motion.div>
     </div>
   </div>

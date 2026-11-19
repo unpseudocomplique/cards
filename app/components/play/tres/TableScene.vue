@@ -7,7 +7,7 @@ import {
   isPetitStolen,
   resolveTrick,
 } from '~~/shared/tarot'
-import { seatAnchor, tableCamera } from '~/utils/seatLayout'
+import { isPortraitView, seatAnchor, tableCamera } from '~/utils/seatLayout'
 import type { TableFxEvent } from '~/components/play/TableFxOverlay.vue'
 
 const props = defineProps<{
@@ -183,24 +183,11 @@ function celebratePetitSteal(victimSeat: number, thiefSeat: number) {
 function celebrateTrickSummary(trickCards: TrickEntry[], winnerSeat: number) {
   try {
     const summary = describeTrick(props.publicState, trickCards)
+    // One quiet line by the trick; the full-screen panel is kept for bouts and steals.
     trickSummaryLine.value = `${summary.title} — ${summary.subtitle}`
-    pushFx({
-      kind: 'trick-won',
-      title: summary.title,
-      subtitle: summary.subtitle,
-      details: summary.details,
-      accent: summary.accent,
-    }, TRICK_SUMMARY_TTL_MS)
   }
   catch {
-    const name = seatName(winnerSeat)
-    trickSummaryLine.value = `Pli pour ${name}`
-    pushFx({
-      kind: 'trick-won',
-      title: `Pli pour ${name}`,
-      subtitle: 'Le pli est ramassé',
-      accent: 'slate',
-    }, TRICK_SUMMARY_TTL_MS)
+    trickSummaryLine.value = `Pli pour ${seatName(winnerSeat)}`
   }
 }
 
@@ -469,6 +456,10 @@ const cameraSpec = computed(() => tableCamera({
   height: sceneSize.value.height || (import.meta.client ? window.innerHeight : 1),
   mobile: isMobile.value
 }))
+const portraitView = computed(() => isPortraitView({
+  width: sceneSize.value.width || (import.meta.client ? window.innerWidth : 1),
+  height: sceneSize.value.height || (import.meta.client ? window.innerHeight : 1)
+}))
 const cameraPosition = computed<[number, number, number]>(() => [...cameraSpec.value.position])
 const cameraLookAt = computed<[number, number, number]>(() => [...cameraSpec.value.lookAt])
 
@@ -570,6 +561,7 @@ function onLoop({ delta }: { delta: number }) {
           :quality="profile"
           :shadows="!isMobile && settings.shadows"
           :cast-salt="castSalt"
+          :show-chandelier="!portraitView"
         />
 
         <PlayTresOpponentStacks
@@ -600,6 +592,9 @@ function onLoop({ delta }: { delta: number }) {
         :mobile="isMobile"
         :active-seat="['Bidding', 'Trick', 'ReadyToPlay'].includes(publicState.phase) ? publicState.currentSeat : null"
         :highlight-seat="collectingToSeat"
+        :scores="publicState.scores"
+        :taker-seat="publicState.bid?.seat ?? null"
+        :partner-seat="publicState.partnerSeat ?? null"
       />
 
       <PlayTrickOverlay
