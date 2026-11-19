@@ -12,7 +12,42 @@ const props = defineProps<{
   /** Seat whose turn it is, highlighted on its name tag. */
   activeSeat?: number | null
   highlightSeat?: number | null
+  scores?: number[]
+  takerSeat?: number | null
+  partnerSeat?: number | null
 }>()
+
+/** Tap a name tag to see that player's score, tricks and side for a moment. */
+const openSeat = shallowRef<number | null>(null)
+let closeTimer: ReturnType<typeof setTimeout> | null = null
+
+function toggleSeat(seat: number) {
+  openSeat.value = openSeat.value === seat ? null : seat
+  if (closeTimer) {
+    clearTimeout(closeTimer)
+  }
+  if (openSeat.value !== null) {
+    closeTimer = setTimeout(() => {
+      openSeat.value = null
+    }, 4000)
+  }
+}
+
+onUnmounted(() => {
+  if (closeTimer) {
+    clearTimeout(closeTimer)
+  }
+})
+
+function roleLabel(seat: number) {
+  if (props.takerSeat === seat) {
+    return 'Preneur'
+  }
+  if (props.partnerSeat === seat) {
+    return 'Partenaire'
+  }
+  return props.takerSeat != null ? 'Défense' : null
+}
 
 const view = computed(() => ({ width: props.sceneWidth, height: props.sceneHeight, mobile: props.mobile }))
 
@@ -42,25 +77,58 @@ function layers(won: number) {
       v-for="opponent in opponents"
       :key="opponent.seat"
     >
-      <!-- Name tag above the guest's head -->
-      <p
-        class="absolute flex max-w-[8rem] -translate-x-1/2 -translate-y-full items-center gap-1 truncate rounded-full px-2 py-0.5 text-[11px] font-medium shadow-sm ring-1 backdrop-blur-sm transition-colors sm:text-xs"
-        :class="activeSeat === opponent.seat
-          ? 'bg-amber-300 text-neutral-950 ring-amber-200'
-          : 'bg-black/55 text-white/90 ring-white/15'"
+      <!-- Name tag above the guest's head; tap for details -->
+      <div
+        class="absolute -translate-x-1/2 -translate-y-full"
         :style="{ left: `${opponent.label.x}px`, top: `${opponent.label.y}px` }"
       >
-        <UIcon
-          v-if="opponent.bot"
-          name="i-lucide-bot"
-          class="size-3 shrink-0 opacity-70"
-        />
-        <span class="truncate">{{ opponent.name }}</span>
-        <span
-          v-if="countInTag && opponent.won > 0"
-          class="shrink-0 tabular-nums opacity-70"
-        >· {{ opponent.won }} pli{{ opponent.won > 1 ? 's' : '' }}</span>
-      </p>
+        <button
+          type="button"
+          class="pointer-events-auto flex max-w-[8rem] items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium shadow-sm ring-1 backdrop-blur-sm transition duration-300 sm:text-xs"
+          :class="[
+            activeSeat === opponent.seat
+              ? 'bg-amber-300 text-neutral-950 ring-amber-200'
+              : 'bg-black/55 text-white/90 ring-white/15',
+            highlightSeat === opponent.seat ? 'scale-110' : ''
+          ]"
+          :aria-expanded="openSeat === opponent.seat"
+          @click="toggleSeat(opponent.seat)"
+        >
+          <UIcon
+            v-if="opponent.bot"
+            name="i-lucide-bot"
+            class="size-3 shrink-0 opacity-70"
+          />
+          <span class="truncate">{{ opponent.name }}</span>
+          <UIcon
+            v-if="takerSeat === opponent.seat"
+            name="i-lucide-crown"
+            class="size-3 shrink-0"
+            :class="activeSeat === opponent.seat ? 'text-neutral-950' : 'text-amber-300'"
+          />
+        </button>
+        <Transition
+          enter-active-class="transition duration-150 ease-out"
+          enter-from-class="-translate-y-1 opacity-0"
+          leave-active-class="transition duration-150 ease-in"
+          leave-to-class="-translate-y-1 opacity-0"
+        >
+          <div
+            v-if="openSeat === opponent.seat"
+            class="absolute top-full left-1/2 z-10 mt-1.5 -translate-x-1/2 rounded-xl bg-neutral-950/90 px-3 py-2 text-xs whitespace-nowrap text-white shadow-xl ring-1 ring-white/15 backdrop-blur-md"
+          >
+            <p class="font-semibold tabular-nums">
+              {{ scores?.[opponent.seat] ?? 0 }} pts · {{ opponent.won }} pli{{ opponent.won > 1 ? 's' : '' }}
+            </p>
+            <p
+              v-if="roleLabel(opponent.seat)"
+              class="mt-0.5 text-white/60"
+            >
+              {{ roleLabel(opponent.seat) }}
+            </p>
+          </div>
+        </Transition>
+      </div>
 
       <!-- Won tricks, on the felt beside them -->
       <div

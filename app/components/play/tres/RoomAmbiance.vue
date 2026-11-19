@@ -11,10 +11,13 @@ const props = withDefaults(defineProps<{
   shadows?: boolean
   tableRadius?: number
   castSalt?: number
+  /** Off on upright phones: seen from above, the chandelier sits on the table. */
+  showChandelier?: boolean
 }>(), {
   shadows: false,
   tableRadius: 3.35,
   castSalt: 0,
+  showChandelier: true,
 })
 
 const art = shallowRef<AmbianceArtBundle | null>(null)
@@ -185,7 +188,10 @@ function frameMat(map: AmbianceArtBundle['paintings'][number] | null) {
     </TresGroup>
 
     <!-- Chandelier -->
-    <TresGroup :position="[0, 2.55, 0.1]">
+    <TresGroup
+      v-if="showChandelier"
+      :position="[0, 2.55, 0.1]"
+    >
       <TresMesh>
         <TresCylinderGeometry :args="[0.04, 0.04, 0.7, 8]" />
         <TresMeshStandardMaterial v-bind="brassMat" />
