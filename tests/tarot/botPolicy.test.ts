@@ -91,90 +91,62 @@ function playState(overrides: Partial<GameState> = {}): GameState {
   }
 }
 
+const hand18 = (...ids: string[]) => {
+  if (ids.length !== 18) {
+    throw new Error(`hand of ${ids.length} cards`)
+  }
+  return ids.map(c)
+}
+
 describe('chooseBotIntent bidding', () => {
-  it('passes with a weak hand (few trumps, no oudler)', () => {
-    const hand = [
-      c('trump-2'), c('trump-5'),
-      c('hearts-1'), c('hearts-2'), c('clubs-3'), c('diamonds-4'),
-    ]
-    const state = biddingState(hand)
-    const intent = chooseBotIntent(state, 1)
-    expect(intent).toEqual({ type: 'bid', bid: 'passe' })
+  const weak = hand18(
+    'trump-2', 'trump-5', 'trump-9',
+    'hearts-1', 'hearts-3', 'hearts-6', 'hearts-8', 'clubs-2', 'clubs-4', 'clubs-7', 'clubs-j',
+    'diamonds-2', 'diamonds-5', 'diamonds-9', 'spades-1', 'spades-4', 'spades-6', 'spades-10',
+  )
+  const decent = hand18(
+    'trump-21', 'trump-4', 'trump-8', 'trump-11', 'trump-13', 'trump-17',
+    'hearts-k', 'hearts-q', 'hearts-3', 'hearts-5',
+    'clubs-2', 'clubs-6', 'clubs-9', 'diamonds-c', 'diamonds-3', 'diamonds-8', 'spades-7', 'spades-j',
+  )
+  const monster = hand18(
+    'trump-21', 'trump-1', 'excuse', 'trump-20', 'trump-19', 'trump-18', 'trump-17', 'trump-16', 'trump-12', 'trump-9', 'trump-7',
+    'hearts-k', 'hearts-q', 'spades-k', 'spades-2', 'spades-3', 'spades-5', 'spades-6',
+  )
+
+  it.each(['facile', 'moyen', 'difficile'] as const)('passes with a weak hand (%s)', (level) => {
+    const state = biddingState(weak)
+    expect(chooseBotIntent(state, 1, level)).toEqual({ type: 'bid', bid: 'passe' })
   })
 
-  it('passes with four trumps but no oudler', () => {
-    const hand = [
-      c('trump-2'), c('trump-5'), c('trump-10'), c('trump-15'),
-      c('hearts-1'), c('hearts-2'),
-    ]
-    const state = biddingState(hand)
-    expect(chooseBotIntent(state, 1)).toEqual({ type: 'bid', bid: 'passe' })
-  })
-
-  it('bids prise with four real trumps and an oudler on its turn', () => {
-    const hand = [
-      c('trump-1'), c('trump-5'), c('trump-10'), c('trump-15'),
-      c('hearts-1'), c('excuse'),
-    ]
-    const state = biddingState(hand)
-    const intent = chooseBotIntent(state, 1)
+  it('takes a decent hand (21, six trumps, king-queen)', () => {
+    const state = biddingState(decent)
+    const intent = chooseBotIntent(state, 1, 'difficile')
     expect(intent).toEqual({ type: 'bid', bid: 'prise' })
-
-    const result = apply(state, intent, actorForSeat(state, 1))
-    expect(result.ok).toBe(true)
+    expect(apply(state, intent, actorForSeat(state, 1)).ok).toBe(true)
   })
 
-  it('bids garde_contre with a monster trump + oudler hand', () => {
-    const hand = [
-      c('trump-1'), c('trump-21'), c('trump-14'), c('trump-15'), c('trump-16'), c('trump-18'),
-      c('excuse'), c('hearts-k'), c('spades-k'),
-    ]
-    const state = biddingState(hand)
-    expect(chooseBotIntent(state, 1)).toEqual({ type: 'bid', bid: 'garde_contre' })
+  it('bids garde contre with a monster hand', () => {
+    const state = biddingState(monster)
+    expect(chooseBotIntent(state, 1, 'difficile')).toEqual({ type: 'bid', bid: 'garde_contre' })
   })
 
-  it('overcalls beyond prise when a strong hand faces an existing prise', () => {
-    const hand = [
-      c('trump-1'), c('trump-14'), c('trump-15'), c('trump-16'), c('trump-10'),
-      c('excuse'), c('hearts-k'),
-    ]
+  it('overcalls a prise with a strong hand', () => {
     let bidState = createBidState(4, 0)
-    bidState = {
-      ...bidState,
-      spoken: [{ seat: 0, bid: 'prise' }],
-      currentWinner: { seat: 0, contract: 'prise' },
-    }
-    const state = biddingState(hand, {
-      bidState,
-      currentSeat: expectedSeat(bidState),
-    })
-    const intent = chooseBotIntent(state, 1)
+    bidState = { ...bidState, spoken: [{ seat: 0, bid: 'prise' }], currentWinner: { seat: 0, contract: 'prise' } }
+    const state = biddingState(monster, { bidState, currentSeat: expectedSeat(bidState) })
+    const intent = chooseBotIntent(state, 1, 'moyen')
     expect(intent.type).toBe('bid')
     if (intent.type === 'bid') {
       expect(['garde', 'garde_sans', 'garde_contre']).toContain(intent.bid)
     }
   })
 
-  it('passes when a marginal prise hand cannot stretch over an existing prise', () => {
-    const hand = [
-      c('trump-1'), c('trump-5'), c('trump-8'), c('trump-10'),
-      c('hearts-1'), c('hearts-2'),
-    ]
+  it('passes when a prise hand cannot overcall a garde', () => {
     let bidState = createBidState(4, 0)
-    const first = { seat: 0, bid: 'prise' as const }
-    bidState = {
-      ...bidState,
-      spoken: [first],
-      currentWinner: { seat: 0, contract: 'prise' },
-    }
-
-    const state = biddingState(hand, {
-      bidState,
-      currentSeat: expectedSeat(bidState),
-    })
-
-    expect(state.currentSeat).toBe(1)
-    expect(chooseBotIntent(state, 1)).toEqual({ type: 'bid', bid: 'passe' })
+    bidState = { ...bidState, spoken: [{ seat: 0, bid: 'garde' }], currentWinner: { seat: 0, contract: 'garde' } }
+    const state = biddingState(decent, { bidState, currentSeat: expectedSeat(bidState) })
+    expect(chooseBotIntent(state, 1, 'difficile')).toEqual({ type: 'bid', bid: 'passe' })
   })
 })
 
@@ -234,19 +206,81 @@ describe('chooseBotIntent play', () => {
     expect(result.ok).toBe(true)
   })
 
-  it('prefers the lowest card that follows suit', () => {
+  it('gives points to a trick its camp is sure to win', () => {
+    // Taker (seat 0) led, defender seat 1 played the king: seat 3 plays last.
     const state = playState({
+      currentSeat: 3,
       hands: [
-        [c('hearts-k')],
-        [c('hearts-2'), c('hearts-9'), c('clubs-5')],
-        [c('diamonds-3')],
-        [c('spades-8')],
+        [c('clubs-2'), c('clubs-3')],
+        [c('clubs-4'), c('clubs-5')],
+        [c('clubs-6'), c('clubs-7')],
+        [c('hearts-c'), c('hearts-3'), c('clubs-8')],
       ],
+      trick: [
+        { seat: 0, card: c('hearts-7') },
+        { seat: 1, card: c('hearts-k') },
+        { seat: 2, card: c('hearts-2') },
+      ],
+    })
+    for (const level of ['moyen', 'difficile'] as const) {
+      expect(chooseBotIntent(state, 3, level)).toEqual({ type: 'playCard', card: c('hearts-c') })
+    }
+  })
+
+  it('saves the Petit when it wins the trick for sure', () => {
+    // Seat 3 plays last, has no clubs: the Petit takes the trick.
+    const state = playState({
+      currentSeat: 3,
+      hands: [
+        [c('clubs-2'), c('trump-20')],
+        [c('clubs-4'), c('clubs-5')],
+        [c('clubs-6'), c('clubs-7')],
+        [c('trump-1'), c('trump-15'), c('hearts-3')],
+      ],
+      trick: [
+        { seat: 0, card: c('clubs-9') },
+        { seat: 1, card: c('clubs-10') },
+        { seat: 2, card: c('clubs-3') },
+      ],
+    })
+    for (const level of ['moyen', 'difficile'] as const) {
+      expect(chooseBotIntent(state, 3, level)).toEqual({ type: 'playCard', card: c('trump-1') })
+    }
+  })
+
+  it('keeps the Petit away from a trick the taker can still overtrump', () => {
+    // Seat 2 (defence) has no clubs; the taker plays after it and already trumped clubs.
+    const history = [
+      [{ seat: 0, card: c('clubs-k') }, { seat: 1, card: c('clubs-1') }, { seat: 2, card: c('clubs-4') }, { seat: 3, card: c('clubs-5') }],
+      [{ seat: 0, card: c('clubs-q') }, { seat: 1, card: c('clubs-2') }, { seat: 2, card: c('spades-2') }, { seat: 3, card: c('trump-5') }],
+    ]
+    const state = playState({
+      bid: { seat: 3, contract: 'garde' },
+      currentSeat: 2,
+      playedTricks: history,
+      hands: [
+        [c('hearts-2'), c('trump-2')],
+        [c('hearts-4'), c('hearts-5')],
+        [c('trump-1'), c('trump-12'), c('hearts-6')],
+        [c('trump-20'), c('trump-19'), c('hearts-8')],
+      ],
+      trick: [
+        { seat: 0, card: c('clubs-9') },
+        { seat: 1, card: c('clubs-10') },
+      ],
+    })
+    expect(chooseBotIntent(state, 2, 'difficile')).toEqual({ type: 'playCard', card: c('trump-12') })
+  })
+
+  it('plays the Excuse before the last trick', () => {
+    const state = playState({
+      currentSeat: 1,
+      hands: [[c('hearts-2')], [c('excuse'), c('hearts-9')], [c('hearts-3'), c('hearts-4')], [c('hearts-5'), c('hearts-6')]],
       trick: [{ seat: 0, card: c('hearts-7') }],
     })
-
-    const intent = chooseBotIntent(state, 1)
-    expect(intent).toEqual({ type: 'playCard', card: c('hearts-2') })
+    for (const level of ['facile', 'moyen', 'difficile'] as const) {
+      expect(chooseBotIntent(state, 1, level)).toEqual({ type: 'playCard', card: c('excuse') })
+    }
   })
 
   it('chooses legal cards for varied trick states', () => {

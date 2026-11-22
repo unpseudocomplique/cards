@@ -26,7 +26,11 @@ export type SeatInfo = {
   name: string
   connected: boolean
   controlledBy: 'human' | 'bot'
+  /** How well the bot plays this seat (bots and seats taken over by a bot). */
+  botLevel?: BotLevel
 }
+
+export type BotLevel = 'facile' | 'moyen' | 'difficile'
 
 export type GameConfig = {
   hostUserId: string
@@ -69,6 +73,10 @@ export type GameState = {
   dealIndex: number
   /** Poignées shown this deal (several players may show one), with the trumps shown. */
   poignees?: PoigneeShown[]
+  /** Prise / garde: the dog everyone saw, kept for the whole deal (bots remember it). */
+  dogSeen?: CardId[]
+  /** Completed tricks of this deal in play order (public: everyone saw them). */
+  playedTricks?: Array<Array<{ seat: number, card: CardId }>>
   /** Trumps the taker had to put in the écart, shown to the defence (FFT). */
   ecartShownTrumps?: CardId[]
   /** Camp that kept its Excuse after a lost trick and owes a low card in exchange. */
@@ -133,7 +141,8 @@ export type ApplyResult =
 
 export type Intent =
   | { type: 'join', name: string }
-  | { type: 'addBot', name?: string }
+  | { type: 'addBot', name?: string, level?: BotLevel }
+  | { type: 'setBotLevel', seat: number, level: BotLevel }
   | { type: 'removeBot', seat: number }
   | { type: 'start' }
   | { type: 'bid', bid: Contract | 'passe' }

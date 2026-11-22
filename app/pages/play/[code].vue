@@ -373,7 +373,8 @@ function play(card: CardId) {
     :connected="connected"
     :is-host="isHost"
     :invite-url="inviteUrl"
-    @add-bot="sendIntent({ type: 'addBot' })"
+    @add-bot="sendIntent({ type: 'addBot', level: $event })"
+    @set-bot-level="(seat, level) => sendIntent({ type: 'setBotLevel', seat, level })"
     @remove-bot="sendIntent({ type: 'removeBot', seat: $event })"
     @start="sendIntent({ type: 'start' })"
   />
