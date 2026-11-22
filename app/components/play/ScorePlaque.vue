@@ -15,6 +15,8 @@ const props = defineProps<{
   calledPartner?: boolean
 }>()
 
+defineEmits<{ scores: [] }>()
+
 const bid = computed(() => props.state.bid)
 const live = computed(() => Boolean(bid.value) && ['DogEcarta', 'ReadyToPlay', 'Trick', 'Scoring'].includes(props.state.phase))
 
@@ -93,7 +95,16 @@ const caption = computed(() => {
 </script>
 
 <template>
-  <div class="plaque-wrap">
+  <div
+    class="plaque-wrap"
+    role="button"
+    tabindex="0"
+    aria-label="Voir les scores de la partie"
+    title="Scores de la partie"
+    @click="$emit('scores')"
+    @keydown.enter.prevent="$emit('scores')"
+    @keydown.space.prevent="$emit('scores')"
+  >
     <div
       class="plaque"
       :class="{ 'plaque--live': live }"
@@ -143,7 +154,17 @@ const caption = computed(() => {
 </template>
 
 <style scoped>
-.plaque-wrap { display: flex; flex-direction: column; align-items: center; }
+.plaque-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 120ms ease-out, filter 150ms;
+}
+.plaque-wrap:hover { filter: brightness(1.08); }
+.plaque-wrap:active { transform: translateY(2px) scale(0.98); }
+.plaque-wrap:focus-visible { outline: 2px solid #ffe7a8; outline-offset: 2px; border-radius: 12px; }
 .plaque {
   position: relative;
   display: flex;

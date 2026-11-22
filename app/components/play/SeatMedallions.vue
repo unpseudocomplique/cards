@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { tarotCardLabel } from '~/utils/tarotCardLabel'
 import { AnimatePresence, motion } from 'motion-v'
 import type { PublicGameView } from '~~/shared/tarot'
 import { contractLabels } from '~/utils/tarotContracts'
@@ -100,7 +101,12 @@ const players = computed(() => props.state.seats.map((seat, index) => {
   }
 }))
 
-const kingFace = computed(() => props.state.calledKing ? props.faceUrls?.get(props.state.calledKing) ?? null : null)
+/** The called king as a big, readable tag: rank letter and suit symbol. */
+const kingLabel = computed(() => {
+  const label = props.state.calledKing ? tarotCardLabel(props.state.calledKing).shortLabel : ''
+  const suit = label.slice(-1)
+  return { rank: label.slice(0, -1), suit, red: suit === '♥' || suit === '♦' }
+})
 const prefersReduced = usePreferredReducedMotion()
 </script>
 
@@ -165,14 +171,15 @@ const prefersReduced = usePreferredReducedMotion()
           <span
             v-if="player.king"
             class="medal-king"
-            title="Roi appelé"
+            :title="`Roi appelé : ${kingLabel.rank}${kingLabel.suit}`"
           >
-            <PlayDeckCard
-              :card-id="player.king"
-              :face-url="kingFace"
-              fill
-              :index-px="8"
-            />
+            <span
+              class="medal-king__rank"
+            >{{ kingLabel.rank }}</span>
+            <span
+              class="medal-king__suit"
+              :class="kingLabel.red ? 'text-[#c8202f]' : 'text-[#1b1b1f]'"
+            >{{ kingLabel.suit }}</span>
           </span>
         </Transition>
 
@@ -334,16 +341,23 @@ const prefersReduced = usePreferredReducedMotion()
 
 .medal-king {
   position: absolute;
-  right: -26%;
-  bottom: -8%;
-  width: 34%;
-  min-width: 18px;
-  aspect-ratio: var(--table-card-ratio, 2 / 3);
-  border-radius: 3px;
-  overflow: hidden;
-  box-shadow: 0 0 0 1.5px #4fc3f7, 0 0 10px 2px rgba(79, 195, 247, 0.55), 0 2px 5px rgba(0, 0, 0, 0.6);
+  right: -34%;
+  bottom: -10%;
+  width: 46%;
+  min-width: 26px;
+  aspect-ratio: 2 / 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 0.9;
+  border-radius: 5px;
+  background: linear-gradient(#fffaf0, #efe4cc);
+  box-shadow: 0 0 0 2px #4fc3f7, 0 0 12px 3px rgba(79, 195, 247, 0.6), 0 3px 6px rgba(0, 0, 0, 0.6);
   transform: rotate(10deg);
 }
+.medal-king__rank { font-weight: 900; font-size: calc(var(--medal) * 0.2); color: #2a1d10; }
+.medal-king__suit { font-size: calc(var(--medal) * 0.3); }
 
 .medal-status {
   position: absolute;

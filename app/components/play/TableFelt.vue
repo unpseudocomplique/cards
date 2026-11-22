@@ -225,21 +225,27 @@ const style = computed(() => ({
       </svg>
     </div>
 
-    <!-- Score notebook: the scores open when it is tapped -->
-    <button
-      v-if="!hideNotebook"
-      type="button"
-      class="table-prop table-notebook"
-      aria-label="Voir les scores"
-      title="Scores"
-      @click="$emit('scores')"
-    >
-      <span class="table-notebook-cover" />
-      <span class="table-notebook-page">
-        <span class="table-notebook-title">Scores</span>
+    <!-- Score notebook: lies under the cards, but a clear hit area above
+         the play layer keeps it tappable even when a card covers it. -->
+    <template v-if="!hideNotebook">
+      <button
+        type="button"
+        class="table-prop table-notebook-hit"
+        aria-label="Voir les scores"
+        title="Scores"
+        @click="$emit('scores')"
+      />
+      <span
+        class="table-prop table-notebook"
+        aria-hidden="true"
+      >
+        <span class="table-notebook-cover" />
+        <span class="table-notebook-page">
+          <span class="table-notebook-title">Scores</span>
+        </span>
+        <span class="table-notebook-pencil" />
       </span>
-      <span class="table-notebook-pencil" />
-    </button>
+    </template>
   </div>
 </template>
 
@@ -309,22 +315,36 @@ const style = computed(() => ({
 @keyframes candle-glow { from { opacity: 0.75; transform: scale(0.96); } to { opacity: 1; transform: scale(1.04); } }
 @keyframes candle-flame { from { transform: scale(0.85); opacity: 0.7; } to { transform: scale(1.15); opacity: 1; } }
 
-.table-notebook {
+.table-notebook,
+.table-notebook-hit {
   width: 104px;
   height: 136px;
   right: -26px;
   top: -34px;
   transform: rotate(14deg);
-  cursor: pointer;
+}
+.table-notebook {
+  pointer-events: none;
   transition: transform 220ms cubic-bezier(.3, 1.4, .5, 1);
-  -webkit-tap-highlight-color: transparent;
   z-index: 1;
 }
-.table-notebook:hover, .table-notebook:focus-visible { transform: rotate(10deg) translateY(4px) scale(1.04); outline: none; }
-.table-notebook:active { transform: rotate(10deg) translateY(6px) scale(0.98); }
-.table-room--short .table-notebook { width: 88px; height: 116px; right: -22px; top: -30px; }
-.table-room--portrait .table-notebook { width: 82px; height: 108px; right: -30px; top: auto; bottom: 37%; transform: rotate(-12deg); }
-.table-room--portrait .table-notebook:hover { transform: rotate(-8deg) translateX(-4px) scale(1.04); }
+/* Invisible, above the play layer (z-20) that covers the whole table. */
+.table-notebook-hit {
+  z-index: 25;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.table-notebook-hit:hover + .table-notebook,
+.table-notebook-hit:focus-visible + .table-notebook { transform: rotate(10deg) translateY(4px) scale(1.04); }
+.table-notebook-hit:focus-visible { outline: none; }
+.table-notebook-hit:active + .table-notebook { transform: rotate(10deg) translateY(6px) scale(0.98); }
+.table-room--short .table-notebook,
+.table-room--short .table-notebook-hit { width: 88px; height: 116px; right: -22px; top: -30px; }
+.table-room--portrait .table-notebook,
+.table-room--portrait .table-notebook-hit { width: 82px; height: 108px; right: -30px; top: auto; bottom: 37%; transform: rotate(-12deg); }
+.table-room--portrait .table-notebook-hit:hover + .table-notebook { transform: rotate(-8deg) translateX(-4px) scale(1.04); }
+.table-room--portrait .table-notebook-hit:active + .table-notebook { transform: rotate(-8deg) translateX(-4px) scale(0.98); }
 .table-notebook-cover {
   position: absolute;
   inset: 0;
