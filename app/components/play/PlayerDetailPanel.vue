@@ -71,7 +71,7 @@ const poigneeLabel = computed(() => {
 const stats = computed(() => [
   { label: 'Points', value: String(props.state.scores[props.seat] ?? 0) },
   { label: 'Plis', value: String(props.state.tricksWonBySeat?.[props.seat] ?? 0) },
-  { label: 'En main', value: String(props.state.handCounts[props.seat] ?? 0) },
+  { label: 'En main', value: String(props.state.handCounts[props.seat] ?? 0) }
 ])
 </script>
 

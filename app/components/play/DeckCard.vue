@@ -18,7 +18,7 @@ const props = withDefaults(defineProps<{
   highlighted: false,
   dimmed: false,
   fill: false,
-  indexPx: null,
+  indexPx: null
 })
 
 /**
@@ -110,7 +110,7 @@ const indexLabel = computed(() => label.value.shortLabel)
     :class="[
       sizeClass,
       highlighted ? 'border-amber-300 ring-2 ring-amber-300/60' : 'border-stone-300/80',
-      dimmed ? 'brightness-[0.78] contrast-75' : '',
+      dimmed ? 'brightness-[0.78] contrast-75' : ''
     ]"
   >
     <div

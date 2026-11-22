@@ -4,23 +4,23 @@ export const BID_RANK: Record<Contract, number> = {
   prise: 1,
   garde: 2,
   garde_sans: 3,
-  garde_contre: 4,
+  garde_contre: 4
 }
 
 export type BidState = {
   playerCount: 3 | 4 | 5
   firstBidderSeat: number
-  spoken: Array<{ seat: number; bid: Contract | 'passe' }>
-  currentWinner: { seat: number; contract: Contract } | null
+  spoken: Array<{ seat: number, bid: Contract | 'passe' }>
+  currentWinner: { seat: number, contract: Contract } | null
 }
 
-export type BidOutcome =
-  | { type: 'all_pass' }
-  | { type: 'won'; seat: number; contract: Contract }
+export type BidOutcome
+  = | { type: 'all_pass' }
+    | { type: 'won', seat: number, contract: Contract }
 
-export type BidResult =
-  | { ok: true; state: BidState; outcome?: BidOutcome }
-  | { ok: false; reason: string }
+export type BidResult
+  = | { ok: true, state: BidState, outcome?: BidOutcome }
+    | { ok: false, reason: string }
 
 function seatAtTurn(state: BidState, turnIndex: number): number {
   return (state.firstBidderSeat + turnIndex) % state.playerCount
@@ -34,7 +34,7 @@ export function createBidState(playerCount: 3 | 4 | 5, firstBidderSeat: number):
     playerCount,
     firstBidderSeat,
     spoken: [],
-    currentWinner: null,
+    currentWinner: null
   }
 }
 
@@ -63,21 +63,21 @@ export function applyBid(state: BidState, seat: number, bid: Contract | 'passe')
     if (state.currentWinner && BID_RANK[bid] <= BID_RANK[state.currentWinner.contract]) {
       return {
         ok: false,
-        reason: `Bid ${bid} must strictly overcall current winning bid ${state.currentWinner.contract}`,
+        reason: `Bid ${bid} must strictly overcall current winning bid ${state.currentWinner.contract}`
       }
     }
   }
 
   const spoken = [...state.spoken, { seat, bid }]
-  const currentWinner =
-    bid === 'passe'
+  const currentWinner
+    = bid === 'passe'
       ? state.currentWinner
       : { seat, contract: bid }
 
   const nextState: BidState = {
     ...state,
     spoken,
-    currentWinner,
+    currentWinner
   }
 
   if (spoken.length < state.playerCount) {
@@ -94,7 +94,7 @@ export function applyBid(state: BidState, seat: number, bid: Contract | 'passe')
     outcome: {
       type: 'won',
       seat: currentWinner.seat,
-      contract: currentWinner.contract,
-    },
+      contract: currentWinner.contract
+    }
   }
 }

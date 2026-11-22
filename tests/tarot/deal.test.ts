@@ -4,7 +4,7 @@ import {
   dealFromShuffled,
   dealHands,
   detectPetitSecSeats,
-  shuffleDeck,
+  shuffleDeck
 } from '../../shared/tarot/deal'
 import type { CardId } from '../../shared/tarot/types'
 
@@ -54,7 +54,7 @@ describe('detectPetitSecSeats', () => {
     const hands: CardId[][] = [
       ['trump-1' as CardId, 'hearts-1' as CardId, 'hearts-2' as CardId],
       ['trump-1' as CardId, 'trump-2' as CardId],
-      ['hearts-k' as CardId],
+      ['hearts-k' as CardId]
     ]
     expect(detectPetitSecSeats(hands)).toEqual([0])
   })
@@ -63,7 +63,7 @@ describe('detectPetitSecSeats', () => {
     const hands: CardId[][] = [
       ['trump-1' as CardId, 'excuse' as CardId],
       ['trump-1' as CardId, 'trump-21' as CardId],
-      ['hearts-1' as CardId, 'diamonds-2' as CardId],
+      ['hearts-1' as CardId, 'diamonds-2' as CardId]
     ]
     expect(detectPetitSecSeats(hands)).toEqual([])
   })

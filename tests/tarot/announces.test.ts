@@ -16,13 +16,13 @@ function baseReady(playerCount: 3 | 4 | 5, overrides: Partial<GameState> = {}): 
     playerCount,
     endMode: 'deals',
     endValue: 10,
-    deckId: 'deck-test',
+    deckId: 'deck-test'
   })
   const seats = base.seats.map((seat, index) => ({
     ...seat,
     userId: `user:${index}`,
     name: `P${index}`,
-    connected: true,
+    connected: true
   }))
   return {
     ...base,
@@ -34,7 +34,7 @@ function baseReady(playerCount: 3 | 4 | 5, overrides: Partial<GameState> = {}): 
     attackTricks: 0,
     defenseTricks: 0,
     hands: Array.from({ length: playerCount }, () => [] as CardId[]),
-    ...overrides,
+    ...overrides
   }
 }
 
@@ -48,8 +48,8 @@ describe('callKing (5p)', () => {
         [c('hearts-k'), c('diamonds-2')],
         [c('spades-3')],
         [c('spades-4')],
-        [c('spades-5')],
-      ],
+        [c('spades-5')]
+      ]
     })
 
     const result = apply(state, { type: 'callKing', king: c('hearts-k') }, actorForSeat(state, 0))
@@ -70,8 +70,8 @@ describe('callKing (5p)', () => {
         [c('diamonds-2')],
         [c('spades-3')],
         [c('spades-4')],
-        [c('spades-5')],
-      ],
+        [c('spades-5')]
+      ]
     })
 
     const result = apply(state, { type: 'callKing', king: c('hearts-k') }, actorForSeat(state, 0))
@@ -88,7 +88,7 @@ describe('poignée', () => {
     const trumps = Array.from({ length: 12 }, (_, i) => c(`trump-${i + 1}`))
     const state = baseReady(4, {
       currentSeat: 0,
-      hands: [trumps, [], [], []],
+      hands: [trumps, [], [], []]
     })
     const result = apply(state, { type: 'announcePoignee', tier: 8 }, actorForSeat(state, 0))
     expect(result.ok).toBe(false)
@@ -99,7 +99,7 @@ describe('poignée', () => {
     const fillers = Array.from({ length: 8 }, (_, i) => c(`hearts-${i + 1}`))
     const state = baseReady(4, {
       currentSeat: 0,
-      hands: [[...trumps, ...fillers], [], [], []],
+      hands: [[...trumps, ...fillers], [], [], []]
     })
     const result = apply(state, { type: 'announcePoignee', tier: 10 }, actorForSeat(state, 0))
     expect(result.ok).toBe(true)
@@ -124,11 +124,11 @@ describe('chelem detection', () => {
       trick: [
         { seat: 0, card: c('hearts-3') },
         { seat: 1, card: c('hearts-4') },
-        { seat: 2, card: c('hearts-5') },
+        { seat: 2, card: c('hearts-5') }
       ],
       bid: { seat: 0, contract: 'garde_sans' },
       chien: [],
-      scores: [0, 0, 0, 0],
+      scores: [0, 0, 0, 0]
     })
 
     const result = apply(state, { type: 'playCard', card: c('hearts-2') }, actorForSeat(state, 3))
@@ -164,18 +164,18 @@ describe('chelem detection', () => {
         c('spades-q'),
         c('hearts-9'),
         c('hearts-8'),
-        c('hearts-7'),
+        c('hearts-7')
       ],
       pilesDefense: [],
       hands: [[], [], [], [c('trump-2')]],
       trick: [
         { seat: 0, card: c('trump-21') },
         { seat: 1, card: c('hearts-3') },
-        { seat: 2, card: c('hearts-4') },
+        { seat: 2, card: c('hearts-4') }
       ],
       bid: { seat: 0, contract: 'garde_sans' },
       chien: [c('hearts-6'), c('hearts-1'), c('diamonds-1'), c('clubs-1'), c('spades-1'), c('trump-3')],
-      scores: [0, 0, 0, 0],
+      scores: [0, 0, 0, 0]
     })
 
     // Fix: trump-21 already played in trick — seat 0 can't have played it from empty hand.
@@ -183,7 +183,7 @@ describe('chelem detection', () => {
     state.trick = [
       { seat: 0, card: c('trump-20') },
       { seat: 1, card: c('hearts-3') },
-      { seat: 2, card: c('hearts-4') },
+      { seat: 2, card: c('hearts-4') }
     ]
     state.pilesAttack = state.pilesAttack.filter(card => card !== 'trump-21')
     state.pilesAttack.push(c('trump-21'))

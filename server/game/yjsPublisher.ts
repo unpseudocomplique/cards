@@ -38,7 +38,7 @@ function getConnection(code: string): RoomConnection | null {
     const doc = new Y.Doc()
     const provider = new WebsocketProvider(serverUrl, roomName(code), doc, {
       connect: true,
-      disableBc: true,
+      disableBc: true
     })
     connection = { doc, provider }
     rooms.set(code, connection)

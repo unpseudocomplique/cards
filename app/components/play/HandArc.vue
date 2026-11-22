@@ -37,7 +37,7 @@ const pendingPlay = shallowRef<CardId | null>(null)
 const sortedCards = computed(() => sortHand(props.cards))
 
 const visibleCards = computed(() =>
-  sortedCards.value.filter(card => card !== pendingPlay.value),
+  sortedCards.value.filter(card => card !== pendingPlay.value)
 )
 
 function clamp(value: number, min: number, max: number) {
@@ -214,14 +214,14 @@ function cardMotion(card: CardId) {
     rotate,
     scale,
     opacity: 1,
-    zIndex,
+    zIndex
   }
 }
 
 const spring = computed(() =>
   prefersReduced.value
     ? { type: 'tween' as const, duration: 0.01 }
-    : { type: 'spring' as const, stiffness: 180, damping: 20, mass: 0.8 },
+    : { type: 'spring' as const, stiffness: 180, damping: 20, mass: 0.8 }
 )
 
 /*
@@ -309,8 +309,7 @@ function onPlay(card: CardId, event: MouseEvent) {
   let origin: DOMRect
   if (target instanceof HTMLElement) {
     origin = target.getBoundingClientRect()
-  }
-  else {
+  } else {
     origin = new DOMRect(window.innerWidth / 2 - 35, window.innerHeight - 180, 70, 105)
   }
   // If motion leaves a zero box, fall back to a visible hand-area rect.

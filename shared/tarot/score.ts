@@ -6,14 +6,14 @@ const CONTRACT_MULT: Record<Contract, number> = {
   prise: 1,
   garde: 2,
   garde_sans: 4,
-  garde_contre: 6,
+  garde_contre: 6
 }
 
 const REQUIRED: Record<0 | 1 | 2 | 3, number> = {
   0: 56,
   1: 51,
   2: 41,
-  3: 36,
+  3: 36
 }
 
 export function requiredPoints(oudlerCount: 0 | 1 | 2 | 3): number {
@@ -59,7 +59,7 @@ function oudlerCountIn(cards: CardId[]): 0 | 1 | 2 | 3 {
 function defenderSeats(
   playerCount: 3 | 4 | 5,
   takerSeat: number,
-  partnerSeat?: number,
+  partnerSeat?: number
 ): number[] {
   const seats: number[] = []
   for (let seat = 0; seat < playerCount; seat++) {
@@ -127,7 +127,7 @@ export function computeDealBreakdown(input: DealScoreInput): DealBreakdown {
     takerPointsAdjust,
     poigneePrime,
     petitAuBoutCamp,
-    chelem,
+    chelem
   } = input
 
   const mult = CONTRACT_MULT[contract]
@@ -177,12 +177,12 @@ export function computeDealBreakdown(input: DealScoreInput): DealBreakdown {
   if (chelem === 'defense') {
     const bonus = 200
     for (const seat of defenders) {
-      deltas[seat] += bonus
+      deltas[seat]! += bonus
     }
     if (playerCount === 5 && partnerSeat !== undefined) {
       const total = bonus * defenders.length
-      deltas[takerSeat] -= (2 * total) / 3
-      deltas[partnerSeat] -= total / 3
+      deltas[takerSeat]! -= (2 * total) / 3
+      deltas[partnerSeat]! -= total / 3
     } else {
       deltas[takerSeat] -= bonus * defenders.length
     }
@@ -204,6 +204,6 @@ export function computeDealBreakdown(input: DealScoreInput): DealBreakdown {
     petitPart,
     chelemPart: chelemValue,
     perDefender: -S,
-    deltas,
+    deltas
   }
 }

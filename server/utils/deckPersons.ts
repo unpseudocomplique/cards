@@ -85,7 +85,8 @@ export async function findOrCreateDeckPerson(options: {
     })
     .returning()
 
-  return created
+  // INSERT … RETURNING always yields the inserted row.
+  return created!
 }
 
 /** Gemini Flash Image supports multiple refs; keep a practical per-person cap. */

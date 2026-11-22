@@ -1,27 +1,27 @@
 import type { CardId } from '~~/shared/tarot'
 
 const RANK_LABELS: Record<string, string> = {
-  '1': '1',
-  '2': '2',
-  '3': '3',
-  '4': '4',
-  '5': '5',
-  '6': '6',
-  '7': '7',
-  '8': '8',
-  '9': '9',
-  '10': '10',
+  1: '1',
+  2: '2',
+  3: '3',
+  4: '4',
+  5: '5',
+  6: '6',
+  7: '7',
+  8: '8',
+  9: '9',
+  10: '10',
   j: 'V',
   c: 'C',
   q: 'D',
-  k: 'R',
+  k: 'R'
 }
 
 const SUIT_SYMBOLS: Record<string, string> = {
   hearts: '♥',
   diamonds: '♦',
   clubs: '♣',
-  spades: '♠',
+  spades: '♠'
 }
 
 export type CardFaceColor = 'red' | 'black' | 'gold'
