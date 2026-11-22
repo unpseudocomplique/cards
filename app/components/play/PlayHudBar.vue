@@ -12,7 +12,24 @@ const props = defineProps<{
   offline?: boolean
   /** The local player holds the called king: the taker's (secret) partner. */
   calledPartner?: boolean
+  /** Prototype: called king shown as a small card beside the contract. */
+  kingCard?: boolean
+  kingFaceUrl?: string | null
 }>()
+
+const kingName = computed(() => {
+  const suit = props.state.calledKing?.split('-')[0] ?? ''
+  const names: Record<string, string> = { hearts: 'cœur', diamonds: 'carreau', clubs: 'trèfle', spades: 'pique' }
+  return names[suit] ? `Roi de ${names[suit]}` : ''
+})
+
+const partnerName = computed(() => {
+  const seat = props.state.partnerSeat
+  if (seat == null) {
+    return null
+  }
+  return seat === props.localSeat ? 'Vous' : props.state.seats[seat]?.name ?? null
+})
 
 const emit = defineEmits<{
   leave: []
@@ -79,7 +96,7 @@ const goal = computed(() => props.state.endMode === 'threshold'
               class="size-3 shrink-0 text-amber-300"
             />
             <span class="truncate">{{ takerName }}</span>
-            <template v-if="calledKing">
+            <template v-if="calledKing && !kingCard">
               <span class="text-white/30">·</span>
               <span class="shrink-0">appelle</span>
               <span
@@ -93,6 +110,38 @@ const goal = computed(() => props.state.endMode === 'threshold'
             class="truncate text-[10px] tracking-[0.14em] text-white/50 uppercase"
           >Donne {{ state.dealIndex + 1 }} · {{ goal }}</span>
         </p>
+      </div>
+      <div
+        v-if="kingCard && state.calledKing"
+        class="flex shrink-0 items-center gap-2 rounded-lg bg-black/45 py-1 pr-2.5 pl-1 ring-1 backdrop-blur-md"
+        :class="partnerName ? 'ring-sky-300/60' : 'ring-white/15'"
+      >
+        <div class="h-11 short:h-9">
+          <PlayDeckCard
+            :card-id="state.calledKing"
+            :face-url="kingFaceUrl"
+            fill
+            :index-px="10"
+          />
+        </div>
+        <div class="leading-tight">
+          <p class="text-[10px] tracking-[0.12em] text-white/55 uppercase">
+            Roi appelé
+          </p>
+          <p
+            v-if="partnerName"
+            class="flex items-center gap-1 text-xs font-semibold text-sky-200"
+          >
+            <UIcon name="i-lucide-handshake" class="size-3.5" />
+            {{ partnerName }}
+          </p>
+          <p
+            v-else
+            class="text-xs font-semibold text-white/80"
+          >
+            {{ kingName }}
+          </p>
+        </div>
       </div>
       <Transition
         enter-active-class="transition duration-300 ease-out"

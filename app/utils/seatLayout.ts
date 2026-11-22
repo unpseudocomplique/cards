@@ -204,3 +204,9 @@ export function wonPileAnchor(seat: number, localSeat: number, playerCount: numb
   }
   return feltPileAnchor(seat, localSeat, playerCount, view)
 }
+
+/** Where a seat's card lands on the felt, in front of that player (screen px). */
+export function trickSpot(seat: number, localSeat: number, playerCount: number, view: TableViewport, radius = 1.2): ScreenPoint {
+  const angle = seatAngle(seat, localSeat, playerCount)
+  return project(view, [Math.cos(angle) * radius * 1.15, 0.12, Math.sin(angle) * radius])
+}

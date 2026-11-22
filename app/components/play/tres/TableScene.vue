@@ -8,6 +8,7 @@ import {
   resolveTrick,
 } from '~~/shared/tarot'
 import { isPortraitView, seatAnchor, tableCamera } from '~/utils/seatLayout'
+import { ambianceTheme } from '~/utils/ambianceThemes'
 import type { TableFxEvent } from '~/components/play/TableFxOverlay.vue'
 
 const props = defineProps<{
@@ -36,6 +37,10 @@ const castSalt = computed(() => {
 })
 
 const localSeat = computed(() => props.privateState?.seat ?? 0)
+const route = useRoute()
+const protoTrick = computed(() => (['seat', 'row'].includes(String(route.query.trick)) ? String(route.query.trick) : 'current') as 'current' | 'seat' | 'row')
+const protoAmb = computed(() => String(route.query.amb ?? 'actuel'))
+const amb = computed(() => ambianceTheme(protoAmb.value))
 const fps = shallowRef(0)
 let frames = 0
 let lastTs = 0
@@ -562,34 +567,52 @@ function onLoop({ delta }: { delta: number }) {
         />
 
         <!-- Dramatic salon key + cool rim (no EffectComposer) -->
-        <TresHemisphereLight :args="['#ffe8d0', '#3a2418', 0.7]" />
-        <TresAmbientLight :intensity="0.62" />
+        <TresHemisphereLight :args="['#ffe8d0', '#3a2418', amb.lights.hemi]" />
+        <TresAmbientLight :intensity="amb.lights.ambient" />
         <TresDirectionalLight
           :position="[2.8, 5.5, 4.0]"
-          :intensity="1.45"
+          :intensity="amb.lights.key"
           :cast-shadow="!isMobile && settings.shadows"
-          color="#ffe2b8"
+          :color="amb.lights.keyColor"
         />
         <TresDirectionalLight
           v-if="!isMobile"
           :position="[-4.5, 3.2, -2.5]"
-          :intensity="0.7"
+          :intensity="amb.lights.key * 0.48"
           color="#9aaccc"
         />
         <TresPointLight
           :position="[0, 2.4, 1.5]"
-          color="#ffd7a8"
-          :intensity="1.15"
+          :color="amb.lights.keyColor"
+          :intensity="amb.lights.spot ? 0.4 : 1.15"
           :distance="14"
           :decay="2"
         />
         <TresDirectionalLight
           :position="[0, 3.6, 4.2]"
-          :intensity="0.55"
+          :intensity="amb.lights.fill"
           color="#ffe8d0"
         />
-
+        <TresPointLight
+          v-if="amb.lights.wall"
+          :position="[0, 2.4, -2.6]"
+          :color="amb.lights.spotColor"
+          :intensity="amb.lights.wall"
+          :distance="6"
+          :decay="1.4"
+        />
+        <TresSpotLight
+          v-if="amb.lights.spot"
+          :position="[0, 5.2, 0.4]"
+          :intensity="amb.lights.spot"
+          :color="amb.lights.spotColor"
+          :angle="0.5"
+          :penumbra="0.6"
+          :distance="14"
+          :decay="1.2"
+        />
         <PlayTresTableFelt
+          :theme="protoAmb"
           :quality="profile"
           :shadows="!isMobile && settings.shadows"
         />
@@ -600,6 +623,7 @@ function onLoop({ delta }: { delta: number }) {
           :shadows="!isMobile && settings.shadows"
           :cast-salt="castSalt"
           :show-chandelier="!portraitView"
+          :theme="protoAmb"
         />
 
         <PlayTresOpponentStacks
@@ -611,6 +635,11 @@ function onLoop({ delta }: { delta: number }) {
         />
       </TresCanvas>
     </ClientOnly>
+    <div
+      v-if="amb.vignette"
+      class="pointer-events-none absolute inset-0 z-[5]"
+      :style="{ background: `radial-gradient(ellipse 75% 55% at 50% 48%, transparent 45%, rgba(0,0,0,${amb.vignette}) 100%)${amb.haze ? `, linear-gradient(${amb.haze}, ${amb.haze})` : ''}` }"
+    />
 
     <!-- Hold overlays until scene ready to avoid layout jump -->
     <div
@@ -633,6 +662,7 @@ function onLoop({ delta }: { delta: number }) {
         :scores="publicState.scores"
         :taker-seat="publicState.bid?.seat ?? null"
         :partner-seat="publicState.partnerSeat ?? null"
+        :color-tags="protoTrick !== 'current'"
       />
 
       <PlayTrickOverlay
@@ -648,6 +678,8 @@ function onLoop({ delta }: { delta: number }) {
         :collecting-to-seat="collectingToSeat"
         :winner-name="winnerName"
         :hold-banner="holdBanner"
+        :called-king="publicState.calledKing ?? null"
+        :variant="protoTrick"
       />
 
       <PlayChienOverlay

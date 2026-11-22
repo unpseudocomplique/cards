@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { seatColor } from '~/utils/seatColors'
 import { seatLabelAnchor, wonCountInTag, wonPileAnchor } from '~/utils/seatLayout'
 
 const props = defineProps<{
@@ -15,6 +16,8 @@ const props = defineProps<{
   scores?: number[]
   takerSeat?: number | null
   partnerSeat?: number | null
+  /** Prototype: tag tinted with the seat colour used on the trick cards. */
+  colorTags?: boolean
 }>()
 
 /** Tap a name tag to see that player's score, tricks and side for a moment. */
@@ -99,7 +102,17 @@ function layers(won: number) {
             name="i-lucide-bot"
             class="size-3 shrink-0 opacity-70"
           />
+          <span
+            v-if="colorTags"
+            class="size-2.5 shrink-0 rounded-full ring-1 ring-black/40"
+            :style="{ background: seatColor(opponent.seat) }"
+          />
           <span class="truncate">{{ opponent.name }}</span>
+          <UIcon
+            v-if="colorTags && partnerSeat === opponent.seat"
+            name="i-lucide-handshake"
+            class="size-3 shrink-0 text-sky-300"
+          />
           <UIcon
             v-if="takerSeat === opponent.seat"
             name="i-lucide-crown"

@@ -2,6 +2,7 @@
 import type { PlayQualityProfile } from '~/composables/usePlayQuality'
 import type { AmbianceArtBundle } from '~/utils/playAmbianceArt'
 import { createAmbianceArt } from '~/utils/playAmbianceArt'
+import { ambianceTheme } from '~/utils/ambianceThemes'
 import { salonCharacterForSeat } from '~~/shared/play/salonCharacters'
 
 const props = withDefaults(defineProps<{
@@ -13,7 +14,9 @@ const props = withDefaults(defineProps<{
   castSalt?: number
   /** Off on upright phones: seen from above, the chandelier sits on the table. */
   showChandelier?: boolean
+  theme?: string
 }>(), {
+  theme: 'actuel',
   shadows: false,
   tableRadius: 3.35,
   castSalt: 0,
@@ -32,7 +35,7 @@ const candleCount = computed(() => (props.quality === 'low' ? 4 : 6))
 const showSideboard = computed(() => props.quality !== 'low')
 const showExtraProps = computed(() => props.quality !== 'low')
 
-const woodMat = { color: '#6b4228', roughness: 0.42, metalness: 0.08 }
+const woodMat = computed(() => ({ color: ambianceTheme(props.theme).wood, roughness: 0.42, metalness: 0.08 }))
 const brassMat = { color: '#e0c06a', roughness: 0.25, metalness: 0.95 }
 
 const candlePositions = computed(() => {
@@ -75,8 +78,8 @@ const seats = computed(() => {
 })
 
 watch(
-  () => props.quality,
-  (quality) => {
+  () => [props.quality, props.theme] as const,
+  ([quality]) => {
     if (!import.meta.client) {
       return
     }
@@ -87,7 +90,7 @@ watch(
         return
       }
       try {
-        art.value = createAmbianceArt(quality)
+        art.value = createAmbianceArt(quality, ambianceTheme(props.theme))
       } catch (error) {
         console.warn('[play] ambiance art failed', error)
         art.value = null

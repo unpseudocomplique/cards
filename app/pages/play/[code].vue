@@ -255,6 +255,8 @@ function play(card: CardId) {
           :degraded="publicSyncDegraded"
           :offline="!connected"
           :called-partner="isCalledPartner"
+          :king-card="route.query.king === '1'"
+          :king-face-url="publicState.calledKing ? faceUrlFor(publicState.calledKing) : null"
           @leave="leaveOpen = true"
         />
       </div>
