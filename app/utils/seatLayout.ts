@@ -250,3 +250,14 @@ export function seatTrickSpot(seat: number, localSeat: number, playerCount: numb
     y,
   }
 }
+
+/** Cards in front of a player lean toward them (degrees). */
+export function seatTrickTilt(seat: number, localSeat: number, playerCount: number): number {
+  const rel = (seat - localSeat + playerCount) % playerCount
+  const offsets: Record<number, number[]> = {
+    3: [0, 14, -14],
+    4: [0, 12, 0, -12],
+    5: [0, 16, 6, -6, -16],
+  }
+  return offsets[playerCount]?.[rel] ?? 0
+}

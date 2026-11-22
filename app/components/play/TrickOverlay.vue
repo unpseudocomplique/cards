@@ -2,7 +2,7 @@
 import { AnimatePresence, motion } from 'motion-v'
 import type { CardId } from '~~/shared/tarot'
 import { resolveTrick } from '~~/shared/tarot'
-import { seatTrickCardHeight, seatTrickSpot, trickCardHeight as trickCardHeightFor, trickLayout, trickZone, wonPileAnchor } from '~/utils/seatLayout'
+import { seatTrickCardHeight, seatTrickSpot, seatTrickTilt, trickCardHeight as trickCardHeightFor, trickLayout, trickZone, wonPileAnchor } from '~/utils/seatLayout'
 import { seatColor } from '~/utils/seatColors'
 
 export type TrickEntry = { seat: number, card: CardId }
@@ -47,6 +47,13 @@ const view = computed(() => ({ width: props.sceneWidth, height: props.sceneHeigh
 
 const seatTrickHeight = computed(() => seatTrickCardHeight(view.value, props.playerCount))
 
+/** The finished-trick line sits in the gap between the top cards and yours. */
+const bannerY = computed(() => {
+  const local = seatSpot(props.localSeat)
+  const top = seatSpot((props.localSeat + Math.floor(props.playerCount / 2)) % props.playerCount)
+  return (local.y - seatTrickHeight.value / 2 + top.y + seatTrickHeight.value / 2) / 2
+})
+
 function seatSpot(seat: number) {
   return seatTrickSpot(seat, props.localSeat, props.playerCount, view.value)
 }
@@ -58,7 +65,7 @@ function seatCollect(seat: number) {
   }
   const target = wonPileAnchor(props.collectingToSeat, props.localSeat, props.playerCount, view.value)
   const spot = seatSpot(seat)
-  return { x: target.x - spot.x, y: target.y - spot.y, scale: 0.45, opacity: 0.15 }
+  return { x: target.x - spot.x, y: target.y - spot.y, scale: 0.4, opacity: 0 }
 }
 
 /** Local and side players: name under the card, so it never hides under a neighbour. */
@@ -71,14 +78,7 @@ function chipBelow(seat: number) {
 }
 
 function seatTilt(seat: number) {
-  const rel = (seat - props.localSeat + props.playerCount) % props.playerCount
-  // Cards lean toward the player who laid them.
-  const offsets: Record<number, number[]> = {
-    3: [0, 14, -14],
-    4: [0, 12, 0, -12],
-    5: [0, 16, 6, -6, -16],
-  }
-  return offsets[props.playerCount]?.[rel] ?? 0
+  return seatTrickTilt(seat, props.localSeat, props.playerCount)
 }
 
 const prefersReduced = usePreferredReducedMotion()
@@ -155,11 +155,11 @@ const spring = computed(() =>
         :key="`${entry.seat}-${entry.card}`"
         class="absolute"
         :style="{ left: `${seatSpot(entry.seat).x}px`, top: `${seatSpot(entry.seat).y}px`, zIndex: index + 1 }"
-        :initial="prefersReduced ? false : { opacity: 0, scale: 0.7 }"
+        :initial="false"
         :animate="seatCollect(entry.seat)"
         :exit="{ opacity: 0, scale: 0.5 }"
         :transition="collectingToSeat != null
-          ? { type: 'spring', stiffness: 220, damping: 20, mass: 0.85 }
+          ? { type: 'tween', duration: prefersReduced ? 0.01 : 0.6, ease: [0.45, 0, 0.2, 1], delay: prefersReduced ? 0 : index * 0.04, opacity: { duration: 0.6, ease: [0.7, 0, 1, 1] } }
           : spring"
       >
         <div
@@ -218,15 +218,15 @@ const spring = computed(() =>
     </AnimatePresence>
 
     <div
-      v-if="collectingToSeat != null && winnerName || holdBanner"
-      class="absolute left-1/2 -translate-x-1/2 -translate-y-1/2"
-      :style="{ top: `${trickZone(view, playerCount).centerY}px` }"
+      v-if="collectingToSeat == null && holdBanner"
+      class="absolute left-1/2 z-50 -translate-x-1/2 -translate-y-1/2"
+      :style="{ top: `${bannerY}px` }"
     >
-      <div class="w-max max-w-[min(18rem,80vw)] rounded-2xl border border-white/15 bg-neutral-950/85 px-3.5 py-1.5 text-center shadow-xl backdrop-blur-md">
+      <div class="w-max max-w-[min(11.5rem,46vw)] rounded-2xl border border-white/15 bg-neutral-950/85 px-3.5 py-1.5 text-center shadow-xl backdrop-blur-md">
         <p class="font-display text-lg leading-tight text-amber-50">
-          {{ collectingToSeat != null ? `Pli pour ${winnerName}` : bannerParts.title }}
+          {{ bannerParts.title }}
         </p>
-        <p v-if="collectingToSeat == null && bannerParts.reason" class="text-[11px] leading-snug text-white/60">
+        <p v-if="bannerParts.reason" class="text-[11px] leading-snug text-white/60">
           {{ bannerParts.reason }}
         </p>
       </div>
@@ -240,7 +240,7 @@ const spring = computed(() =>
           v-for="(entry, index) in trick"
           :key="`${entry.seat}-${entry.card}`"
           class="relative"
-          :initial="prefersReduced ? false : { opacity: 0, y: 96, scale: 0.7, rotate: tilt(entry.seat) - 16 }"
+          :initial="prefersReduced ? false : { opacity: 0, scale: 0.92, rotate: tilt(entry.seat) }"
           :animate="{
             opacity: collectOffset(entry.seat).opacity,
             x: collectOffset(entry.seat).x,

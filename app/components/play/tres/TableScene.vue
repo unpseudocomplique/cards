@@ -7,8 +7,9 @@ import {
   isPetitStolen,
   resolveTrick,
 } from '~~/shared/tarot'
-import { isPortraitView, seatAnchor, seatTrickSpot, tableCamera, trickLayout } from '~/utils/seatLayout'
+import { isPortraitView, seatAnchor, seatTrickCardHeight, seatTrickSpot, seatTrickTilt, tableCamera, trickCardHeight, trickLayout, trickZone } from '~/utils/seatLayout'
 import { ambianceTheme } from '~/utils/ambianceThemes'
+import { preloadImages } from '~/utils/preloadImages'
 import type { ShownEmote } from '~/composables/useTableEmotes'
 import type { TableFxEvent } from '~/components/play/TableFxOverlay.vue'
 
@@ -108,6 +109,19 @@ const faceUrlMap = computed(() => {
 })
 
 const backUrl = computed(() => textures.manifest.value?.backUrl ?? null)
+
+// Faces in the browser cache before anyone plays them (hand and trick first).
+watch(() => textures.manifest.value, (manifest, _old, onCleanup) => {
+  if (!import.meta.client || !manifest) {
+    return
+  }
+  const first = new Set(priorityCodes.value)
+  const urls = [...manifest.cards]
+    .sort((a, b) => Number(first.has(b.cardCode)) - Number(first.has(a.cardCode)))
+    .map(card => card.faceUrl)
+    .filter((url): url is string => Boolean(url))
+  onCleanup(preloadImages(urls))
+})
 /** Card width / height of the deck format (tarot 61 × 112 mm or poker). */
 const cardRatio = computed(() => textures.manifest.value?.cardRatio ?? 2 / 3)
 
@@ -119,7 +133,7 @@ type FlightState = {
   card: CardId
   faceUrl: string | null
   from: { left: number, top: number, width: number, height: number }
-  to: { left: number, top: number }
+  to: { x: number, y: number, height: number, rotate: number, fade?: boolean }
 }
 
 const flights = ref<FlightState[]>([])
@@ -136,7 +150,7 @@ const celebratedBouts = new Set<string>()
 
 /** Keep the finished trick readable before sweeping cards away. */
 const TRICK_HOLD_MS = 2_000
-const TRICK_COLLECT_MS = 1_400
+const TRICK_COLLECT_MS = 900
 const TRICK_SUMMARY_TTL_MS = TRICK_HOLD_MS + TRICK_COLLECT_MS + 200
 
 function pushFx(event: Omit<TableFxEvent, 'id'>, ttlMs = 1_600) {
@@ -210,17 +224,18 @@ function measureScene() {
   return { width: box.width, height: box.height, left: box.left, top: box.top }
 }
 
-function trickCenter(width: number, height: number, cardW: number, cardH: number, seat?: number) {
+/** Where a played card lands: its spot on the felt (centre, height, angle). */
+function trickTarget(width: number, height: number, seat: number) {
   const view = { width, height, mobile: isMobile.value }
-  if (seat !== undefined && trickLayout(view) === 'seat') {
-    // The card lands on its player's spot (see TrickOverlay).
-    const spot = seatTrickSpot(seat, localSeat.value, props.publicState.playerCount, view)
-    return { left: spot.x - cardW / 2, top: spot.y - cardH / 2 }
+  const count = props.publicState.playerCount
+  if (trickLayout(view) === 'seat') {
+    // Same spot, size and lean as the card drawn by TrickOverlay.
+    const spot = seatTrickSpot(seat, localSeat.value, count, view)
+    return { x: spot.x, y: spot.y, height: seatTrickCardHeight(view, count), rotate: seatTrickTilt(seat, localSeat.value, count) }
   }
-  return {
-    left: width / 2 - cardW * 0.35,
-    top: height * 0.36 - cardH * 0.35,
-  }
+  // Row: the card joins the end of the row, around the middle of the felt.
+  const cardH = trickCardHeight(view, count) ?? 84
+  return { x: width / 2, y: trickZone(view, count).centerY, height: cardH, rotate: ((seat % 5) - 2) * 4, fade: true }
 }
 
 function enqueueFlight(flight: FlightState) {
@@ -249,7 +264,7 @@ function spawnSeatFlight(seat: number, card: CardId) {
       width: cardW,
       height: cardH,
     },
-    to: trickCenter(width, height, cardW, cardH, seat),
+    to: trickTarget(width, height, seat),
   })
 }
 
@@ -309,7 +324,7 @@ function onHandPlay(card: CardId, origin?: DOMRect) {
       width,
       height,
     },
-    to: trickCenter(scene.width, scene.height, width, height, localSeat.value),
+    to: trickTarget(scene.width, scene.height, localSeat.value),
   })
   // Fire immediately — last-card plays never appear in publicState.trick.
   celebrateBout(card, localSeat.value)
@@ -475,13 +490,16 @@ onUnmounted(() => {
 })
 
 const visibleTrick = computed(() => {
+  // A card still in the air is drawn by its flight, not twice.
+  const flying = new Set(flights.value.map(item => item.card))
+  const landed = flying.size ? displayTrick.value.filter(entry => !flying.has(entry.card)) : displayTrick.value
   if (!suppressUntil.value) {
-    return displayTrick.value
+    return landed
   }
   let skipped = false
   const next: TrickEntry[] = []
-  for (let i = displayTrick.value.length - 1; i >= 0; i--) {
-    const entry = displayTrick.value[i]!
+  for (let i = landed.length - 1; i >= 0; i--) {
+    const entry = landed[i]!
     if (!skipped && entry.card === suppressUntil.value) {
       skipped = true
       continue

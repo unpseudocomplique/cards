@@ -32,6 +32,27 @@ const glyphStyle = computed(() => props.indexPx ? { fontSize: `${Math.round(prop
 
 const label = computed(() => tarotCardLabel(props.cardId))
 
+/*
+ * The painted face fades in once loaded; until then the printed index shows,
+ * so a card is never a blank white rectangle mid-animation.
+ */
+const img = ref<HTMLImageElement | null>(null)
+const faceLoaded = shallowRef(false)
+/** Fade only an image that really arrives late; a cached one shows at once. */
+const fadeFace = shallowRef(false)
+
+watch(() => props.faceUrl, () => {
+  faceLoaded.value = false
+  fadeFace.value = false
+  nextTick(() => {
+    if (img.value?.complete && img.value.naturalWidth > 0) {
+      faceLoaded.value = true
+    } else {
+      fadeFace.value = true
+    }
+  })
+}, { immediate: true })
+
 const sizeClass = computed(() => {
   if (props.fill) {
     return 'h-full w-full'
@@ -92,15 +113,8 @@ const indexLabel = computed(() => label.value.shortLabel)
       dimmed ? 'brightness-[0.78] contrast-75' : '',
     ]"
   >
-    <img
-      v-if="faceUrl"
-      :src="faceUrl"
-      :alt="label.shortLabel"
-      class="h-full w-full object-cover"
-      draggable="false"
-    >
     <div
-      v-else
+      v-if="!faceUrl || !faceLoaded"
       class="flex h-full w-full flex-col justify-between px-1.5 py-1.5"
     >
       <div
@@ -125,5 +139,15 @@ const indexLabel = computed(() => label.value.shortLabel)
         {{ indexLabel }}
       </div>
     </div>
+    <img
+      v-if="faceUrl"
+      ref="img"
+      :src="faceUrl"
+      :alt="label.shortLabel"
+      class="absolute inset-0 h-full w-full object-cover"
+      :class="[faceLoaded ? 'opacity-100' : 'opacity-0', fadeFace ? 'transition-opacity duration-200' : '']"
+      draggable="false"
+      @load="faceLoaded = true"
+    >
   </div>
 </template>
