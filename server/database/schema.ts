@@ -12,6 +12,7 @@ import {
 import type { CardThemeId } from '../../shared/utils/cardThemes'
 import type { CardFormatId } from '../../shared/utils/printSpec'
 import type { PipCardStyle } from '../../shared/utils/classicCards'
+import type { DealStatsRecord } from '../../shared/tarot/stats'
 
 const id = () => text('id').primaryKey().$defaultFn(() => crypto.randomUUID())
 
@@ -277,4 +278,83 @@ export const exportJobs = pgTable('export_jobs', {
   index('export_jobs_deck_id_idx').on(table.deckId),
   index('export_jobs_user_id_idx').on(table.userId),
   index('export_jobs_status_idx').on(table.status)
+])
+
+/** A tarot match that reached at least one scored deal (statistics). */
+export const tarotMatches = pgTable('tarot_matches', {
+  id: id(),
+  code: text('code').notNull(),
+  hostUserId: text('host_user_id').references(() => users.id, { onDelete: 'set null' }),
+  deckId: text('deck_id'),
+  playerCount: integer('player_count').notNull(),
+  endMode: text('end_mode').notNull(),
+  endValue: integer('end_value').notNull(),
+  withBots: boolean('with_bots').default(false).notNull(),
+  /** Seats at the start of the first scored deal. */
+  seats: jsonb('seats').$type<TarotMatchSeat[]>().notNull().default([]),
+  dealCount: integer('deal_count').default(0).notNull(),
+  /** Final scores per seat, once the match is over. */
+  finalScores: jsonb('final_scores').$type<number[]>(),
+  startedAt: timestamp('started_at').defaultNow().notNull(),
+  finishedAt: timestamp('finished_at')
+}, table => [
+  index('tarot_matches_finished_at_idx').on(table.finishedAt)
+])
+
+export type TarotMatchSeat = {
+  seat: number
+  userId: string | null
+  name: string
+  isBot: boolean
+  botLevel?: string
+}
+
+/** One scored deal, with the full record (hands, bids, result) of every seat. */
+export const tarotDeals = pgTable('tarot_deals', {
+  id: id(),
+  matchId: text('match_id').notNull().references(() => tarotMatches.id, { onDelete: 'cascade' }),
+  dealIndex: integer('deal_index').notNull(),
+  playerCount: integer('player_count').notNull(),
+  withBots: boolean('with_bots').default(false).notNull(),
+  contract: text('contract').notNull(),
+  success: boolean('success').notNull(),
+  record: jsonb('record').$type<DealStatsRecord>().notNull(),
+  playedAt: timestamp('played_at').defaultNow().notNull()
+}, table => [
+  unique().on(table.matchId, table.dealIndex),
+  index('tarot_deals_played_at_idx').on(table.playedAt)
+])
+
+/** A person's line in a scored deal, to find their deals quickly. */
+export const tarotDealPlayers = pgTable('tarot_deal_players', {
+  id: id(),
+  dealId: text('deal_id').notNull().references(() => tarotDeals.id, { onDelete: 'cascade' }),
+  matchId: text('match_id').notNull().references(() => tarotMatches.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  seat: integer('seat').notNull(),
+  role: text('role').notNull(),
+  bid: text('bid'),
+  won: boolean('won').notNull(),
+  delta: integer('delta').notNull(),
+  playerCount: integer('player_count').notNull(),
+  withBots: boolean('with_bots').default(false).notNull(),
+  playedAt: timestamp('played_at').defaultNow().notNull()
+}, table => [
+  unique().on(table.dealId, table.userId),
+  index('tarot_deal_players_user_idx').on(table.userId, table.playedAt),
+  index('tarot_deal_players_match_idx').on(table.matchId)
+])
+
+/** A person's final place in a finished match. */
+export const tarotMatchPlayers = pgTable('tarot_match_players', {
+  id: id(),
+  matchId: text('match_id').notNull().references(() => tarotMatches.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  seat: integer('seat').notNull(),
+  score: integer('score').notNull(),
+  rank: integer('rank').notNull(),
+  finishedAt: timestamp('finished_at').defaultNow().notNull()
+}, table => [
+  unique().on(table.matchId, table.userId),
+  index('tarot_match_players_user_idx').on(table.userId, table.finishedAt)
 ])

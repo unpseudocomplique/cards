@@ -1,6 +1,6 @@
-import { randomBytes } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { apply, botChelemIntent, chooseBotIntent, chooseCutIntent, createEmptyGame, TAKEOVER_BOT_LEVEL, toPrivateView } from '~~/shared/tarot'
-import type { Actor, ApplyResult, GameState, Intent } from '~~/shared/tarot'
+import type { Actor, ApplyResult, GameEvent, GameState, Intent } from '~~/shared/tarot'
 import type { PeerHandle, Room } from './types'
 
 const CODE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
@@ -96,12 +96,20 @@ function humanAtTable(state: GameState): boolean {
   return state.seats.some(seat => seat.userId && seat.controlledBy === 'human' && seat.connected)
 }
 
+export type GameEventsListener = (info: { code: string, matchId: string, state: GameState, events: GameEvent[] }) => void
+
 class GameStore {
   private rooms = new Map<string, Room>()
   private onStateChange?: (code: string, state: GameState) => void
+  private onGameEvents?: GameEventsListener
 
   setOnStateChange(callback: (code: string, state: GameState) => void): void {
     this.onStateChange = callback
+  }
+
+  /** Called after every accepted intent that produced events (deal scored, match over...). */
+  setOnGameEvents(callback: GameEventsListener | undefined): void {
+    this.onGameEvents = callback
   }
 
   resetForTests(): void {
@@ -145,6 +153,7 @@ class GameStore {
     state.rngCounter = randomBytes(4).readUInt32BE(0) % 0x7fffffff
 
     this.rooms.set(code, {
+      matchId: randomUUID(),
       state,
       peers: new Map(),
       botTimer: null,
@@ -205,6 +214,13 @@ class GameStore {
 
     room.state = result.state
     console.log(`[tarot] ${code} intent ${intent.type} ok → phase=${result.state.phase} v=${result.state.version}`)
+    if (this.onGameEvents && result.events.length) {
+      try {
+        this.onGameEvents({ code, matchId: room.matchId, state: room.state, events: result.events })
+      } catch (error) {
+        console.error(`[tarot] ${code} game events listener failed:`, error)
+      }
+    }
     this.afterStateUpdate(code, byServer ? undefined : actor.userId)
     const trickJustWon = result.events.some(event => event.type === 'trickWon')
     this.scheduleIfBotTurn(code, trickJustWon ? 'trickPause' : undefined)
