@@ -18,7 +18,7 @@ useHead({
     { key: 'theme-color', name: 'theme-color', content: themeColor }
   ],
   link: [
-    { rel: 'icon', href: '/favicon.ico' }
+    { rel: 'icon', href: '/favicon.ico', sizes: '32x32' }
   ],
   htmlAttrs: {
     lang: 'fr'
@@ -43,5 +43,8 @@ useSeoMeta({
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>
+    <ClientOnly>
+      <AppInstallSheet />
+    </ClientOnly>
   </UApp>
 </template>

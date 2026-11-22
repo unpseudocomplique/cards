@@ -35,6 +35,34 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/*
+ * Home-screen app (and sideways iPhones): the page runs under the status bar,
+ * the notch and the home bar (viewport-fit=cover + black-translucent bar).
+ * These insets are 0 in a normal browser tab held upright.
+ */
+.safe-area-pad {
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* The hand at the table clears the iPhone home bar without wasting height. */
+.hand-dock {
+  padding-bottom: max(0.75rem, calc(env(safe-area-inset-bottom) - 0.5rem));
+}
+
+@media (min-width: 640px) {
+  .hand-dock {
+    padding-bottom: max(1.25rem, calc(env(safe-area-inset-bottom) - 0.25rem));
+  }
+}
+
+/* Installed app: no rubber-band bounce or pull-to-refresh pulling the page around. */
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  html,
+  body {
+    overscroll-behavior: none;
+  }
+}
+
 @media (max-width: 768px) {
   input,
   select,

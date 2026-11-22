@@ -99,6 +99,8 @@ async function share() {
         </h1>
       </div>
 
+      <AppInstallBanner class="mx-auto w-full max-w-xl" />
+
       <template v-if="state">
         <!-- Table -->
         <div class="relative mx-auto aspect-[16/10] w-full max-w-xl">

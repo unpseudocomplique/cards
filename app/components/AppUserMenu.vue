@@ -7,6 +7,7 @@ defineProps<{
 
 const { user } = useUserSession()
 const colorMode = useColorMode()
+const installApp = useInstallApp()
 
 const items = computed<DropdownMenuItem[][]>(() => [
   [{
@@ -54,7 +55,15 @@ const items = computed<DropdownMenuItem[][]>(() => [
     label: 'Page d’accueil',
     icon: 'i-lucide-house',
     to: '/'
-  }],
+  }, ...(installApp.standalone.value
+    ? []
+    : [{
+        label: 'Installer l’appli',
+        icon: 'i-lucide-smartphone',
+        onSelect() {
+          void installApp.install()
+        }
+      }])],
   [{
     label: 'Se déconnecter',
     icon: 'i-lucide-log-out',

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { AnimatePresence, motion } from 'motion-v'
 import { cardSuit as tarotSuit, sortHand, type CardId } from '~~/shared/tarot'
+import { safeAreaInsets } from '~/utils/safeArea'
 
 const props = defineProps<{
   cards: CardId[]
@@ -20,12 +21,14 @@ const emit = defineEmits<{
 const hovered = shallowRef(false)
 const isMobile = useMediaQuery('(max-width: 640px)')
 const { width: rawWidth, height: rawHeight } = useWindowSize()
-const viewportWidth = computed(() => Number.isFinite(rawWidth.value) && rawWidth.value > 0 ? rawWidth.value : 390)
+const fullWidth = computed(() => Number.isFinite(rawWidth.value) && rawWidth.value > 0 ? rawWidth.value : 390)
+/** Usable width: sideways iPhones hide both edges behind the notch and rounded corners. */
+const viewportWidth = computed(() => Math.max(280, fullWidth.value - safeAreaInsets.left - safeAreaInsets.right))
 const viewportHeight = computed(() => Number.isFinite(rawHeight.value) && rawHeight.value > 0 ? rawHeight.value : 844)
 /** Landscape phones: wide enough for desktop sizes, but very little height. */
 const isShort = computed(() => viewportHeight.value <= 520)
 /** Phone held upright: narrow and tall. */
-const isPortrait = computed(() => viewportWidth.value / viewportHeight.value < 0.85)
+const isPortrait = computed(() => fullWidth.value / viewportHeight.value < 0.85)
 const prefersReduced = usePreferredReducedMotion()
 const legalSet = computed(() => new Set(props.legalMoves))
 /** Hide immediately on click so the flight clone is the only visible card. */

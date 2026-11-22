@@ -15,7 +15,7 @@ const fan = [
 </script>
 
 <template>
-  <div class="grid min-h-dvh lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+  <div class="safe-area-pad grid min-h-dvh lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
     <div class="flex flex-col px-4 py-6 sm:px-8">
       <div class="flex items-center justify-between">
         <AppLogo />

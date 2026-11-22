@@ -88,6 +88,7 @@ function joinTable() {
     <template #body>
       <div class="mx-auto grid w-full max-w-5xl gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <section>
+          <AppInstallBanner class="mb-6" />
           <h1 class="font-display text-4xl text-highlighted">
             Ouvrir une table
           </h1>

@@ -58,6 +58,7 @@ const filtered = computed(() => {
     </template>
 
     <template #body>
+      <AppInstallBanner />
       <div
         v-if="status === 'pending' && !decks.length"
         class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
