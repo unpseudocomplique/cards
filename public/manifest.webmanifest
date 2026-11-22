@@ -1,15 +1,26 @@
 {
+  "id": "/",
   "name": "Cards — tarot entre amis",
   "short_name": "Cards",
-  "start_url": "/dashboard",
+  "description": "Le tarot à vos visages : créez vos cartes et jouez entre amis.",
+  "start_url": "/play?source=app",
+  "scope": "/",
   "display": "fullscreen",
   "display_override": ["fullscreen", "standalone"],
   "orientation": "any",
   "background_color": "#0c0908",
   "theme_color": "#0c0908",
   "lang": "fr",
+  "dir": "ltr",
+  "categories": ["games", "entertainment"],
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Jouer", "short_name": "Jouer", "url": "/play?source=app", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Mes decks", "short_name": "Decks", "url": "/dashboard?source=app", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
   ]
 }

@@ -569,7 +569,7 @@ const priorityCodes = computed(() => {
 
       <div
         v-if="showHand !== false && privateState?.hand?.length"
-        class="pointer-events-none absolute inset-x-0 bottom-0 z-30 px-1 pb-3 sm:px-2 sm:pb-5"
+        class="hand-dock pointer-events-none absolute inset-x-0 bottom-0 z-30 px-1 sm:px-2"
       >
         <PlayHandArc
           :cards="privateState.hand"

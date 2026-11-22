@@ -218,6 +218,12 @@ const confetti = Array.from({ length: 26 }, (_, index) => ({
         :size="isShort ? 'md' : 'lg'"
       />
       <PlayGameButton
+        to="/statistiques"
+        label="Mes statistiques"
+        icon="i-lucide-chart-no-axes-combined"
+        :size="isShort ? 'md' : 'lg'"
+      />
+      <PlayGameButton
         to="/play"
         label="Nouvelle table"
         icon="i-lucide-spade"

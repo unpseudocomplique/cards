@@ -31,6 +31,8 @@ function toggleVibrate() {
   tableSound.vibrate('turn')
 }
 
+const installApp = useInstallApp()
+
 const open = shallowRef(false)
 const root = ref<HTMLElement | null>(null)
 
@@ -77,16 +79,21 @@ onClickOutside(root, () => {
             <span class="block truncate text-xs text-white/50">Automatique en paysage sur téléphone</span>
           </span>
         </button>
-        <p
+        <button
           v-else-if="fullscreen.iosBrowser.value"
-          class="px-2 py-1.5 text-xs leading-snug text-white/60"
+          type="button"
+          class="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition hover:bg-white/10"
+          @click="open = false; installApp.sheetOpen.value = true"
         >
           <UIcon
             name="i-lucide-maximize"
-            class="mr-1 size-3.5 align-[-2px] text-amber-300"
+            class="size-4 shrink-0 text-amber-300"
           />
-          Plein écran sur iPhone : Partager, puis « Sur l’écran d’accueil », et ouvrez Cards depuis l’icône.
-        </p>
+          <span class="min-w-0">
+            <span class="block text-sm font-medium text-white">Plein écran</span>
+            <span class="block text-xs leading-snug text-white/50">Sur iPhone, ajoutez Cards à l’écran d’accueil</span>
+          </span>
+        </button>
         <div class="my-1 h-px bg-white/10" />
         <p class="px-2 pt-1 pb-1 text-[10px] tracking-[0.12em] text-white/50 uppercase">
           Son

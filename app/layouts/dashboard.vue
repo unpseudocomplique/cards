@@ -22,6 +22,14 @@ const mainLinks = computed<NavigationMenuItem[]>(() => [{
   onSelect: () => {
     open.value = false
   }
+}, {
+  label: 'Statistiques',
+  icon: 'i-lucide-chart-no-axes-combined',
+  to: '/statistiques',
+  active: route.path === '/statistiques',
+  onSelect: () => {
+    open.value = false
+  }
 }])
 
 const deckLinks = computed<NavigationMenuItem[]>(() => (decks.value ?? []).slice(0, 8).map(deck => ({
@@ -40,6 +48,7 @@ const deckLinks = computed<NavigationMenuItem[]>(() => (decks.value ?? []).slice
     unit="rem"
     storage="local"
     storage-key="cards-dashboard"
+    class="safe-area-pad"
   >
     <UDashboardSidebar
       id="app-sidebar"
