@@ -71,6 +71,37 @@ export function useTableFullscreen() {
     }
     const landscapePhone = window.matchMedia('(orientation: landscape) and (max-height: 520px) and (pointer: coarse)')
     let wasActive = false
+    const toast = useToast()
+    const installApp = useInstallApp()
+
+    /** iPhone Safari held sideways: its bars cannot be hidden, say how once per visit. */
+    const hintIos = () => {
+      if (!iosBrowser.value || !landscapePhone.matches) {
+        return
+      }
+      try {
+        if (sessionStorage.getItem('cards-ios-fullscreen-hint')) {
+          return
+        }
+        sessionStorage.setItem('cards-ios-fullscreen-hint', '1')
+      } catch {
+        // No storage: show it anyway.
+      }
+      toast.add({
+        title: 'Plein écran sur iPhone',
+        description: 'Ajoutez Cards à l’écran d’accueil : la barre de Safari disparaît, même en paysage.',
+        icon: 'i-lucide-maximize',
+        duration: 9000,
+        actions: [{
+          label: 'Comment faire',
+          color: 'neutral',
+          variant: 'outline',
+          onClick: () => {
+            installApp.sheetOpen.value = true
+          }
+        }]
+      })
+    }
 
     const onChange = () => {
       const now = Boolean(currentElement())
@@ -87,6 +118,7 @@ export function useTableFullscreen() {
       }
     }
     const onOrientation = () => {
+      hintIos()
       // Turning back upright: the bars come back on their own.
       if (!landscapePhone.matches && currentElement()) {
         wasActive = false
@@ -98,6 +130,7 @@ export function useTableFullscreen() {
     document.addEventListener('webkitfullscreenchange', onChange)
     window.addEventListener('pointerdown', onTouch, { passive: true })
     landscapePhone.addEventListener('change', onOrientation)
+    onMounted(hintIos)
 
     onBeforeUnmount(() => {
       document.removeEventListener('fullscreenchange', onChange)

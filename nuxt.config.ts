@@ -1,4 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import { splashLinks } from './shared/pwa/splashScreens'
+
 export default defineNuxtConfig({
   modules: ['@nuxt/eslint', '@nuxt/image', '@nuxt/ui', '@vueuse/nuxt', 'nuxt-auth-utils', 'motion-v/nuxt'],
 
@@ -18,11 +20,16 @@ export default defineNuxtConfig({
         { name: 'mobile-web-app-capable', content: 'yes' },
         { name: 'apple-mobile-web-app-capable', content: 'yes' },
         { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
-        { name: 'apple-mobile-web-app-title', content: 'Cards' }
+        { name: 'apple-mobile-web-app-title', content: 'Cards' },
+        { name: 'application-name', content: 'Cards' },
+        { name: 'format-detection', content: 'telephone=no' }
       ],
       link: [
         { rel: 'manifest', href: '/manifest.webmanifest' },
-        { rel: 'apple-touch-icon', href: '/icon-192.png' }
+        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+        { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
+        // iOS start-up screens (it ignores the manifest splash).
+        ...splashLinks()
       ]
     }
   },
@@ -75,7 +82,11 @@ export default defineNuxtConfig({
 
   routeRules: {
     // OAuth + session routes must never be prerendered (crawlLinks would bake localhost redirect_uri).
-    '/auth/**': { prerender: false }
+    '/auth/**': { prerender: false },
+    // The service worker must never be cached, or updates would stall.
+    '/sw.js': { headers: { 'cache-control': 'no-cache' } },
+    '/manifest.webmanifest': { headers: { 'content-type': 'application/manifest+json', 'cache-control': 'no-cache' } },
+    '/pwa/**': { headers: { 'cache-control': 'public, max-age=604800' } }
   },
   devServer: {
     port: 3003,
