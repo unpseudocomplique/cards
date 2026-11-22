@@ -5,17 +5,17 @@ import {
   type Contract,
 } from './bid'
 import {
-  countPoigneeTrumps,
-  isKingCard,
+  callableCards,
+  poigneeCards,
   poigneePrimeForTier,
   poigneeTiers,
 } from './announces'
 import { dealHands } from './deal'
 import { mergeChienIntoHand, validateEcart } from './ecart'
 import { attackSeats, isAttackSeat } from './camps'
-import { legalMoves } from './legalMoves'
+import { legalMovesForSeat } from './legalMoves'
 import { computeDealScore } from './score'
-import { resolveTrick, trickLedSuit } from './trick'
+import { resolveTrick } from './trick'
 import type {
   Actor,
   ApplyResult,
@@ -28,6 +28,11 @@ import type { CardId } from './types'
 
 function chienSize(playerCount: PlayerCount): 6 | 3 {
   return playerCount === 5 ? 3 : 6
+}
+
+/** Cards in each hand once the deal is over (after the écart). */
+function handSize(playerCount: PlayerCount): number {
+  return playerCount === 3 ? 24 : playerCount === 5 ? 15 : 18
 }
 
 function success(state: GameState, events: GameEvent[]): ApplyResult {
@@ -132,7 +137,10 @@ function resetDealFields(state: GameState): GameState {
     trick: [],
     pilesAttack: [],
     pilesDefense: [],
-    poigneeShown: undefined,
+    poignees: undefined,
+    ecartShownTrumps: undefined,
+    excuseOwedBy: undefined,
+    petitTrick: undefined,
     chelemAnnounce: undefined,
     attackTricks: 0,
     defenseTricks: 0,
@@ -224,17 +232,34 @@ function takeDog(state: GameState, seat: number): GameState {
   }
 }
 
-function distributeTrickCards(state: GameState, winnerSeat: number): Pick<GameState, 'pilesAttack' | 'pilesDefense'> {
+/**
+ * The Excuse goes back to its camp, which owes the winners a low card in
+ * exchange (settled at scoring). On the last trick it is not taken back: it
+ * goes to the camp winning the trick (FFT), unless it won the trick itself
+ * (chelem, see `resolveCompletedTrick`).
+ */
+function distributeTrickCards(
+  state: GameState,
+  winnerSeat: number,
+  lastTrick: boolean,
+): Pick<GameState, 'pilesAttack' | 'pilesDefense' | 'excuseOwedBy'> {
   const pilesAttack = [...state.pilesAttack]
   const pilesDefense = [...state.pilesDefense]
+  let excuseOwedBy = state.excuseOwedBy
+  const winnerAttack = isAttackSeat(state, winnerSeat)
 
   for (const { seat, card } of state.trick) {
-    const targetSeat = card === 'excuse' ? seat : winnerSeat
-    const pile = isAttackSeat(state, targetSeat) ? pilesAttack : pilesDefense
-    pile.push(card)
+    let toAttack = winnerAttack
+    if (card === 'excuse' && !lastTrick) {
+      toAttack = isAttackSeat(state, seat)
+      if (toAttack !== winnerAttack) {
+        excuseOwedBy = toAttack ? 'attack' : 'defense'
+      }
+    }
+    ;(toAttack ? pilesAttack : pilesDefense).push(card)
   }
 
-  return { pilesAttack, pilesDefense }
+  return { pilesAttack, pilesDefense, excuseOwedBy }
 }
 
 function allHandsEmpty(state: GameState): boolean {
@@ -264,15 +289,20 @@ function scoreDeal(state: GameState): { state: GameState, events: GameEvent[] } 
   const takerSeat = state.bid!.seat
   const contract = state.bid!.contract
   const takerCards = [...state.pilesAttack]
-  if (contract === 'garde_sans' || contract === 'garde_contre') {
+  if (contract === 'garde_sans') {
+    // Garde sans: the dog counts for the taker.
     takerCards.push(...state.chien)
-  } else {
+  } else if (contract !== 'garde_contre') {
     takerCards.push(...state.ecart)
   }
+  // Garde contre: the dog belongs to the defence, nothing to add.
 
-  const poigneePrime = state.poigneeShown
-    ? poigneePrimeForTier(state.playerCount, state.poigneeShown.tier) ?? undefined
-    : undefined
+  const takerPointsAdjust = state.excuseOwedBy === 'attack'
+    ? -0.5
+    : state.excuseOwedBy === 'defense' ? 0.5 : 0
+
+  const poigneePrime = (state.poignees ?? [])
+    .reduce((total, entry) => total + (poigneePrimeForTier(state.playerCount, entry.tier) ?? 0), 0)
 
   const deltas = computeDealScore({
     playerCount: state.playerCount,
@@ -280,8 +310,9 @@ function scoreDeal(state: GameState): { state: GameState, events: GameEvent[] } 
     takerSeat,
     partnerSeat: state.partnerSeat,
     takerCards,
+    takerPointsAdjust,
     defenseCards: state.pilesDefense,
-    poigneePrime,
+    poigneePrime: poigneePrime || undefined,
     petitAuBoutCamp: state.petitAuBoutCamp,
     chelem: resolveChelemOutcome(state),
   })
@@ -357,10 +388,27 @@ function resolvePartnerSeat(
 }
 
 function resolveCompletedTrick(state: GameState): ApplyResult {
-  const { winnerSeat } = resolveTrick(state.trick)
-  const piles = distributeTrickCards(state, winnerSeat)
+  const lastTrick = allHandsEmpty(state)
+  const previousTricks = state.attackTricks + state.defenseTricks
+  let { winnerSeat } = resolveTrick(state.trick)
+
+  // FFT: the Excuse played on the last trick by a camp that won every trick
+  // before (chelem) wins that trick.
+  const excuseEntry = state.trick.find(entry => entry.card === 'excuse')
+  let excuseWonChelem = false
+  if (lastTrick && excuseEntry && previousTricks > 0) {
+    const campTricks = isAttackSeat(state, excuseEntry.seat) ? state.attackTricks : state.defenseTricks
+    if (campTricks === previousTricks) {
+      winnerSeat = excuseEntry.seat
+      excuseWonChelem = true
+    }
+  }
+
+  const piles = distributeTrickCards(state, winnerSeat, lastTrick)
   const events: GameEvent[] = [{ type: 'trickWon', seat: winnerSeat }]
   const attackWon = isAttackSeat(state, winnerSeat)
+  const winnerCamp = attackWon ? 'attack' as const : 'defense' as const
+  const petitInTrick = state.trick.some(entry => entry.card === 'trump-1')
   const tricksWonBySeat = state.tricksWonBySeat.map((count, seat) =>
     seat === winnerSeat ? count + 1 : count,
   )
@@ -375,15 +423,17 @@ function resolveCompletedTrick(state: GameState): ApplyResult {
     attackTricks: state.attackTricks + (attackWon ? 1 : 0),
     defenseTricks: state.defenseTricks + (attackWon ? 0 : 1),
     tricksWonBySeat,
+    petitTrick: petitInTrick ? { number: previousTricks + 1, camp: winnerCamp } : state.petitTrick,
   }
 
-  if (allHandsEmpty(next)) {
-    const petitInLastTrick = state.trick.some(entry => entry.card === 'trump-1')
-    if (petitInLastTrick) {
-      next = {
-        ...next,
-        petitAuBoutCamp: attackWon ? 'attack' : 'defense',
-      }
+  if (lastTrick) {
+    if (petitInTrick) {
+      next = { ...next, petitAuBoutCamp: winnerCamp }
+    }
+    else if (excuseWonChelem && state.petitTrick?.number === previousTricks) {
+      // Chelem with the Excuse played last: the Petit is "au bout" on the
+      // second-to-last trick.
+      next = { ...next, petitAuBoutCamp: state.petitTrick.camp }
     }
     next = { ...next, phase: 'Scoring' }
     const scored = scoreDeal(next)
@@ -548,16 +598,15 @@ function handleCallKing(state: GameState, intent: Extract<Intent, { type: 'callK
   if (state.calledKing) {
     return failure('ILLEGAL_MOVE', 'King already called')
   }
-  if (!isKingCard(intent.king)) {
-    return failure('ILLEGAL_MOVE', 'Must call a king')
-  }
-
   const seat = actorSeat(state, actor)
   if (seat === null) {
     return failure('UNAUTHORIZED', 'Actor has no seat at this table')
   }
   if (seat !== state.bid.seat) {
     return failure('NOT_YOUR_TURN', 'Only the taker may call a king')
+  }
+  if (!callableCards(state.hands[seat] ?? []).includes(intent.king)) {
+    return failure('ILLEGAL_MOVE', 'Must call a king (a queen only with the 4 kings, and so on)')
   }
 
   // A king left in the dog means the taker plays alone (resolved before taking it).
@@ -614,6 +663,7 @@ function handleDiscard(state: GameState, intent: Extract<Intent, { type: 'discar
       hands,
       dogShown: undefined,
       ecart: [...intent.cards],
+      ecartShownTrumps: validation.shownTrumps.length > 0 ? [...validation.shownTrumps] : undefined,
       currentSeat: firstLeaderSeat(state),
       trick: [],
     },
@@ -626,33 +676,36 @@ function handleAnnouncePoignee(
   intent: Extract<Intent, { type: 'announcePoignee' }>,
   actor: Actor,
 ): ApplyResult {
-  if (state.phase !== 'ReadyToPlay') {
-    return failure('WRONG_PHASE', 'Poignée can only be announced before the first card')
+  // FFT: shown just before the player plays their own first card.
+  if (state.phase !== 'ReadyToPlay' && state.phase !== 'Trick') {
+    return failure('WRONG_PHASE', 'Poignée can only be announced before your first card')
   }
   const kingError = requireCalledKingIfNeeded(state)
   if (kingError) {
     return kingError
   }
-  if (state.poigneeShown) {
-    return failure('ILLEGAL_MOVE', 'A poignée was already shown')
-  }
   if (!poigneeTiers(state.playerCount).includes(intent.tier)) {
     return failure('ILLEGAL_MOVE', `Invalid poignée tier ${intent.tier} for ${state.playerCount} players`)
   }
 
-  const seat = actorSeat(state, actor)
-  if (seat === null) {
-    return failure('UNAUTHORIZED', 'Actor has no seat at this table')
+  const seatOrError = requireTurnSeat(state, actor)
+  if (typeof seatOrError !== 'number') {
+    return seatOrError
   }
+  const seat = seatOrError
   const hand = state.hands[seat] ?? []
-  const trumpCount = countPoigneeTrumps(hand)
-  if (trumpCount < intent.tier) {
-    return failure(
-      'ILLEGAL_MOVE',
-      `Need ${intent.tier} trumps for this poignée (have ${trumpCount})`,
-    )
+  if (hand.length !== handSize(state.playerCount)) {
+    return failure('ILLEGAL_MOVE', 'Poignée can only be announced before your first card')
   }
-  return success({ ...state, poigneeShown: { seat, tier: intent.tier } }, [])
+  if (state.poignees?.some(entry => entry.seat === seat)) {
+    return failure('ILLEGAL_MOVE', 'You already showed a poignée')
+  }
+  const cards = poigneeCards(hand, intent.tier)
+  if (!cards) {
+    return failure('ILLEGAL_MOVE', `Need ${intent.tier} trumps for this poignée`)
+  }
+  const poignees = [...(state.poignees ?? []), { seat, tier: intent.tier, cards }]
+  return success({ ...state, poignees }, [])
 }
 
 function handleAnnounceChelem(
@@ -684,7 +737,9 @@ function handleAnnounceChelem(
     return failure('UNAUTHORIZED', 'Only defenders may announce defense chelem')
   }
 
-  return success({ ...state, chelemAnnounce: intent.kind }, [])
+  // FFT: the player who announced a chelem leads, whoever dealt.
+  const currentSeat = intent.kind === 'announced' ? seat : state.currentSeat
+  return success({ ...state, chelemAnnounce: intent.kind, currentSeat }, [])
 }
 
 function handlePlayCard(state: GameState, intent: Extract<Intent, { type: 'playCard' }>, actor: Actor): ApplyResult {
@@ -704,9 +759,7 @@ function handlePlayCard(state: GameState, intent: Extract<Intent, { type: 'playC
     return seatOrError
   }
   const seat = seatOrError
-  const hand = state.hands[seat]!
-  const ledSuit = state.trick.length > 0 ? trickLedSuit(state.trick) : null
-  const moves = legalMoves(hand, state.trick, ledSuit)
+  const moves = legalMovesForSeat(state, seat)
   if (!moves.includes(intent.card)) {
     return failure('ILLEGAL_MOVE', `Card ${intent.card} is not a legal move`)
   }

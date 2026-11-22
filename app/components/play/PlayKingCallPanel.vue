@@ -1,20 +1,25 @@
 <script setup lang="ts">
 import type { CardId } from '~~/shared/tarot'
-import { KING_IDS } from '~~/shared/tarot'
+import { callableCards } from '~~/shared/tarot'
 
-defineProps<{
+const props = defineProps<{
+  hand: CardId[]
   faceUrlFor: (card: CardId) => string | null
 }>()
+
+/* Kings, plus queens with the 4 kings, etc. (FFT). */
+const options = computed(() => callableCards(props.hand))
 
 const emit = defineEmits<{
   call: [king: CardId]
 }>()
 
-const labels: Record<string, string> = {
-  'hearts-k': 'Roi de cœur',
-  'diamonds-k': 'Roi de carreau',
-  'clubs-k': 'Roi de trèfle',
-  'spades-k': 'Roi de pique'
+const RANKS: Record<string, string> = { k: 'Roi', q: 'Dame', c: 'Cavalier', j: 'Valet' }
+const SUITS: Record<string, string> = { hearts: 'cœur', diamonds: 'carreau', clubs: 'trèfle', spades: 'pique' }
+
+function label(card: CardId) {
+  const [suit, rank] = card.split('-')
+  return `${RANKS[rank ?? ''] ?? ''} de ${SUITS[suit ?? ''] ?? ''}`
 }
 </script>
 
@@ -26,20 +31,20 @@ const labels: Record<string, string> = {
   >
     <div class="flex flex-wrap justify-center gap-3">
       <button
-        v-for="king in KING_IDS"
+        v-for="king in options"
         :key="king"
         type="button"
         class="group flex flex-col items-center gap-1.5 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
-        @click="emit('call', king as CardId)"
+        @click="emit('call', king)"
       >
         <span class="transition-transform duration-150 group-hover:-translate-y-1.5">
           <PlayDeckCard
-            :card-id="king as CardId"
-            :face-url="faceUrlFor(king as CardId)"
+            :card-id="king"
+            :face-url="faceUrlFor(king)"
             size="md"
           />
         </span>
-        <span class="text-xs text-white/70 group-hover:text-white">{{ labels[king] }}</span>
+        <span class="text-xs text-white/70 group-hover:text-white">{{ label(king) }}</span>
       </button>
     </div>
   </PlayPanel>

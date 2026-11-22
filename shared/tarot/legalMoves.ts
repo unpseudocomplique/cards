@@ -1,6 +1,6 @@
 import { cardSuit } from './deck'
 import { trickLedSuit, trumpValue } from './trick'
-import type { CardId, CardSuit } from './types'
+import type { CardId, CardSuit, GameState } from './types'
 
 function isExcuse(card: CardId): boolean {
   return card === 'excuse'
@@ -83,4 +83,25 @@ export function legalMoves(
   }
 
   return withExcuse(obligated, hand)
+}
+
+/**
+ * Legal cards for a seat in the current deal. On top of `legalMoves`, at 5
+ * players the opening lead may not be in the called card's suit, except the
+ * called card itself (FFT).
+ */
+export function legalMovesForSeat(
+  state: Pick<GameState, 'hands' | 'trick' | 'playerCount' | 'calledKing' | 'attackTricks' | 'defenseTricks'>,
+  seat: number,
+): CardId[] {
+  const hand = state.hands[seat] ?? []
+  const ledSuit = state.trick.length > 0 ? trickLedSuit(state.trick) : null
+  const moves = legalMoves(hand, state.trick, ledSuit)
+  const openingLead = state.trick.length === 0 && state.attackTricks + state.defenseTricks === 0
+  if (state.playerCount !== 5 || !state.calledKing || !openingLead) {
+    return moves
+  }
+  const calledSuit = cardSuit(state.calledKing)
+  const allowed = moves.filter(card => card === state.calledKing || cardSuit(card) !== calledSuit)
+  return allowed.length > 0 ? allowed : moves
 }

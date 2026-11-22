@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { CardId } from '~~/shared/tarot'
 import { countPoigneeTrumps, poigneeTiers } from '~~/shared/tarot'
+import { tarotCardLabel } from '~/utils/tarotCardLabel'
 
 definePageMeta({
   middleware: 'auth',
@@ -98,9 +99,16 @@ const showHand = computed(() =>
   && phase.value !== 'Dealing'
 )
 
-/* Poignée — only before the first card of the deal. */
+/* Poignée — FFT: shown just before playing one's own first card. */
+const FULL_HAND: Record<number, number> = { 3: 24, 4: 18, 5: 15 }
 const poigneeTier = computed(() => {
-  if (phase.value !== 'ReadyToPlay' || publicState.value?.poigneeShown || !privateState.value) {
+  if ((phase.value !== 'ReadyToPlay' && phase.value !== 'Trick') || !myTurn.value || !privateState.value || !publicState.value) {
+    return null
+  }
+  if (needsKingCall.value || publicState.value.poignees?.some(entry => entry.seat === localSeat.value)) {
+    return null
+  }
+  if (privateState.value.hand.length !== FULL_HAND[publicState.value.playerCount]) {
     return null
   }
   const count = countPoigneeTrumps(privateState.value.hand)
@@ -115,6 +123,72 @@ const poigneeName = computed(() => {
   }
   const index = poigneeTiers(publicState.value.playerCount).indexOf(poigneeTier.value)
   return `${poigneeLabels[index] ?? ''} poignée (${poigneeTier.value} atouts)`
+})
+
+/* Cards shown to the table: poignées and trumps put in the écart (FFT). */
+function cardList(cards: CardId[]) {
+  return cards.map(card => tarotCardLabel(card).shortLabel).join(', ')
+}
+
+function seatName(seat: number) {
+  return seat === localSeat.value ? 'Vous' : (publicState.value?.seats[seat]?.name ?? `Joueur ${seat + 1}`)
+}
+
+watch(() => publicState.value?.poignees?.length ?? 0, (count, previous) => {
+  const poignees = publicState.value?.poignees ?? []
+  for (const entry of poignees.slice(previous ?? 0, count)) {
+    const index = poigneeTiers(publicState.value!.playerCount).indexOf(entry.tier)
+    toast.add({
+      title: `${seatName(entry.seat)} : ${(poigneeLabels[index] ?? '').toLowerCase()} poignée`,
+      description: cardList(entry.cards),
+      icon: 'i-lucide-hand',
+      color: 'warning',
+      duration: 10000
+    })
+  }
+})
+
+watch(() => publicState.value?.ecartShownTrumps?.join(','), (key) => {
+  const trumps = publicState.value?.ecartShownTrumps
+  const takerSeat = publicState.value?.bid?.seat
+  if (!key || !trumps?.length || takerSeat === undefined) {
+    return
+  }
+  toast.add({
+    title: `Atouts mis à l'écart par ${takerSeat === localSeat.value ? 'vous' : seatName(takerSeat)}`,
+    description: cardList(trumps),
+    icon: 'i-lucide-eye',
+    color: 'warning',
+    duration: 10000
+  })
+})
+
+/* Chelem — FFT: the taker announces it before the first card, then leads. */
+const chelemOpen = shallowRef(false)
+const canAnnounceChelem = computed(() =>
+  phase.value === 'ReadyToPlay'
+  && isTaker.value
+  && !needsKingCall.value
+  && !publicState.value?.chelemAnnounce
+)
+
+function announceChelem() {
+  chelemOpen.value = false
+  sendIntent({ type: 'announceChelem', kind: 'announced' })
+}
+
+watch(() => publicState.value?.chelemAnnounce, (kind, previous) => {
+  const takerSeat = publicState.value?.bid?.seat
+  if (kind !== 'announced' || previous === 'announced' || takerSeat === undefined) {
+    return
+  }
+  toast.add({
+    title: takerSeat === localSeat.value ? 'Vous annoncez un chelem' : `${seatName(takerSeat)} annonce un chelem`,
+    description: 'Le preneur doit remporter tous les plis. Il entame.',
+    icon: 'i-lucide-crown',
+    color: 'warning',
+    duration: 10000
+  })
 })
 
 const debugGfx = computed(() => String(route.query.debugGfx ?? '') === '1')
@@ -198,16 +272,26 @@ function play(card: CardId) {
       </div>
 
       <div
-        v-if="poigneeTier"
-        class="pointer-events-auto mx-auto mt-3"
+        v-if="poigneeTier || canAnnounceChelem"
+        class="pointer-events-auto mx-auto mt-3 flex flex-wrap justify-center gap-2"
       >
         <UButton
+          v-if="poigneeTier"
           :label="`Annoncer : ${poigneeName}`"
           icon="i-lucide-hand"
           color="warning"
           variant="solid"
           class="rounded-full shadow-lg"
           @click="sendIntent({ type: 'announcePoignee', tier: poigneeTier })"
+        />
+        <UButton
+          v-if="canAnnounceChelem"
+          label="Annoncer un chelem"
+          icon="i-lucide-crown"
+          color="warning"
+          variant="outline"
+          class="rounded-full bg-black/40 shadow-lg"
+          @click="chelemOpen = true"
         />
       </div>
 
@@ -217,6 +301,7 @@ function play(card: CardId) {
       >
         <PlayKingCallPanel
           v-if="needsKingCall"
+          :hand="privateState?.hand ?? []"
           :face-url-for="faceUrlFor"
           @call="sendIntent({ type: 'callKing', king: $event })"
         />
@@ -235,6 +320,28 @@ function play(card: CardId) {
         />
       </div>
     </div>
+
+    <UModal
+      v-model:open="chelemOpen"
+      title="Annoncer un chelem ?"
+      description="Vous vous engagez à remporter tous les plis. Réussi : +400 points. Raté : −200 points. Vous entamez le premier pli."
+      :ui="{ footer: 'justify-end' }"
+    >
+      <template #footer="{ close }">
+        <UButton
+          label="Annuler"
+          color="neutral"
+          variant="ghost"
+          @click="close"
+        />
+        <UButton
+          label="Annoncer"
+          color="warning"
+          icon="i-lucide-crown"
+          @click="announceChelem"
+        />
+      </template>
+    </UModal>
 
     <UModal
       v-model:open="leaveOpen"
