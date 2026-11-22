@@ -78,7 +78,7 @@ function chooseContractForStrength(strength: number, minOvercall: Contract | nul
     { contract: 'garde_contre', min: 38 },
     { contract: 'garde_sans', min: 32 },
     { contract: 'garde', min: 26 },
-    { contract: 'prise', min: 16 },
+    { contract: 'prise', min: 16 }
   ]
 
   let bid: Contract | 'passe' = 'passe'
@@ -175,12 +175,12 @@ function chooseCallKingIntent(state: GameState, seat: number): Intent {
   }
 
   const ranked = [...KING_IDS]
-    .map(king => {
+    .map((king) => {
       const suit = suitOf(king as CardId) ?? ''
       return {
         king: king as CardId,
         inHand: hand.includes(king as CardId),
-        length: suitCounts.get(suit) ?? 0,
+        length: suitCounts.get(suit) ?? 0
       }
     })
     .sort((a, b) => {

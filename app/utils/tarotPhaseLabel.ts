@@ -9,7 +9,7 @@ const PHASE_LABELS: Record<Phase, string> = {
   ReadyToPlay: 'Prêt à jouer',
   Trick: 'Pli en cours',
   Scoring: 'Marquage',
-  MatchOver: 'Partie terminée',
+  MatchOver: 'Partie terminée'
 }
 
 export function tarotPhaseLabel(phase: Phase): string {

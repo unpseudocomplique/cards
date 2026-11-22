@@ -1,12 +1,12 @@
-export type GenerationErrorCode =
-  | 'NO_IMAGE'
-  | 'API_UNAVAILABLE'
-  | 'API_RATE_LIMIT'
-  | 'API_AUTH'
-  | 'PHOTO_UNAVAILABLE'
-  | 'RENDER_FAILED'
-  | 'STORAGE_FAILED'
-  | 'UNKNOWN'
+export type GenerationErrorCode
+  = | 'NO_IMAGE'
+    | 'API_UNAVAILABLE'
+    | 'API_RATE_LIMIT'
+    | 'API_AUTH'
+    | 'PHOTO_UNAVAILABLE'
+    | 'RENDER_FAILED'
+    | 'STORAGE_FAILED'
+    | 'UNKNOWN'
 
 type NormalizedGenerationError = {
   code: GenerationErrorCode

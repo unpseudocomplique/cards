@@ -6,7 +6,7 @@ function emptySeat(seatId: number): SeatInfo {
     userId: null,
     name: '',
     connected: false,
-    controlledBy: 'human',
+    controlledBy: 'human'
   }
 }
 
@@ -19,7 +19,7 @@ export function createEmptyGame(config: GameConfig): GameState {
         name: config.hostName ?? 'Host',
         picture: config.hostPicture ?? null,
         connected: true,
-        controlledBy: 'human',
+        controlledBy: 'human'
       }
     }
     return emptySeat(seatId)
@@ -53,6 +53,6 @@ export function createEmptyGame(config: GameConfig): GameState {
     lastTrick: null,
     lastTrickWinnerSeat: null,
     hostUserId: config.hostUserId,
-    rngCounter: 0,
+    rngCounter: 0
   }
 }

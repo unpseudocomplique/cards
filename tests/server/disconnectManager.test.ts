@@ -22,7 +22,7 @@ describe('DisconnectManager', () => {
       playerCount: 4,
       endMode: 'threshold',
       endValue: 1000,
-    deckId: 'deck-test',
+      deckId: 'deck-test'
     })
 
     onDisconnect(code, HOST_ID)
@@ -32,7 +32,7 @@ describe('DisconnectManager', () => {
       userId: HOST_ID,
       seatId: 0,
       connected: false,
-      controlledBy: 'human',
+      controlledBy: 'human'
     })
 
     vi.advanceTimersByTime(8_000)
@@ -42,7 +42,7 @@ describe('DisconnectManager', () => {
       userId: HOST_ID,
       seatId: 0,
       connected: false,
-      controlledBy: 'bot',
+      controlledBy: 'bot'
     })
 
     const hello = onHello(code, HOST_ID)
@@ -55,7 +55,7 @@ describe('DisconnectManager', () => {
       userId: HOST_ID,
       seatId: 0,
       connected: true,
-      controlledBy: 'human',
+      controlledBy: 'human'
     })
     expect(gameStore.get(code)?.seats[0]).toEqual(hello.state.seats[0])
   })
@@ -67,7 +67,7 @@ describe('DisconnectManager', () => {
       playerCount: 4,
       endMode: 'threshold',
       endValue: 1000,
-    deckId: 'deck-test',
+      deckId: 'deck-test'
     })
 
     onDisconnect(code, HOST_ID)
@@ -82,7 +82,7 @@ describe('DisconnectManager', () => {
     expect(state.seats[0]).toMatchObject({
       userId: HOST_ID,
       connected: true,
-      controlledBy: 'human',
+      controlledBy: 'human'
     })
   })
 })

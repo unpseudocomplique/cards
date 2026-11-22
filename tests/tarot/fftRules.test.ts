@@ -19,7 +19,7 @@ function table(playerCount: 3 | 4 | 5, overrides: Partial<GameState> = {}): Game
     playerCount,
     endMode: 'deals',
     endValue: 10,
-    deckId: 'deck-test',
+    deckId: 'deck-test'
   })
   return {
     ...base,
@@ -29,7 +29,7 @@ function table(playerCount: 3 | 4 | 5, overrides: Partial<GameState> = {}): Game
     dealIndex: 1,
     scores: Array.from({ length: playerCount }, () => 0),
     hands: Array.from({ length: playerCount }, () => [] as CardId[]),
-    ...overrides,
+    ...overrides
   }
 }
 
@@ -37,7 +37,7 @@ function table(playerCount: 3 | 4 | 5, overrides: Partial<GameState> = {}): Game
 const TAKER_41_TWO_BOUTS = cards(
   'trump-21', 'trump-1',
   'hearts-k', 'diamonds-k', 'clubs-k', 'spades-k',
-  'hearts-q', 'diamonds-q', 'clubs-q', 'spades-q',
+  'hearts-q', 'diamonds-q', 'clubs-q', 'spades-q'
 )
 
 function play(state: GameState, seat: number, card: string): GameState {
@@ -58,8 +58,8 @@ describe('Excuse on the last trick', () => {
       trick: [
         { seat: 0, card: c('excuse') },
         { seat: 1, card: c('hearts-k') },
-        { seat: 2, card: c('hearts-2') },
-      ],
+        { seat: 2, card: c('hearts-2') }
+      ]
     })
     const next = play(state, 3, 'hearts-3')
     expect(next.pilesDefense).toContain('excuse')
@@ -78,8 +78,8 @@ describe('Excuse on the last trick', () => {
       trick: [
         { seat: 0, card: c('excuse') },
         { seat: 1, card: c('hearts-2') },
-        { seat: 2, card: c('trump-5') },
-      ],
+        { seat: 2, card: c('trump-5') }
+      ]
     })
     const next = play(state, 3, 'trump-2')
     expect(next.lastTrickWinnerSeat).toBe(0)
@@ -101,8 +101,8 @@ describe('Excuse on the last trick', () => {
       trick: [
         { seat: 0, card: c('excuse') },
         { seat: 1, card: c('hearts-2') },
-        { seat: 2, card: c('hearts-3') },
-      ],
+        { seat: 2, card: c('hearts-3') }
+      ]
     })
     const next = play(state, 3, 'hearts-4')
     expect(next.petitAuBoutCamp).toBe('attack')
@@ -117,8 +117,8 @@ describe('Excuse exchange', () => {
       trick: [
         { seat: 0, card: c('excuse') },
         { seat: 1, card: c('hearts-k') },
-        { seat: 2, card: c('hearts-2') },
-      ],
+        { seat: 2, card: c('hearts-2') }
+      ]
     })
     const next = play(state, 3, 'hearts-3')
     expect(next.pilesAttack).toEqual(['excuse'])
@@ -131,7 +131,7 @@ describe('Excuse exchange', () => {
       contract: 'prise' as const,
       takerSeat: 0,
       takerCards: TAKER_41_TWO_BOUTS,
-      defenseCards: [],
+      defenseCards: []
     }
     expect(computeDealScore(base)[0]).toBe(75)
     // 40.5 points: the half point goes to the winning camp (defence) → fails by 1.
@@ -159,8 +159,8 @@ describe('dog in garde sans / garde contre', () => {
     trick: [
       { seat: 0, card: c('hearts-2') },
       { seat: 1, card: c('hearts-3') },
-      { seat: 2, card: c('hearts-4') },
-    ],
+      { seat: 2, card: c('hearts-4') }
+    ]
   })
 
   it('garde contre: the dog counts for the defence', () => {
@@ -187,7 +187,7 @@ describe('écart', () => {
     const hand = cards(
       'hearts-k', 'diamonds-k', 'clubs-k', 'spades-k', 'trump-21', 'trump-1', 'excuse',
       ...Array.from({ length: 15 }, (_, i) => `trump-${i + 2}`),
-      'hearts-2', 'hearts-3',
+      'hearts-2', 'hearts-3'
     )
     const state = table(4, { phase: 'DogEcarta', currentSeat: 0, hands: [hand, [], [], []] })
     const discard = cards('hearts-2', 'hearts-3', 'trump-2', 'trump-3', 'trump-4', 'trump-5')
@@ -209,7 +209,7 @@ describe('poignée', () => {
       currentSeat: 2,
       hands: [[], [], [...tenTrumps, ...fillers(8)], []],
       trick: [{ seat: 0, card: c('hearts-2') }, { seat: 1, card: c('hearts-3') }],
-      poignees: [{ seat: 0, tier: 10, cards: [] }],
+      poignees: [{ seat: 0, tier: 10, cards: [] }]
     })
     const result = apply(state, { type: 'announcePoignee', tier: 10 }, actor(state, 2))
     expect(result.ok).toBe(true)
@@ -223,7 +223,7 @@ describe('poignée', () => {
   it('is refused once the player has played a card', () => {
     const state = table(4, {
       currentSeat: 2,
-      hands: [[], [], [...tenTrumps, ...fillers(7)], []],
+      hands: [[], [], [...tenTrumps, ...fillers(7)], []]
     })
     expect(apply(state, { type: 'announcePoignee', tier: 10 }, actor(state, 2)).ok).toBe(false)
   })
@@ -231,7 +231,7 @@ describe('poignée', () => {
   it('only shows the Excuse when no other trump is left', () => {
     const state = table(4, {
       currentSeat: 0,
-      hands: [[...tenTrumps, c('excuse'), ...fillers(7)], [], [], []],
+      hands: [[...tenTrumps, c('excuse'), ...fillers(7)], [], [], []]
     })
     const result = apply(state, { type: 'announcePoignee', tier: 10 }, actor(state, 0))
     expect(result.ok && result.state.poignees![0]!.cards).toEqual(tenTrumps)
@@ -239,7 +239,7 @@ describe('poignée', () => {
     const nineTrumps = tenTrumps.slice(1)
     const withExcuse = table(4, {
       currentSeat: 0,
-      hands: [[...nineTrumps, c('excuse'), ...fillers(8)], [], [], []],
+      hands: [[...nineTrumps, c('excuse'), ...fillers(8)], [], [], []]
     })
     const result2 = apply(withExcuse, { type: 'announcePoignee', tier: 10 }, actor(withExcuse, 0))
     expect(result2.ok && result2.state.poignees![0]!.cards).toEqual([...nineTrumps, 'excuse'])
@@ -258,7 +258,7 @@ describe('5 players', () => {
       phase: 'ReadyToPlay',
       bid: { seat: 0, contract: 'garde_sans' },
       currentSeat: 1,
-      hands: [cards('hearts-k', 'diamonds-k', 'clubs-k', 'spades-k'), cards('hearts-q'), [], [], []],
+      hands: [cards('hearts-k', 'diamonds-k', 'clubs-k', 'spades-k'), cards('hearts-q'), [], [], []]
     })
     const result = apply(state, { type: 'callKing', king: c('hearts-q') }, actor(state, 0))
     expect(result.ok && result.state.partnerSeat).toBe(1)
@@ -272,7 +272,7 @@ describe('5 players', () => {
       calledKing: c('hearts-k'),
       partnerSeat: 1,
       currentSeat: 1,
-      hands: [[], cards('hearts-k', 'hearts-3', 'clubs-4'), [], [], []],
+      hands: [[], cards('hearts-k', 'hearts-3', 'clubs-4'), [], [], []]
     })
     expect(toPrivateView(state, 1).legalMoves).toEqual(cards('hearts-k', 'clubs-4'))
     expect(apply(state, { type: 'playCard', card: c('hearts-3') }, actor(state, 1)).ok).toBe(false)

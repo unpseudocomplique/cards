@@ -132,14 +132,14 @@ function collectOffset(seat: number) {
     x: target.x - centerX + (seat - props.collectingToSeat) * 6,
     y: target.y - centerY,
     scale: 0.45,
-    opacity: 0.15,
+    opacity: 0.15
   }
 }
 
 const spring = computed(() =>
   prefersReduced.value
     ? { type: 'tween' as const, duration: 0.01 }
-    : { type: 'spring' as const, stiffness: 280, damping: 18, mass: 0.7 },
+    : { type: 'spring' as const, stiffness: 280, damping: 18, mass: 0.7 }
 )
 </script>
 
@@ -171,7 +171,6 @@ const spring = computed(() =>
             :class="leaderSeat === entry.seat && collectingToSeat == null ? '-translate-y-1.5' : ''"
             role="button"
             :aria-label="`Agrandir la carte de ${seatLabel(entry.seat) ?? ''}`"
-            @click="zoomCard(entry.card)"
             :style="{
               height: `${seatTrickHeight}px`,
               aspectRatio: 'var(--table-card-ratio, 2 / 3)',
@@ -179,8 +178,9 @@ const spring = computed(() =>
                 ? '0 0 0 3px #38bdf8, 0 0 22px 6px rgba(56,189,248,0.55)'
                 : leaderSeat === entry.seat && collectingToSeat == null
                   ? '0 0 0 3px #fcd34d, 0 0 20px 4px rgba(252,211,77,0.45)'
-                  : `0 0 0 2px ${seatColor(entry.seat)}`,
+                  : `0 0 0 2px ${seatColor(entry.seat)}`
             }"
+            @click="zoomCard(entry.card)"
           >
             <PlayDeckCard
               :card-id="entry.card"
@@ -194,13 +194,19 @@ const spring = computed(() =>
               class="absolute -top-2.5 -right-2.5 grid size-6 place-items-center rounded-full bg-amber-300 text-neutral-950 shadow-lg ring-2 ring-neutral-950/60"
               title="Carte maîtresse"
             >
-              <UIcon name="i-lucide-crown" class="size-3.5" />
+              <UIcon
+                name="i-lucide-crown"
+                class="size-3.5"
+              />
             </span>
             <p
               v-if="entry.card === calledKing && collectingToSeat == null"
               class="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 rounded-b-[6px] bg-sky-400 py-0.5 text-[9px] font-bold tracking-wide text-sky-950 uppercase"
             >
-              <UIcon name="i-lucide-handshake" class="size-3" />
+              <UIcon
+                name="i-lucide-handshake"
+                class="size-3"
+              />
               Appelé
             </p>
           </div>
@@ -226,14 +232,20 @@ const spring = computed(() =>
         <p class="font-display text-lg leading-tight text-amber-50">
           {{ bannerParts.title }}
         </p>
-        <p v-if="bannerParts.reason" class="text-[11px] leading-snug text-white/60">
+        <p
+          v-if="bannerParts.reason"
+          class="text-[11px] leading-snug text-white/60"
+        >
           {{ bannerParts.reason }}
         </p>
       </div>
     </div>
   </div>
 
-  <div v-else class="pointer-events-none absolute inset-0 z-[15] flex items-center justify-center px-3 pb-[18vh] sm:pb-[14vh] upright:pb-[8vh] short:pb-[21vh]">
+  <div
+    v-else
+    class="pointer-events-none absolute inset-0 z-[15] flex items-center justify-center px-3 pb-[18vh] sm:pb-[14vh] upright:pb-[8vh] short:pb-[21vh]"
+  >
     <div class="relative flex max-w-full items-end justify-center gap-1.5 sm:gap-3">
       <AnimatePresence>
         <motion.div
@@ -246,7 +258,7 @@ const spring = computed(() =>
             x: collectOffset(entry.seat).x,
             y: collectOffset(entry.seat).y,
             scale: collectOffset(entry.seat).scale,
-            rotate: collectingToSeat != null ? tilt(entry.seat) * 0.3 : tilt(entry.seat),
+            rotate: collectingToSeat != null ? tilt(entry.seat) * 0.3 : tilt(entry.seat)
           }"
           :exit="{ opacity: 0, scale: 0.5 }"
           :transition="collectingToSeat != null
@@ -259,7 +271,6 @@ const spring = computed(() =>
             class="pointer-events-auto relative cursor-zoom-in rounded-[6px] transition-transform duration-300"
             role="button"
             :aria-label="`Agrandir la carte de ${seatLabel(entry.seat) ?? ''}`"
-            @click="zoomCard(entry.card)"
             :class="leaderSeat === entry.seat && collectingToSeat == null ? '-translate-y-2' : ''"
             :style="{
               height: `${trickCardHeight}px`,
@@ -268,21 +279,28 @@ const spring = computed(() =>
                 ? '0 0 0 3px #38bdf8, 0 0 22px 6px rgba(56,189,248,0.55)'
                 : leaderSeat === entry.seat && collectingToSeat == null
                   ? '0 0 0 3px #fcd34d, 0 0 20px 4px rgba(252,211,77,0.45)'
-                  : undefined,
+                  : undefined
             }"
+            @click="zoomCard(entry.card)"
           >
             <p
               v-if="entry.card === calledKing && collectingToSeat == null"
               class="absolute inset-x-0 bottom-0 z-10 flex items-center justify-center gap-1 rounded-b-[6px] bg-sky-400 py-0.5 text-[9px] font-bold tracking-wide text-sky-950 uppercase"
             >
-              <UIcon name="i-lucide-handshake" class="size-3" />
+              <UIcon
+                name="i-lucide-handshake"
+                class="size-3"
+              />
               Appelé
             </p>
             <span
               v-if="leaderSeat === entry.seat && collectingToSeat == null"
               class="absolute -top-2.5 -right-2.5 z-10 grid size-6 place-items-center rounded-full bg-amber-300 text-neutral-950 shadow-lg ring-2 ring-neutral-950/60"
             >
-              <UIcon name="i-lucide-crown" class="size-3.5" />
+              <UIcon
+                name="i-lucide-crown"
+                class="size-3.5"
+              />
             </span>
             <PlayDeckCard
               :card-id="entry.card"

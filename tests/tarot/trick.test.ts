@@ -33,7 +33,7 @@ describe('trickLedSuit', () => {
   it('uses second non-excuse card when excuse leads', () => {
     const trick = [
       { seat: 0, card: c('excuse') },
-      { seat: 1, card: c('diamonds-j') },
+      { seat: 1, card: c('diamonds-j') }
     ]
     expect(trickLedSuit(trick)).toBe('diamonds')
   })
@@ -49,7 +49,7 @@ describe('resolveTrick', () => {
     const cards = [
       { seat: 0, card: c('hearts-7') },
       { seat: 1, card: c('hearts-k') },
-      { seat: 2, card: c('hearts-2') },
+      { seat: 2, card: c('hearts-2') }
     ]
     expect(resolveTrick(cards)).toEqual({ winnerSeat: 1 })
   })
@@ -59,7 +59,7 @@ describe('resolveTrick', () => {
       { seat: 0, card: c('hearts-k') },
       { seat: 1, card: c('trump-5') },
       { seat: 2, card: c('trump-18') },
-      { seat: 3, card: c('trump-3') },
+      { seat: 3, card: c('trump-3') }
     ]
     expect(resolveTrick(cards)).toEqual({ winnerSeat: 2 })
   })
@@ -68,7 +68,7 @@ describe('resolveTrick', () => {
     const cards = [
       { seat: 0, card: c('excuse') },
       { seat: 1, card: c('hearts-2') },
-      { seat: 2, card: c('hearts-5') },
+      { seat: 2, card: c('hearts-5') }
     ]
     expect(resolveTrick(cards)).toEqual({ winnerSeat: 2 })
   })
@@ -77,7 +77,7 @@ describe('resolveTrick', () => {
     const cards = [
       { seat: 0, card: c('excuse') },
       { seat: 1, card: c('diamonds-j') },
-      { seat: 2, card: c('diamonds-k') },
+      { seat: 2, card: c('diamonds-k') }
     ]
     expect(resolveTrick(cards)).toEqual({ winnerSeat: 2 })
   })
@@ -86,7 +86,7 @@ describe('resolveTrick', () => {
     const cards = [
       { seat: 0, card: c('trump-10') },
       { seat: 1, card: c('excuse') },
-      { seat: 2, card: c('trump-4') },
+      { seat: 2, card: c('trump-4') }
     ]
     expect(resolveTrick(cards)).toEqual({ winnerSeat: 0 })
   })
@@ -95,7 +95,7 @@ describe('resolveTrick', () => {
     const cards = [
       { seat: 0, card: c('trump-12') },
       { seat: 1, card: c('trump-20') },
-      { seat: 2, card: c('trump-3') },
+      { seat: 2, card: c('trump-3') }
     ]
     expect(resolveTrick(cards)).toEqual({ winnerSeat: 1 })
   })

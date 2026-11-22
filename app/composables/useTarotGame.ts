@@ -11,11 +11,11 @@ type AwarenessUser = {
   seat?: number
 }
 
-type ServerMessage =
-  | { type: 'private', private?: PrivateGameView }
-  | { type: 'error', error: string, reason?: string }
-  | { type: 'applied', publicVersion?: number }
-  | EmoteMessage
+type ServerMessage
+  = | { type: 'private', private?: PrivateGameView }
+    | { type: 'error', error: string, reason?: string }
+    | { type: 'applied', publicVersion?: number }
+    | EmoteMessage
 
 function localizeGameError(reason: string | undefined, fallback: string | undefined): string {
   const raw = reason ?? fallback ?? 'Erreur'
@@ -25,7 +25,7 @@ function localizeGameError(reason: string | undefined, fallback: string | undefi
       prise: 'Prise',
       garde: 'Garde',
       garde_sans: 'Garde sans',
-      garde_contre: 'Garde contre',
+      garde_contre: 'Garde contre'
     }
     const current = match?.[1] ? (labels[match[1]] ?? match[1]) : 'enchère en cours'
     return `Il faut surenchérir (au-dessus de ${current}).`
@@ -96,7 +96,7 @@ export function useTarotGame(code: Ref<string> | string) {
     provider.awareness.setLocalState({
       userId: user.value.id,
       name: displayName(),
-      ...(seat !== undefined ? { seat } : {}),
+      ...(seat !== undefined ? { seat } : {})
     })
   }
 
@@ -114,7 +114,7 @@ export function useTarotGame(code: Ref<string> | string) {
       users.push({
         userId: String(state.userId ?? clientId),
         name: String(state.name ?? 'Unknown'),
-        seat: typeof state.seat === 'number' ? state.seat : undefined,
+        seat: typeof state.seat === 'number' ? state.seat : undefined
       })
     })
     awarenessUsers.value = users
@@ -359,15 +359,16 @@ export function useTarotGame(code: Ref<string> | string) {
     doc = new Y.Doc()
     const publicMap = doc.getMap('public')
 
-    publicMapObserver = () => {
+    const onPublicMapChange = () => {
       const snapshot = publicMap.get('snapshot') as PublicGameView | undefined
       // The Yjs room can hold a snapshot from an older table with the same code.
       if (snapshot && snapshot.code === gameCode) {
         setPublicState(snapshot)
       }
     }
-    publicMap.observe(publicMapObserver)
-    publicMapObserver()
+    publicMapObserver = onPublicMapChange
+    publicMap.observe(onPublicMapChange)
+    onPublicMapChange()
 
     provider = new WebsocketProvider(
       String(config.public.yjsWebsocketUrl),
@@ -375,8 +376,8 @@ export function useTarotGame(code: Ref<string> | string) {
       doc,
       {
         connect: true,
-        disableBc: true,
-      },
+        disableBc: true
+      }
     )
 
     provider.on('status', (event: { status: string }) => {
@@ -402,7 +403,8 @@ export function useTarotGame(code: Ref<string> | string) {
       return
     }
 
-    syncAwarenessLocalState(privateState.value?.seat)
+    // The socket may have filled privateState since it was reset above; TS narrowed it to null.
+    syncAwarenessLocalState((privateState.value as PrivateGameView | null)?.seat)
     awarenessChangeHandler = syncAwarenessUsers
     provider.awareness.on('change', awarenessChangeHandler)
     syncAwarenessUsers()
@@ -412,7 +414,7 @@ export function useTarotGame(code: Ref<string> | string) {
     () => user.value?.id,
     () => {
       syncAwarenessLocalState(privateState.value?.seat)
-    },
+    }
   )
 
   watch(
@@ -435,7 +437,7 @@ export function useTarotGame(code: Ref<string> | string) {
       disposed = false
       void setup(gameCode, setupGeneration)
     },
-    { immediate: true },
+    { immediate: true }
   )
 
   if (import.meta.client) {
@@ -461,6 +463,6 @@ export function useTarotGame(code: Ref<string> | string) {
     sendEmote,
     emotes,
     join,
-    awarenessUsers,
+    awarenessUsers
   }
 }
