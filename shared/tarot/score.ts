@@ -20,18 +20,17 @@ export function requiredPoints(oudlerCount: 0 | 1 | 2 | 3): number {
   return REQUIRED[oudlerCount]
 }
 
-/** Pair method: highest paired with lowest; odd card counts half its value rounded down. */
+/**
+ * Exact card points (half points kept). Counting by pairs gives the same total;
+ * a leftover half point is settled by `roundTakerPoints`.
+ */
 export function countCardPoints(cards: CardId[]): number {
-  const values = cards.map(card => cardPoints(card)).sort((a, b) => b - a)
-  let total = 0
-  for (let i = 0; i < values.length; i += 2) {
-    if (i + 1 < values.length) {
-      total += Math.floor(values[i]! + values[i + 1]!)
-    } else {
-      total += Math.floor(values[i]! / 2)
-    }
-  }
-  return total
+  return cards.reduce((total, card) => total + cardPoints(card), 0)
+}
+
+/** FFT: a half point always goes to the camp that wins the deal. */
+export function roundTakerPoints(rawPoints: number, required: number): number {
+  return rawPoints >= required ? Math.ceil(rawPoints) : Math.floor(rawPoints)
 }
 
 export type DealScoreInput = {
@@ -40,6 +39,11 @@ export type DealScoreInput = {
   takerSeat: number
   partnerSeat?: number
   takerCards: CardId[]
+  /**
+   * Excuse exchange: -0.5 when the attack kept its Excuse and owes a low card,
+   * +0.5 when the defence does.
+   */
+  takerPointsAdjust?: number
   /** Reserved for future validation; scoring uses takerCards only. */
   defenseCards: CardId[]
   poigneePrime?: number
@@ -90,6 +94,7 @@ export function computeDealScore(input: DealScoreInput): Record<number, number> 
     takerSeat,
     partnerSeat,
     takerCards,
+    takerPointsAdjust,
     poigneePrime,
     petitAuBoutCamp,
     chelem,
@@ -97,8 +102,8 @@ export function computeDealScore(input: DealScoreInput): Record<number, number> 
 
   const mult = CONTRACT_MULT[contract]
   const oudlers = oudlerCountIn(takerCards)
-  const takerPoints = countCardPoints(takerCards)
   const required = requiredPoints(oudlers)
+  const takerPoints = roundTakerPoints(countCardPoints(takerCards) + (takerPointsAdjust ?? 0), required)
   const success = takerPoints >= required
   const diff = takerPoints - required
 

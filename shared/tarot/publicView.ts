@@ -1,6 +1,5 @@
-import { legalMoves } from './legalMoves'
+import { legalMovesForSeat } from './legalMoves'
 import { sortHand } from './handSort'
-import { trickLedSuit } from './trick'
 import type {
   CardId,
   GameState,
@@ -57,8 +56,7 @@ function computeLegalMoves(state: GameState, seat: number): CardId[] {
   if (!hand || hand.length === 0) {
     return []
   }
-  const ledSuit = state.trick.length > 0 ? trickLedSuit(state.trick) : null
-  return legalMoves(hand, state.trick, ledSuit)
+  return legalMovesForSeat(state, seat)
 }
 
 export function toPublicView(state: GameState): PublicGameView {
@@ -88,7 +86,8 @@ export function toPublicView(state: GameState): PublicGameView {
     tricksWonBySeat: [...(state.tricksWonBySeat ?? Array.from({ length: state.playerCount }, () => 0))],
     lastTrick: state.lastTrick ? state.lastTrick.map(entry => ({ ...entry })) : null,
     lastTrickWinnerSeat: state.lastTrickWinnerSeat ?? null,
-    poigneeShown: state.poigneeShown,
+    poignees: state.poignees?.map(entry => ({ ...entry, cards: [...entry.cards] })),
+    ecartShownTrumps: state.ecartShownTrumps ? [...state.ecartShownTrumps] : undefined,
     chelemAnnounce: state.chelemAnnounce,
     lastDeltas: state.lastDeltas ? { ...state.lastDeltas } : undefined,
     matchShouldEnd: state.matchShouldEnd,

@@ -67,7 +67,14 @@ export type GameState = {
   pilesDefense: CardId[]
   scores: number[]
   dealIndex: number
-  poigneeShown?: { seat: number, tier: 10 | 13 | 15 | 8 | 18 }
+  /** Poignées shown this deal (several players may show one), with the trumps shown. */
+  poignees?: PoigneeShown[]
+  /** Trumps the taker had to put in the écart, shown to the defence (FFT). */
+  ecartShownTrumps?: CardId[]
+  /** Camp that kept its Excuse after a lost trick and owes a low card in exchange. */
+  excuseOwedBy?: 'attack' | 'defense'
+  /** Trick (1-based) in which the Petit fell, and the camp that won it. */
+  petitTrick?: { number: number, camp: 'attack' | 'defense' }
   chelemAnnounce?: 'announced' | 'defense'
   /** Tricks won by attack / defense camps this deal (for chelem). */
   attackTricks: number
@@ -87,6 +94,10 @@ export type GameState = {
   /** Monotonic counter for deterministic re-deals within a match. */
   rngCounter: number
 }
+
+export type PoigneeTier = 10 | 13 | 15 | 8 | 18
+
+export type PoigneeShown = { seat: number, tier: PoigneeTier, cards: CardId[] }
 
 export type Actor = {
   userId: string
@@ -128,7 +139,7 @@ export type Intent =
   | { type: 'bid', bid: Contract | 'passe' }
   | { type: 'callKing', king: CardId }
   | { type: 'discard', cards: CardId[] }
-  | { type: 'announcePoignee', tier: 10 | 13 | 15 | 8 | 18 }
+  | { type: 'announcePoignee', tier: PoigneeTier }
   | { type: 'announceChelem', kind: 'announced' | 'defense' }
   | { type: 'playCard', card: CardId }
   | { type: 'continue' }
@@ -162,7 +173,8 @@ export type PublicGameView = {
   tricksWonBySeat: number[]
   lastTrick: Array<{ seat: number, card: CardId }> | null
   lastTrickWinnerSeat: number | null
-  poigneeShown?: GameState['poigneeShown']
+  poignees?: PoigneeShown[]
+  ecartShownTrumps?: CardId[]
   chelemAnnounce?: GameState['chelemAnnounce']
   lastDeltas?: Record<number, number>
   matchShouldEnd?: boolean

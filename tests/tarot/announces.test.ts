@@ -96,16 +96,17 @@ describe('poignée', () => {
 
   it('accepts valid 4p simple poignée with enough trumps', () => {
     const trumps = [...Array.from({ length: 9 }, (_, i) => c(`trump-${i + 1}`)), c('excuse')]
+    const fillers = Array.from({ length: 8 }, (_, i) => c(`hearts-${i + 1}`))
     const state = baseReady(4, {
       currentSeat: 0,
-      hands: [trumps, [], [], []],
+      hands: [[...trumps, ...fillers], [], [], []],
     })
     const result = apply(state, { type: 'announcePoignee', tier: 10 }, actorForSeat(state, 0))
     expect(result.ok).toBe(true)
     if (!result.ok) {
       return
     }
-    expect(result.state.poigneeShown).toEqual({ seat: 0, tier: 10 })
+    expect(result.state.poignees).toEqual([{ seat: 0, tier: 10, cards: trumps }])
   })
 })
 
