@@ -46,7 +46,7 @@ describe('createEmptyGame + lobby flow', () => {
       playerCount: 4,
       endMode: 'threshold',
       endValue: 1000,
-    deckId: 'deck-test',
+      deckId: 'deck-test'
     })
 
     state = addBots(state, 3)
@@ -83,9 +83,9 @@ describe('all-pass redeal', () => {
         playerCount: 4,
         endMode: 'threshold',
         endValue: 1000,
-    deckId: 'deck-test',
+        deckId: 'deck-test'
       }),
-      3,
+      3
     )
 
     const started = apply(state, { type: 'start' }, { userId: HOST })
@@ -133,7 +133,7 @@ describe('playCard legality', () => {
         playerCount: 4,
         endMode: 'threshold',
         endValue: 1000,
-    deckId: 'deck-test',
+        deckId: 'deck-test'
       }),
       phase: 'Trick',
       version: 1,
@@ -152,9 +152,9 @@ describe('playCard legality', () => {
         { seatId: 0, userId: 'user:0', name: 'P0', connected: true, controlledBy: 'human' },
         { seatId: 1, userId: 'user:1', name: 'P1', connected: true, controlledBy: 'human' },
         { seatId: 2, userId: 'user:2', name: 'P2', connected: true, controlledBy: 'human' },
-        { seatId: 3, userId: 'user:3', name: 'P3', connected: true, controlledBy: 'human' },
+        { seatId: 3, userId: 'user:3', name: 'P3', connected: true, controlledBy: 'human' }
       ],
-      ...overrides,
+      ...overrides
     }
   }
 
@@ -167,9 +167,9 @@ describe('playCard legality', () => {
         [c('hearts-k')],
         [legalCard, illegalCard, c('trump-10')],
         [c('diamonds-3'), c('diamonds-4')],
-        [c('spades-8'), c('spades-9')],
+        [c('spades-8'), c('spades-9')]
       ],
-      trick: [{ seat: 0, card: c('hearts-7') }],
+      trick: [{ seat: 0, card: c('hearts-7') }]
     })
 
     const legal = apply(state, { type: 'playCard', card: legalCard }, actorForSeat(state, 1))
@@ -179,7 +179,7 @@ describe('playCard legality', () => {
     }
     expect(legal.state.trick).toEqual([
       { seat: 0, card: c('hearts-7') },
-      { seat: 1, card: legalCard },
+      { seat: 1, card: legalCard }
     ])
     expect(legal.state.hands[1]).not.toContain(legalCard)
 
@@ -197,15 +197,15 @@ describe('playCard legality', () => {
         [c('hearts-k')],
         [c('hearts-2'), c('clubs-5')],
         [c('diamonds-3')],
-        [c('spades-8')],
+        [c('spades-8')]
       ],
-      trick: [{ seat: 0, card: c('hearts-7') }],
+      trick: [{ seat: 0, card: c('hearts-7') }]
     })
 
     const illegal = apply(
       state,
       { type: 'playCard', card: c('clubs-5') },
-      actorForSeat(state, 1),
+      actorForSeat(state, 1)
     )
     expect(illegal.ok).toBe(false)
     if (illegal.ok) {
@@ -223,7 +223,7 @@ describe('publicView secrecy', () => {
         playerCount: 4,
         endMode: 'threshold',
         endValue: 1000,
-    deckId: 'deck-test',
+        deckId: 'deck-test'
       }),
       phase: 'Trick',
       version: 2,
@@ -232,11 +232,11 @@ describe('publicView secrecy', () => {
         [c('hearts-k'), c('trump-21'), c('excuse')],
         [c('hearts-2'), c('clubs-5')],
         [c('diamonds-3')],
-        [c('spades-8')],
+        [c('spades-8')]
       ],
       bid: { seat: 0, contract: 'prise' },
       trick: [{ seat: 0, card: c('hearts-7') }],
-      dealIndex: 1,
+      dealIndex: 1
     }
 
     const view = toPublicView(state)
@@ -259,7 +259,7 @@ describe('publicView secrecy', () => {
       playerCount: 4,
       endMode: 'deals',
       endValue: 1,
-      deckId: 'deck-abc',
+      deckId: 'deck-abc'
     })
     expect(toPublicView(state).deckId).toBe('deck-abc')
   })
@@ -271,7 +271,7 @@ describe('publicView secrecy', () => {
       playerCount: 4,
       endMode: 'deals',
       endValue: 1,
-      deckId: 'deck-test',
+      deckId: 'deck-test'
     })
     for (const contract of ['garde_sans', 'garde_contre'] as const) {
       const ready: GameState = {
@@ -279,7 +279,7 @@ describe('publicView secrecy', () => {
         phase: 'ReadyToPlay',
         bid: { seat: 0, contract },
         chien: dog,
-        currentSeat: 1,
+        currentSeat: 1
       }
       expect(toPublicView(ready).chienRevealed).toBeNull()
     }
@@ -292,14 +292,14 @@ describe('publicView secrecy', () => {
       playerCount: 4,
       endMode: 'deals',
       endValue: 1,
-      deckId: 'deck-test',
+      deckId: 'deck-test'
     })
     const ecarta: GameState = {
       ...base,
       phase: 'DogEcarta',
       bid: { seat: 0, contract: 'garde' },
       dogShown: dog,
-      currentSeat: 0,
+      currentSeat: 0
     }
     expect(toPublicView(ecarta).chienRevealed).toEqual(dog)
     expect(toPublicView({ ...ecarta, phase: 'ReadyToPlay', dogShown: undefined }).chienRevealed).toBeNull()
@@ -311,7 +311,7 @@ describe('publicView secrecy', () => {
       playerCount: 5,
       endMode: 'deals',
       endValue: 1,
-      deckId: 'deck-test',
+      deckId: 'deck-test'
     })
     const king = c('hearts-k')
     const playing: GameState = {
@@ -320,7 +320,7 @@ describe('publicView secrecy', () => {
       bid: { seat: 0, contract: 'garde' },
       calledKing: king,
       partnerSeat: 3,
-      trick: [{ seat: 1, card: c('hearts-2') }],
+      trick: [{ seat: 1, card: c('hearts-2') }]
     }
     expect(toPublicView(playing).partnerSeat).toBeUndefined()
     expect(toPrivateView(playing, 3).partnerSeat).toBeUndefined()
@@ -337,7 +337,7 @@ describe('match end', () => {
       playerCount: 4,
       endMode: 'threshold',
       endValue: 1000,
-    deckId: 'deck-test',
+      deckId: 'deck-test'
     })
 
     return {
@@ -360,15 +360,15 @@ describe('match end', () => {
         ...seat,
         userId: `user:${index}`,
         name: `P${index}`,
-        connected: true,
+        connected: true
       })),
       hands: [[], [], [], [c('hearts-2')]],
       trick: [
         { seat: 0, card: c('hearts-3') },
         { seat: 1, card: c('hearts-4') },
-        { seat: 2, card: c('hearts-5') },
+        { seat: 2, card: c('hearts-5') }
       ],
-      ...overrides,
+      ...overrides
     }
   }
 
@@ -397,7 +397,7 @@ describe('match end', () => {
       endMode: 'deals',
       endValue: 1,
       dealIndex: 1,
-      scores: [0, 0, 0, 0],
+      scores: [0, 0, 0, 0]
     })
     const result = apply(state, { type: 'playCard', card: c('hearts-2') }, actorForSeat(state, 3))
     expect(result.ok).toBe(true)
@@ -420,7 +420,7 @@ describe('match end', () => {
       endMode: 'threshold',
       endValue: 5000,
       dealIndex: 1,
-      scores: [0, 0, 0, 0],
+      scores: [0, 0, 0, 0]
     })
     const result = apply(state, { type: 'playCard', card: c('hearts-2') }, actorForSeat(state, 3))
     expect(result.ok).toBe(true)
@@ -451,7 +451,7 @@ describe('bidState wiring smoke', () => {
       playerCount: 4,
       endMode: 'threshold',
       endValue: 1000,
-    deckId: 'deck-test',
+      deckId: 'deck-test'
     })
     const state: GameState = {
       ...base,
@@ -462,8 +462,8 @@ describe('bidState wiring smoke', () => {
       seats: base.seats.map((seat, index) =>
         index === 2
           ? { ...seat, userId: 'user:2', name: 'P2', connected: true }
-          : seat,
-      ),
+          : seat
+      )
     }
 
     const result = apply(state, { type: 'bid', bid: 'prise' }, actorForSeat(state, 2))

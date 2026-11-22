@@ -40,7 +40,7 @@ export function boutLabel(card: CardId): string | null {
     return 'Le Petit'
   }
   if (card === 'excuse') {
-    return "L'Excuse"
+    return 'L\'Excuse'
   }
   return null
 }
@@ -54,7 +54,7 @@ export function findPetitOwner(trick: Array<{ seat: number, card: CardId }>): nu
 export function isPetitStolen(
   state: CampState | PublicGameView | Pick<GameState, 'playerCount' | 'bid' | 'partnerSeat'>,
   trick: Array<{ seat: number, card: CardId }>,
-  winnerSeat: number,
+  winnerSeat: number
 ): { stolen: true, victimSeat: number, thiefSeat: number } | { stolen: false } {
   const victimSeat = findPetitOwner(trick)
   if (victimSeat === null) {

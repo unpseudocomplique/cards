@@ -53,7 +53,7 @@ function sendPrivate(peer: { send: (data: string) => void }, code: string, seat:
   }
   sendJson(peer, {
     type: 'private',
-    private: toPrivateView(state, seat),
+    private: toPrivateView(state, seat)
   })
 }
 
@@ -77,7 +77,7 @@ function attachPeer(peer: object, ctx: WsPeerContext): PeerHandle {
   const handle: PeerHandle = {
     send: (data) => {
       sendJson(peer as { send: (data: string) => void }, data)
-    },
+    }
   }
   ctx.handle = handle
   gameStore.setPeer(ctx.code, ctx.userId, handle)
@@ -130,7 +130,7 @@ async function openPeer(peer: WsPeer): Promise<void> {
       helloReceived: false,
       handle: null,
       lastEmoteAt: 0,
-      picture: session.user.picture ?? null,
+      picture: session.user.picture ?? null
     })
   } catch {
     peer.close(4401, 'Unauthorized')
@@ -182,7 +182,7 @@ function handleMessage(peer: WsPeer, message: unknown): void {
 
     const actor = {
       userId: ctx.userId,
-      seat: ctx.seat ?? undefined,
+      seat: ctx.seat ?? undefined
     }
     // The seat photo comes from the session, never from the client.
     const intent = parsed.intent.type === 'join'
@@ -262,5 +262,5 @@ export default defineWebSocketHandler({
     if (ctx.helloReceived && gameStore.removePeer(ctx.code, ctx.userId, ctx.handle ?? undefined)) {
       onDisconnect(ctx.code, ctx.userId)
     }
-  },
+  }
 })

@@ -20,7 +20,7 @@ function faceUrlFor(card: CardId): string | null {
 const spring = computed(() =>
   prefersReduced.value
     ? { type: 'tween' as const, duration: 0.01 }
-    : { type: 'spring' as const, stiffness: 280, damping: 26 },
+    : { type: 'spring' as const, stiffness: 280, damping: 26 }
 )
 
 const { show: showZoom } = useCardZoom()

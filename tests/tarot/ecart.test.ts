@@ -12,7 +12,7 @@ describe('mergeChienIntoHand', () => {
       c('hearts-1'),
       c('hearts-2'),
       c('clubs-3'),
-      c('diamonds-4'),
+      c('diamonds-4')
     ])
   })
 })
@@ -26,7 +26,7 @@ describe('validateEcart', () => {
       c('hearts-3'),
       c('hearts-4'),
       c('hearts-5'),
-      c('hearts-6'),
+      c('hearts-6')
     ]
     const discard = [
       c('hearts-k'),
@@ -34,7 +34,7 @@ describe('validateEcart', () => {
       c('hearts-2'),
       c('hearts-3'),
       c('hearts-4'),
-      c('hearts-5'),
+      c('hearts-5')
     ]
     const result = validateEcart(hand, discard, 6)
     expect(result.ok).toBe(false)
@@ -51,7 +51,7 @@ describe('validateEcart', () => {
       c('hearts-3'),
       c('hearts-4'),
       c('hearts-5'),
-      c('hearts-6'),
+      c('hearts-6')
     ]
     const discard = [
       c('trump-1'),
@@ -59,7 +59,7 @@ describe('validateEcart', () => {
       c('hearts-2'),
       c('hearts-3'),
       c('hearts-4'),
-      c('hearts-5'),
+      c('hearts-5')
     ]
     const result = validateEcart(hand, discard, 6)
     expect(result.ok).toBe(false)
@@ -77,7 +77,7 @@ describe('validateEcart', () => {
       c('hearts-5'),
       c('hearts-6'),
       c('hearts-7'),
-      c('clubs-1'),
+      c('clubs-1')
     ]
     const discard = [
       c('hearts-1'),
@@ -85,7 +85,7 @@ describe('validateEcart', () => {
       c('hearts-3'),
       c('hearts-4'),
       c('hearts-5'),
-      c('hearts-6'),
+      c('hearts-6')
     ]
     const result = validateEcart(hand, discard, 6)
     expect(result).toEqual({ ok: true, shownTrumps: [] })
@@ -100,7 +100,7 @@ describe('validateEcart', () => {
       c('trump-15'),
       c('trump-20'),
       c('hearts-k'),
-      c('trump-21'),
+      c('trump-21')
     ]
     const discard = [
       c('hearts-1'),
@@ -108,12 +108,12 @@ describe('validateEcart', () => {
       c('trump-5'),
       c('trump-10'),
       c('trump-15'),
-      c('trump-20'),
+      c('trump-20')
     ]
     const result = validateEcart(hand, discard, 6)
     expect(result).toEqual({
       ok: true,
-      shownTrumps: [c('trump-5'), c('trump-10'), c('trump-15'), c('trump-20')],
+      shownTrumps: [c('trump-5'), c('trump-10'), c('trump-15'), c('trump-20')]
     })
   })
 })

@@ -50,9 +50,9 @@ export function trickLedSuit(cards: { seat: number, card: CardId }[]): CardSuit 
   if (cards.length === 0) {
     return null
   }
-  if (cards[0].card === 'excuse') {
+  if (cards[0]!.card === 'excuse') {
     for (let i = 1; i < cards.length; i++) {
-      const card = cards[i].card
+      const card = cards[i]!.card
       if (card === 'excuse') {
         continue
       }
@@ -60,12 +60,12 @@ export function trickLedSuit(cards: { seat: number, card: CardId }[]): CardSuit 
     }
     return null
   }
-  return cardSuit(cards[0].card)
+  return cardSuit(cards[0]!.card)
 }
 
 function highestOfLedSuit(
   cards: { seat: number, card: CardId }[],
-  ledSuit: 'hearts' | 'diamonds' | 'clubs' | 'spades',
+  ledSuit: 'hearts' | 'diamonds' | 'clubs' | 'spades'
 ): { seat: number, card: CardId } | null {
   let best: { seat: number, card: CardId } | null = null
   for (const entry of cards) {

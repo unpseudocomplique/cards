@@ -63,7 +63,7 @@ async function login(email, password) {
 async function register(email, password, username) {
   const res = await req('/api/auth/register', {
     method: 'POST',
-    body: { email, password, confirmPassword: password, username },
+    body: { email, password, confirmPassword: password, username }
   })
   if (res.status === 409) {
     return login(email, password)
@@ -132,7 +132,7 @@ function attachMessageCollector(ws) {
         await new Promise(r => setTimeout(r, 50))
       }
       throw new Error('ws timeout')
-    },
+    }
   }
 }
 
@@ -180,8 +180,8 @@ async function main() {
         body: {
           title: 'E2E Tarot 78',
           type: 'tarot78',
-          visualStyle: 'test e2e style illustration',
-        },
+          visualStyle: 'test e2e style illustration'
+        }
       })
       const created = await createDeck.json()
       deckId = created.id
@@ -201,7 +201,7 @@ async function main() {
   try {
     const res = await req('/api/game/create', {
       method: 'POST',
-      body: { playerCount: 4, endMode: 'deals', endValue: 1, deckId },
+      body: { playerCount: 4, endMode: 'deals', endValue: 1, deckId }
     })
     const data = await res.json()
     code = data.code
@@ -393,7 +393,7 @@ async function main() {
     hostCookie = cookieJar
     const res = await req('/api/game/create', {
       method: 'POST',
-      body: { playerCount: 4, endMode: 'deals', endValue: 1, deckId },
+      body: { playerCount: 4, endMode: 'deals', endValue: 1, deckId }
     })
     const guestCode = (await res.json()).code
     await register('tarot-guest@example.com', password, 'TarotGuest')
@@ -427,7 +427,7 @@ async function main() {
   try {
     const res = await req('/api/game/create', {
       method: 'POST',
-      body: { playerCount: 4, endMode: 'deals', endValue: 1, deckId },
+      body: { playerCount: 4, endMode: 'deals', endValue: 1, deckId }
     })
     const reclaimCode = (await res.json()).code
     const ws1 = await wsConnect(reclaimCode, cookieJar)
@@ -454,7 +454,7 @@ async function main() {
   try {
     const res = await req('/api/game/create', {
       method: 'POST',
-      body: { playerCount: 3, endMode: 'deals', endValue: 1, deckId },
+      body: { playerCount: 3, endMode: 'deals', endValue: 1, deckId }
     })
     const code3 = (await res.json()).code
     const peek = await (await req(`/api/game/${code3}`)).json()
@@ -471,7 +471,7 @@ async function main() {
   try {
     const res = await req('/api/game/create', {
       method: 'POST',
-      body: { playerCount: 5, endMode: 'threshold', endValue: 1000, deckId },
+      body: { playerCount: 5, endMode: 'threshold', endValue: 1000, deckId }
     })
     const code5 = (await res.json()).code
     const peek = await (await req(`/api/game/${code5}`)).json()
@@ -488,7 +488,7 @@ async function main() {
   try {
     const res = await req('/api/game/create', {
       method: 'POST',
-      body: { playerCount: 4, endMode: 'deals', endValue: 1 },
+      body: { playerCount: 4, endMode: 'deals', endValue: 1 }
     })
     if (res.status === 400) {
       pass('Create without deckId blocked', '400')
@@ -504,7 +504,7 @@ async function main() {
     const res = await fetch(`${baseUrl}/api/game/create`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ playerCount: 4, deckId }),
+      body: JSON.stringify({ playerCount: 4, deckId })
     })
     if (res.status === 401) {
       pass('Unauthorized create blocked', '401')

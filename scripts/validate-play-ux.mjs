@@ -49,7 +49,7 @@ async function registerOrLogin() {
   if (!res.ok) {
     res = await req('/api/auth/register', {
       method: 'POST',
-      body: { email, password, confirmPassword: password, username: 'TarotUx' },
+      body: { email, password, confirmPassword: password, username: 'TarotUx' }
     })
   }
   const setCookie = res.headers.getSetCookie?.() ?? []
@@ -65,7 +65,7 @@ async function ensureDeck() {
   if (existing?.id) return existing.id
   const created = await (await req('/api/decks', {
     method: 'POST',
-    body: { title: 'UX Tarot 78', type: 'tarot78', visualStyle: 'illustration royale contemporaine' },
+    body: { title: 'UX Tarot 78', type: 'tarot78', visualStyle: 'illustration royale contemporaine' }
   })).json()
   return created.id
 }
@@ -104,7 +104,7 @@ function softDiscard(hand, n) {
     !String(card).startsWith('trump-')
     && card !== 'excuse'
     && !String(card).endsWith('-k')
-    && !String(card).endsWith('-q'),
+    && !String(card).endsWith('-q')
   )
   const pool = preferred.length >= n ? preferred : hand.filter(c => c !== 'excuse' && !String(c).startsWith('trump-'))
   return (pool.length >= n ? pool : hand).slice(0, n)
@@ -113,7 +113,7 @@ function softDiscard(hand, n) {
 async function bootstrapToPlay(deckId) {
   const created = await (await req('/api/game/create', {
     method: 'POST',
-    body: { playerCount: 4, endMode: 'deals', endValue: 1, deckId },
+    body: { playerCount: 4, endMode: 'deals', endValue: 1, deckId }
   })).json()
   const code = created.code
   const ws = await wsConnect(code)
@@ -177,11 +177,11 @@ async function main() {
   const browser = await chromium.launch({
     executablePath: '/usr/bin/google-chrome',
     headless: true,
-    args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--window-size=1280,800'],
+    args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--window-size=1280,800']
   })
   const context = await browser.newContext({
     viewport: { width: 1280, height: 800 },
-    locale: 'fr-FR',
+    locale: 'fr-FR'
   })
   const cookieName = cookieJar.split('=')[0]
   const cookieValue = cookieJar.slice(cookieName.length + 1)
@@ -211,7 +211,7 @@ async function main() {
   }
 
   // Play until a trick resolves, tracking server pause.
-  let seenLastKey = state.pub?.lastTrick?.map(e => `${e.seat}:${e.card}`).join('|')
+  const seenLastKey = state.pub?.lastTrick?.map(e => `${e.seat}:${e.card}`).join('|')
     ?? state.priv?.lastTrick?.map(e => `${e.seat}:${e.card}`).join('|')
     ?? null
   let trickEndedAt = null
@@ -224,7 +224,6 @@ async function main() {
     const trickLen = pub?.trick?.length ?? 0
 
     if (lastKey && lastKey !== seenLastKey && trickLen === 0 && trickEndedAt == null) {
-      seenLastKey = lastKey
       trickEndedAt = Date.now()
       note(true, 'Premier pli résolu côté serveur', lastKey)
 

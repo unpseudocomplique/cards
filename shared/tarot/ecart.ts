@@ -36,11 +36,11 @@ export function validateEcart(
   handAfterMerge: CardId[],
   discard: CardId[],
   chienSize: 6 | 3
-): { ok: true; shownTrumps: CardId[] } | { ok: false; reason: string } {
+): { ok: true, shownTrumps: CardId[] } | { ok: false, reason: string } {
   if (discard.length !== chienSize) {
     return {
       ok: false,
-      reason: `Discard must contain exactly ${chienSize} cards`,
+      reason: `Discard must contain exactly ${chienSize} cards`
     }
   }
 
@@ -65,7 +65,7 @@ export function validateEcart(
   if (legalInDiscard !== requiredLegalInDiscard) {
     return {
       ok: false,
-      reason: 'Must discard all available non-trump, non-king cards before discarding trumps',
+      reason: 'Must discard all available non-trump, non-king cards before discarding trumps'
     }
   }
 
@@ -73,7 +73,7 @@ export function validateEcart(
   if (trumpInDiscard.length !== requiredTrumpDiscards) {
     return {
       ok: false,
-      reason: 'Trumps may only be discarded when there are not enough legal cards',
+      reason: 'Trumps may only be discarded when there are not enough legal cards'
     }
   }
 

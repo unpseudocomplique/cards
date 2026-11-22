@@ -51,13 +51,13 @@ function withExcuse(moves: CardId[], hand: CardId[]): CardId[] {
 export function legalMoves(
   hand: CardId[],
   trickCards: { seat: number, card: CardId }[],
-  ledSuit: ReturnType<typeof cardSuit> | null,
+  ledSuit: ReturnType<typeof cardSuit> | null
 ): CardId[] {
   if (trickCards.length === 0) {
     return [...hand]
   }
 
-  if (trickCards.length === 1 && trickCards[0].card === 'excuse') {
+  if (trickCards.length === 1 && trickCards[0]!.card === 'excuse') {
     return [...hand]
   }
 
@@ -76,8 +76,7 @@ export function legalMoves(
 
   if (suitCards.length > 0) {
     obligated = effectiveLedSuit === 'trumps' ? trumpPlays(suitCards, trickCards) : suitCards
-  }
-  else {
+  } else {
     const handTrumps = hand.filter(isRealTrump)
     obligated = handTrumps.length > 0 ? trumpPlays(handTrumps, trickCards) : [...hand]
   }
@@ -92,7 +91,7 @@ export function legalMoves(
  */
 export function legalMovesForSeat(
   state: Pick<GameState, 'hands' | 'trick' | 'playerCount' | 'calledKing' | 'attackTricks' | 'defenseTricks'>,
-  seat: number,
+  seat: number
 ): CardId[] {
   const hand = state.hands[seat] ?? []
   const ledSuit = state.trick.length > 0 ? trickLedSuit(state.trick) : null

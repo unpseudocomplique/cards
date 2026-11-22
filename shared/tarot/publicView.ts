@@ -6,7 +6,7 @@ import type {
   GameState,
   PrivateGameView,
   PublicGameView,
-  PublicSeatInfo,
+  PublicSeatInfo
 } from './types'
 
 function publicSeats(state: GameState): PublicSeatInfo[] {
@@ -18,7 +18,7 @@ function publicSeats(state: GameState): PublicSeatInfo[] {
     controlledBy: seat.controlledBy,
     ...(seat.botLevel ? { botLevel: seat.botLevel } : {}),
     ...(seat.picture ? { picture: seat.picture } : {}),
-    ...(seat.character ? { character: seat.character } : {}),
+    ...(seat.character ? { character: seat.character } : {})
   }))
 }
 
@@ -116,10 +116,10 @@ export function toPublicView(state: GameState): PublicGameView {
       ? {
           deckCount: state.deck?.length ?? 0,
           deckSource: state.deckSource,
-          redealReason: state.redealReason,
+          redealReason: state.redealReason
         }
       : {}),
-    ...(state.lastCut ? { lastCut: { ...state.lastCut } } : {}),
+    ...(state.lastCut ? { lastCut: { ...state.lastCut } } : {})
   }
 }
 
@@ -130,6 +130,6 @@ export function toPrivateView(state: GameState, seat: number): PrivateGameView {
     ...publicView,
     seat,
     hand,
-    legalMoves: computeLegalMoves(state, seat),
+    legalMoves: computeLegalMoves(state, seat)
   }
 }

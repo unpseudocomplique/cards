@@ -4,7 +4,7 @@ import { db, users } from '~~/server/utils/db'
 import { generateFileKey, uploadFile } from '~~/server/utils/s3'
 
 const bodySchema = z.object({
-  prompt: z.string().trim().min(8).max(1200),
+  prompt: z.string().trim().min(8).max(1200)
 })
 
 /**
@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
   const promptPart = form.find(p => p.name === 'prompt')
   const filePart = form.find(p => p.name === 'photo' && p.data && p.filename)
   const parsed = bodySchema.safeParse({
-    prompt: promptPart ? String(promptPart.data) : '',
+    prompt: promptPart ? String(promptPart.data) : ''
   })
   if (!parsed.success) {
     throw createError({ status: 400, message: 'Prompt invalide (8–1200 caractères)' })
@@ -45,7 +45,7 @@ export default defineEventHandler(async (event) => {
   // Persist on picture for now; dedicated columns land with cycle-3 migration.
   await db.update(users).set({
     picture: url,
-    updatedAt: new Date(),
+    updatedAt: new Date()
   }).where(eq(users.id, session.user.id))
 
   return {
@@ -53,6 +53,6 @@ export default defineEventHandler(async (event) => {
     sourceImageUrl: url,
     prompt: parsed.data.prompt,
     status: 'queued_for_3d' as const,
-    message: 'Photo enregistrée. La génération du modèle 3D de jeu arrive au prochain cycle.',
+    message: 'Photo enregistrée. La génération du modèle 3D de jeu arrive au prochain cycle.'
   }
 })

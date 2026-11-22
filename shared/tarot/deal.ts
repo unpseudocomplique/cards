@@ -12,14 +12,14 @@ interface DealConfig {
 const DEAL_CONFIG: Record<PlayerCount, DealConfig> = {
   3: { handSize: 24, chienSize: 6, packetSize: 4, rounds: 6, chienRounds: [0, 1, 2, 3, 4, 5] },
   4: { handSize: 18, chienSize: 6, packetSize: 3, rounds: 6, chienRounds: [0, 1, 2, 3, 4, 5] },
-  5: { handSize: 15, chienSize: 3, packetSize: 3, rounds: 5, chienRounds: [0, 1, 2] },
+  5: { handSize: 15, chienSize: 3, packetSize: 3, rounds: 5, chienRounds: [0, 1, 2] }
 }
 
 export function shuffleDeck(deck: CardId[], rng: () => number): CardId[] {
   const shuffled = [...deck]
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1))
-    ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+    ;[shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!]
   }
   return shuffled
 }
@@ -28,7 +28,7 @@ function dealPacket(
   deck: CardId[],
   deckIndex: number,
   hand: CardId[],
-  packetSize: number,
+  packetSize: number
 ): number {
   for (let i = 0; i < packetSize; i++) {
     hand.push(deck[deckIndex]!)
@@ -40,7 +40,7 @@ function dealPacket(
 function dealChienCard(
   deck: CardId[],
   deckIndex: number,
-  chien: CardId[],
+  chien: CardId[]
 ): number {
   if (deckIndex === 0 || deckIndex === 77) {
     throw new Error(`Deck indices 0 and 77 must not go to chien (index ${deckIndex})`)
@@ -53,8 +53,8 @@ function packetDeal(
   deck: CardId[],
   playerCount: PlayerCount,
   config: DealConfig,
-  firstSeat: SeatId,
-): { hands: CardId[][]; chien: CardId[] } {
+  firstSeat: SeatId
+): { hands: CardId[][], chien: CardId[] } {
   const hands: CardId[][] = Array.from({ length: playerCount }, () => [])
   const chien: CardId[] = []
   let deckIndex = 0
@@ -108,7 +108,7 @@ export function dealFromShuffled(playerCount: PlayerCount, shuffled: CardId[], f
   return {
     hands,
     chien,
-    petitSecSeats: detectPetitSecSeats(hands),
+    petitSecSeats: detectPetitSecSeats(hands)
   }
 }
 

@@ -23,7 +23,7 @@ describe('seat reclaim', () => {
       playerCount: 4,
       endMode: 'threshold',
       endValue: 1000,
-    deckId: 'deck-test',
+      deckId: 'deck-test'
     })
 
     onDisconnect(code, HOST_ID)
@@ -32,7 +32,7 @@ describe('seat reclaim', () => {
       userId: HOST_ID,
       seatId: 0,
       connected: false,
-      controlledBy: 'human',
+      controlledBy: 'human'
     })
 
     vi.advanceTimersByTime(8_000)
@@ -41,7 +41,7 @@ describe('seat reclaim', () => {
       userId: HOST_ID,
       seatId: 0,
       connected: false,
-      controlledBy: 'bot',
+      controlledBy: 'bot'
     })
 
     const hello = onHello(code, HOST_ID)
@@ -54,7 +54,7 @@ describe('seat reclaim', () => {
       userId: HOST_ID,
       seatId: 0,
       connected: true,
-      controlledBy: 'human',
+      controlledBy: 'human'
     })
   })
 
@@ -65,7 +65,7 @@ describe('seat reclaim', () => {
       playerCount: 4,
       endMode: 'threshold',
       endValue: 1000,
-    deckId: 'deck-test',
+      deckId: 'deck-test'
     })
 
     for (let seat = 1; seat < 4; seat++) {
@@ -106,7 +106,7 @@ describe('seat reclaim', () => {
       playerCount: 4,
       endMode: 'threshold',
       endValue: 1000,
-    deckId: 'deck-test',
+      deckId: 'deck-test'
     })
 
     for (let seat = 1; seat < 4; seat++) {
