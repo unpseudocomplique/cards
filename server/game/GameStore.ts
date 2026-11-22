@@ -3,6 +3,8 @@ import { apply, botChelemIntent, chooseBotIntent, chooseCutIntent, createEmptyGa
 import type { Actor, ApplyResult, GameState, Intent } from '~~/shared/tarot'
 import type { PeerHandle, Room } from './types'
 
+import { attachYjsPublisher } from './yjsPublisher'
+
 const CODE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 const DISCONNECT_GRACE_MS = 8_000
 const TRICK_RESOLVE_PAUSE_MS = 3_600
@@ -32,7 +34,7 @@ const BOT_DELAY_MS: Record<BotDelayKind, { min: number, max: number }> = {
   // Prise / garde: let everyone read the dog before a bot taker discards it.
   chienReveal: { min: 4_800, max: 5_400 },
   // First card of the deal: leave a human taker time to announce a chelem.
-  openingLead: { min: 4_000, max: 4_800 },
+  openingLead: { min: 4_000, max: 4_800 }
 }
 
 function randomCode(): string {
@@ -138,7 +140,7 @@ class GameStore {
       endMode: opts.endMode,
       endValue: opts.endValue,
       deckId: opts.deckId,
-      code,
+      code
     })
     // The engine deals from a counter; start each table somewhere random or
     // every table would get the very same deals.
@@ -148,7 +150,7 @@ class GameStore {
       state,
       peers: new Map(),
       botTimer: null,
-      disconnectTimers: new Map(),
+      disconnectTimers: new Map()
     })
 
     return { code }
@@ -225,7 +227,7 @@ class GameStore {
     this.clearDisconnectTimer(room, userId)
 
     const seats = room.state.seats.map((current, index) =>
-      index === seat ? { ...current, connected: false } : current,
+      index === seat ? { ...current, connected: false } : current
     )
     room.state = { ...room.state, seats, version: room.state.version + 1 }
     this.afterStateUpdate(code)
@@ -244,7 +246,7 @@ class GameStore {
       const nextSeats = room.state.seats.map((current, index) =>
         index === currentSeat
           ? { ...current, controlledBy: 'bot' as const, botLevel: current.botLevel ?? TAKEOVER_BOT_LEVEL }
-          : current,
+          : current
       )
       room.state = { ...room.state, seats: nextSeats, version: room.state.version + 1 }
       this.afterStateUpdate(code)
@@ -271,7 +273,7 @@ class GameStore {
     const seats = room.state.seats.map((current, index) =>
       index === seat
         ? { ...current, connected: true, controlledBy: 'human' as const }
-        : current,
+        : current
     )
     const state: GameState = { ...room.state, seats, version: room.state.version + 1 }
     room.state = state
@@ -515,7 +517,5 @@ class GameStore {
 }
 
 export const gameStore = new GameStore()
-
-import { attachYjsPublisher } from './yjsPublisher'
 
 attachYjsPublisher(gameStore)

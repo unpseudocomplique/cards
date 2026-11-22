@@ -9,16 +9,16 @@ export type SeatId = number
 
 export type PlayerCount = 3 | 4 | 5
 
-export type Phase =
-  | 'Lobby'
-  | 'Dealing'
-  | 'Cutting'
-  | 'Bidding'
-  | 'DogEcarta'
-  | 'ReadyToPlay'
-  | 'Trick'
-  | 'Scoring'
-  | 'MatchOver'
+export type Phase
+  = | 'Lobby'
+    | 'Dealing'
+    | 'Cutting'
+    | 'Bidding'
+    | 'DogEcarta'
+    | 'ReadyToPlay'
+    | 'Trick'
+    | 'Scoring'
+    | 'MatchOver'
 
 export type EndMode = 'threshold' | 'deals'
 
@@ -144,50 +144,50 @@ export type Actor = {
   seat?: number
 }
 
-export type ApplyError =
-  | 'ILLEGAL_MOVE'
-  | 'WRONG_PHASE'
-  | 'NOT_YOUR_TURN'
-  | 'TABLE_FULL'
-  | 'UNAUTHORIZED'
-  | 'UNKNOWN_TABLE'
+export type ApplyError
+  = | 'ILLEGAL_MOVE'
+    | 'WRONG_PHASE'
+    | 'NOT_YOUR_TURN'
+    | 'TABLE_FULL'
+    | 'UNAUTHORIZED'
+    | 'UNKNOWN_TABLE'
 
-export type GameEvent =
-  | { type: 'joined', seat: number, userId: string }
-  | { type: 'botAdded', seat: number }
-  | { type: 'botRemoved', seat: number }
-  | { type: 'started' }
-  | { type: 'cut', seat: number, at: number }
-  | { type: 'dealt', dealIndex: number }
-  | { type: 'redeal', reason: 'petit_sec' | 'all_pass' }
-  | { type: 'bidSpoken', seat: number, bid: Contract | 'passe' }
-  | { type: 'contractWon', seat: number, contract: Contract }
-  | { type: 'ecartLocked', seat: number }
-  | { type: 'cardPlayed', seat: number, card: CardId }
-  | { type: 'trickWon', seat: number }
-  | { type: 'dealScored', deltas: Record<number, number> }
-  | { type: 'matchOver' }
+export type GameEvent
+  = | { type: 'joined', seat: number, userId: string }
+    | { type: 'botAdded', seat: number }
+    | { type: 'botRemoved', seat: number }
+    | { type: 'started' }
+    | { type: 'cut', seat: number, at: number }
+    | { type: 'dealt', dealIndex: number }
+    | { type: 'redeal', reason: 'petit_sec' | 'all_pass' }
+    | { type: 'bidSpoken', seat: number, bid: Contract | 'passe' }
+    | { type: 'contractWon', seat: number, contract: Contract }
+    | { type: 'ecartLocked', seat: number }
+    | { type: 'cardPlayed', seat: number, card: CardId }
+    | { type: 'trickWon', seat: number }
+    | { type: 'dealScored', deltas: Record<number, number> }
+    | { type: 'matchOver' }
 
-export type ApplyResult =
-  | { ok: true, state: GameState, events: GameEvent[] }
-  | { ok: false, error: ApplyError, reason: string }
+export type ApplyResult
+  = | { ok: true, state: GameState, events: GameEvent[] }
+    | { ok: false, error: ApplyError, reason: string }
 
-export type Intent =
-  | { type: 'join', name: string, picture?: string | null }
-  | { type: 'addBot', name?: string, level?: BotLevel }
-  | { type: 'setBotLevel', seat: number, level: BotLevel }
-  | { type: 'removeBot', seat: number }
-  | { type: 'start' }
-  | { type: 'cut', at: number }
-  | { type: 'bid', bid: Contract | 'passe' }
-  | { type: 'callKing', king: CardId }
-  | { type: 'discard', cards: CardId[] }
-  | { type: 'announcePoignee', tier: PoigneeTier }
-  | { type: 'announceChelem', kind: 'announced' | 'defense' }
-  | { type: 'playCard', card: CardId }
-  | { type: 'continue' }
-  | { type: 'holdScoring' }
-  | { type: 'leave' }
+export type Intent
+  = | { type: 'join', name: string, picture?: string | null }
+    | { type: 'addBot', name?: string, level?: BotLevel }
+    | { type: 'setBotLevel', seat: number, level: BotLevel }
+    | { type: 'removeBot', seat: number }
+    | { type: 'start' }
+    | { type: 'cut', at: number }
+    | { type: 'bid', bid: Contract | 'passe' }
+    | { type: 'callKing', king: CardId }
+    | { type: 'discard', cards: CardId[] }
+    | { type: 'announcePoignee', tier: PoigneeTier }
+    | { type: 'announceChelem', kind: 'announced' | 'defense' }
+    | { type: 'playCard', card: CardId }
+    | { type: 'continue' }
+    | { type: 'holdScoring' }
+    | { type: 'leave' }
 
 export type PublicSeatInfo = Omit<SeatInfo, 'userId'> & { userId: string | null }
 

@@ -21,7 +21,7 @@ function baseView(overrides: Partial<PublicGameView> = {}): PublicGameView {
       { seatId: 0, userId: 'u0', name: 'Alice', connected: true, controlledBy: 'human' },
       { seatId: 1, userId: 'u1', name: 'Bob', connected: true, controlledBy: 'bot' },
       { seatId: 2, userId: 'u2', name: 'Carla', connected: true, controlledBy: 'bot' },
-      { seatId: 3, userId: 'u3', name: 'Dan', connected: true, controlledBy: 'bot' },
+      { seatId: 3, userId: 'u3', name: 'Dan', connected: true, controlledBy: 'bot' }
     ],
     handCounts: [10, 10, 10, 10],
     trick: [],
@@ -38,13 +38,13 @@ function baseView(overrides: Partial<PublicGameView> = {}): PublicGameView {
     tricksWonBySeat: [0, 0, 0, 0],
     lastTrick: null,
     lastTrickWinnerSeat: null,
-    ...overrides,
+    ...overrides
   } as PublicGameView
 }
 
 describe('cardLabelFr', () => {
   it('labels French tarot cards', () => {
-    expect(cardLabelFr(c('excuse'))).toBe("l'Excuse")
+    expect(cardLabelFr(c('excuse'))).toBe('l\'Excuse')
     expect(cardLabelFr(c('trump-1'))).toBe('le Petit')
     expect(cardLabelFr(c('trump-21'))).toBe('le 21')
     expect(cardLabelFr(c('hearts-k'))).toBe('Roi de cœur')
@@ -58,7 +58,7 @@ describe('describeTrick', () => {
       { seat: 0, card: c('hearts-7') },
       { seat: 1, card: c('hearts-k') },
       { seat: 2, card: c('hearts-2') },
-      { seat: 3, card: c('hearts-9') },
+      { seat: 3, card: c('hearts-9') }
     ])
     expect(summary.winnerSeat).toBe(1)
     expect(summary.title).toBe('Pli pour Bob')
@@ -71,7 +71,7 @@ describe('describeTrick', () => {
       { seat: 0, card: c('diamonds-10') },
       { seat: 1, card: c('diamonds-k') },
       { seat: 2, card: c('trump-4') },
-      { seat: 3, card: c('diamonds-2') },
+      { seat: 3, card: c('diamonds-2') }
     ])
     expect(summary.winnerSeat).toBe(2)
     expect(summary.subtitle).toContain('coupe')
@@ -83,7 +83,7 @@ describe('describeTrick', () => {
       { seat: 0, card: c('trump-1') },
       { seat: 1, card: c('trump-14') },
       { seat: 2, card: c('trump-3') },
-      { seat: 3, card: c('trump-5') },
+      { seat: 3, card: c('trump-5') }
     ])
     expect(summary.winnerSeat).toBe(1)
     expect(summary.accent).toBe('rose')

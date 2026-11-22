@@ -4,7 +4,7 @@ import type { CardId } from '../../shared/tarot/types'
 import {
   computeDealScore,
   countCardPoints,
-  requiredPoints,
+  requiredPoints
 } from '../../shared/tarot/score'
 
 function asCard(id: string): CardId {
@@ -16,7 +16,7 @@ describe('requiredPoints', () => {
     [0, 56],
     [1, 51],
     [2, 41],
-    [3, 36],
+    [3, 36]
   ] as const)('requires %i oudlers → %i points', (oudlers, points) => {
     expect(requiredPoints(oudlers)).toBe(points)
   })
@@ -49,7 +49,7 @@ describe('computeDealScore', () => {
     asCard('diamonds-c'),
     asCard('spades-c'),
     asCard('diamonds-j'),
-    asCard('spades-j'),
+    asCard('spades-j')
   ]
 
   /** Minimum winning attack: 41 pts with 2 oudlers. */
@@ -63,7 +63,7 @@ describe('computeDealScore', () => {
     asCard('hearts-q'),
     asCard('diamonds-q'),
     asCard('clubs-q'),
-    asCard('spades-q'),
+    asCard('spades-q')
   ]
 
   it('validates FFT garde example: 49 pts, 2 bouts, diff +8 → S=106', () => {
@@ -76,7 +76,7 @@ describe('computeDealScore', () => {
       takerCards: taker49TwoBouts,
       defenseCards: [],
       poigneePrime: 20,
-      petitAuBoutCamp: 'attack',
+      petitAuBoutCamp: 'attack'
     })
 
     expect(deltas[1]).toBe(-106)
@@ -90,7 +90,7 @@ describe('computeDealScore', () => {
     const base = {
       contract: 'prise' as const,
       takerCards: takerWinsTwoBouts,
-      defenseCards: [] as CardId[],
+      defenseCards: [] as CardId[]
     }
 
     for (const playerCount of [3, 4, 5] as const) {
@@ -98,7 +98,7 @@ describe('computeDealScore', () => {
         ...base,
         playerCount,
         takerSeat: 0,
-        partnerSeat: playerCount === 5 ? 1 : undefined,
+        partnerSeat: playerCount === 5 ? 1 : undefined
       })
       expect(Object.values(deltas).reduce((a, b) => a + b, 0)).toBe(0)
     }
@@ -111,14 +111,14 @@ describe('computeDealScore', () => {
       takerSeat: 0,
       takerCards: takerWinsTwoBouts,
       defenseCards: [],
-      poigneePrime: 20,
+      poigneePrime: 20
     })
     const without = computeDealScore({
       playerCount: 4,
       contract: 'garde',
       takerSeat: 0,
       takerCards: takerWinsTwoBouts,
-      defenseCards: [],
+      defenseCards: []
     })
     expect(withPoignee[0] - without[0]).toBe(3 * 20)
   })
@@ -130,14 +130,14 @@ describe('computeDealScore', () => {
       takerSeat: 0,
       takerCards: takerWinsTwoBouts,
       defenseCards: [],
-      petitAuBoutCamp: 'attack',
+      petitAuBoutCamp: 'attack'
     })
     const priseNoPetit = computeDealScore({
       playerCount: 4,
       contract: 'prise',
       takerSeat: 0,
       takerCards: takerWinsTwoBouts,
-      defenseCards: [],
+      defenseCards: []
     })
     const garde = computeDealScore({
       playerCount: 4,
@@ -145,14 +145,14 @@ describe('computeDealScore', () => {
       takerSeat: 0,
       takerCards: takerWinsTwoBouts,
       defenseCards: [],
-      petitAuBoutCamp: 'attack',
+      petitAuBoutCamp: 'attack'
     })
     const gardeNoPetit = computeDealScore({
       playerCount: 4,
       contract: 'garde',
       takerSeat: 0,
       takerCards: takerWinsTwoBouts,
-      defenseCards: [],
+      defenseCards: []
     })
     expect(prise[0] - priseNoPetit[0]).toBe(3 * 10)
     expect(garde[0] - gardeNoPetit[0]).toBe(3 * 20)
@@ -165,7 +165,7 @@ describe('computeDealScore', () => {
       contract: 'prise',
       takerSeat: 0,
       takerCards: failCards,
-      defenseCards: [],
+      defenseCards: []
     })
     expect(deltas[0]).toBeLessThan(0)
     expect(deltas[1]).toBeGreaterThan(0)
@@ -178,7 +178,7 @@ describe('computeDealScore', () => {
       takerSeat: 0,
       takerCards: takerWinsTwoBouts,
       defenseCards: [],
-      poigneePrime: 20,
+      poigneePrime: 20
     })
     const fail = computeDealScore({
       playerCount: 4,
@@ -186,7 +186,7 @@ describe('computeDealScore', () => {
       takerSeat: 0,
       takerCards: [asCard('hearts-2')],
       defenseCards: [],
-      poigneePrime: 20,
+      poigneePrime: 20
     })
     expect(win[0]).toBeGreaterThan(fail[0])
   })
@@ -194,7 +194,7 @@ describe('computeDealScore', () => {
   it.each([
     ['announced_made', 400],
     ['unannounced_made', 200],
-    ['announced_failed', -200],
+    ['announced_failed', -200]
   ] as const)('chelem %s adjusts S by %i (4p taker share)', (chelem, prime) => {
     const cards = takerWinsTwoBouts
     const withChelem = computeDealScore({
@@ -203,14 +203,14 @@ describe('computeDealScore', () => {
       takerSeat: 0,
       takerCards: cards,
       defenseCards: [],
-      chelem,
+      chelem
     })
     const without = computeDealScore({
       playerCount: 4,
       contract: 'prise',
       takerSeat: 0,
       takerCards: cards,
-      defenseCards: [],
+      defenseCards: []
     })
     expect(withChelem[0] - without[0]).toBe(3 * prime)
   })
@@ -223,14 +223,14 @@ describe('computeDealScore', () => {
       takerSeat: 0,
       takerCards: cards,
       defenseCards: [],
-      chelem: 'defense',
+      chelem: 'defense'
     })
     const normal = computeDealScore({
       playerCount: 4,
       contract: 'prise',
       takerSeat: 0,
       takerCards: cards,
-      defenseCards: [],
+      defenseCards: []
     })
     // +200 per defender in settlement → taker −600 (4p)
     expect(withDefenseChelem[0] - normal[0]).toBe(-3 * 200)
@@ -244,7 +244,7 @@ describe('computeDealScore', () => {
       takerSeat: 0,
       partnerSeat: 1,
       takerCards: takerWinsTwoBouts,
-      defenseCards: [],
+      defenseCards: []
     })
     expect(deltas[0]).toBe(-2 * deltas[2])
     expect(deltas[1]).toBe(-deltas[2])
@@ -258,7 +258,7 @@ describe('computeDealScore', () => {
       contract: 'prise',
       takerSeat: 0,
       takerCards: failCards,
-      defenseCards: [],
+      defenseCards: []
     })
     const withFailedChelem = computeDealScore({
       playerCount: 4,
@@ -266,7 +266,7 @@ describe('computeDealScore', () => {
       takerSeat: 0,
       takerCards: failCards,
       defenseCards: [],
-      chelem: 'announced_failed',
+      chelem: 'announced_failed'
     })
     expect(withFailedChelem[0]).toBeLessThan(without[0])
     expect(withFailedChelem[0] - without[0]).toBe(-3 * 200)
@@ -279,7 +279,7 @@ describe('computeDealScore', () => {
       contract: 'garde',
       takerSeat: 0,
       takerCards: failCards,
-      defenseCards: [],
+      defenseCards: []
     })
     const withPetit = computeDealScore({
       playerCount: 4,
@@ -287,7 +287,7 @@ describe('computeDealScore', () => {
       takerSeat: 0,
       takerCards: failCards,
       defenseCards: [],
-      petitAuBoutCamp: 'attack',
+      petitAuBoutCamp: 'attack'
     })
     expect(withPetit[0]).toBeGreaterThan(without[0])
     expect(withPetit[0] - without[0]).toBe(3 * 10 * 2)

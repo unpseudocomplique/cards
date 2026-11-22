@@ -22,7 +22,7 @@ describe('BotRunner', () => {
       playerCount: 4,
       endMode: 'threshold',
       endValue: 1000,
-    deckId: 'deck-test',
+      deckId: 'deck-test'
     })
 
     for (let seat = 1; seat < 4; seat++) {
@@ -68,7 +68,7 @@ describe('BotRunner', () => {
       playerCount: 4,
       endMode: 'threshold',
       endValue: 1000,
-      deckId: 'deck-test',
+      deckId: 'deck-test'
     })
 
     gameStore.applyIntent(code, { type: 'addBot' }, { userId: HOST_ID })
@@ -87,7 +87,7 @@ describe('BotRunner', () => {
     room.state = {
       ...room.state,
       phase: 'MatchOver',
-      currentSeat: 1,
+      currentSeat: 1
     }
 
     scheduleIfBotTurn(code)

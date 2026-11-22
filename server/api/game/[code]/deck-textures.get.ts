@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
   const [deck] = await db
     .select({
       id: decks.id,
-      settings: decks.settings,
+      settings: decks.settings
     })
     .from(decks)
     .where(eq(decks.id, state.deckId))
@@ -38,7 +38,7 @@ export default defineEventHandler(async (event) => {
     .select({
       cardCode: deckCards.cardCode,
       finalImageUrl: deckCards.finalImageUrl,
-      metadata: deckCards.metadata,
+      metadata: deckCards.metadata
     })
     .from(deckCards)
     .where(and(eq(deckCards.deckId, deck.id)))
@@ -51,7 +51,7 @@ export default defineEventHandler(async (event) => {
     cards: rows.map(row => ({
       cardCode: row.cardCode,
       finalImageUrl: row.finalImageUrl,
-      format: (row.metadata as DeckCardMetadata | null)?.format,
-    })),
+      format: (row.metadata as DeckCardMetadata | null)?.format
+    }))
   })
 })

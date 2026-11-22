@@ -34,7 +34,7 @@ function particleStyle(index: number, kind: TableFxKind) {
     '--dx': `${Math.cos(angle) * dist}px`,
     '--dy': `${Math.sin(angle) * dist - 20}px`,
     '--delay': `${(index % 6) * 35}ms`,
-    '--rot': `${(index * 37) % 360}deg`,
+    '--rot': `${(index * 37) % 360}deg`
   }
 }
 

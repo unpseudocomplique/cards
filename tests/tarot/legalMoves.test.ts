@@ -47,7 +47,7 @@ describe('legalMoves', () => {
     const hand = [c('trump-3'), c('trump-10'), c('trump-20')]
     const trick = [
       { seat: 0, card: c('hearts-k') },
-      { seat: 1, card: c('trump-7') },
+      { seat: 1, card: c('trump-7') }
     ]
     const moves = legalMoves(hand, trick, 'hearts')
     expect(moves).toContain(c('trump-10'))
@@ -59,7 +59,7 @@ describe('legalMoves', () => {
     const hand = [c('trump-3'), c('trump-5')]
     const trick = [
       { seat: 0, card: c('hearts-k') },
-      { seat: 1, card: c('trump-15') },
+      { seat: 1, card: c('trump-15') }
     ]
     const moves = legalMoves(hand, trick, 'hearts')
     expect(moves).toContain(c('trump-3'))
@@ -94,7 +94,7 @@ describe('legalMoves', () => {
     const hand = [c('diamonds-5'), c('diamonds-k'), c('hearts-2'), c('excuse')]
     const trick = [
       { seat: 0, card: c('excuse') },
-      { seat: 1, card: c('diamonds-j') },
+      { seat: 1, card: c('diamonds-j') }
     ]
     const moves = legalMoves(hand, trick, null)
     expect(moves).toContain(c('diamonds-5'))

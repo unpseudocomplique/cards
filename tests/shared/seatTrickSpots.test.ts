@@ -4,7 +4,7 @@ import { seatLabelAnchor, seatTrickCardHeight, seatTrickSpot, trickLayout } from
 const VIEWS = [
   { width: 390, height: 844, mobile: true },
   { width: 360, height: 740, mobile: true },
-  { width: 1280, height: 800, mobile: false },
+  { width: 1280, height: 800, mobile: false }
 ]
 
 describe('trick cards in front of each player', () => {
