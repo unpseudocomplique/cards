@@ -7,7 +7,10 @@ import {
   isPetitStolen,
   resolveTrick,
 } from '~~/shared/tarot'
-import { isPortraitView, seatAnchor, tableCamera } from '~/utils/seatLayout'
+import { isPortraitView, seatAnchor, seatTrickCardHeight, seatTrickSpot, seatTrickTilt, tableCamera, trickCardHeight, trickLayout, trickZone } from '~/utils/seatLayout'
+import { ambianceTheme } from '~/utils/ambianceThemes'
+import { preloadImages } from '~/utils/preloadImages'
+import type { ShownEmote } from '~/composables/useTableEmotes'
 import type { TableFxEvent } from '~/components/play/TableFxOverlay.vue'
 
 const props = defineProps<{
@@ -16,6 +19,8 @@ const props = defineProps<{
   privateState: PrivateGameView | null
   debugGfx?: boolean
   showHand?: boolean
+  /** Players' reactions, shown above their heads. */
+  emotes?: ShownEmote[]
 }>()
 
 const emit = defineEmits<{
@@ -36,6 +41,8 @@ const castSalt = computed(() => {
 })
 
 const localSeat = computed(() => props.privateState?.seat ?? 0)
+const { themeId: ambianceId } = usePlayAmbiance()
+const amb = computed(() => ambianceTheme(ambianceId.value))
 const fps = shallowRef(0)
 let frames = 0
 let lastTs = 0
@@ -102,6 +109,19 @@ const faceUrlMap = computed(() => {
 })
 
 const backUrl = computed(() => textures.manifest.value?.backUrl ?? null)
+
+// Faces in the browser cache before anyone plays them (hand and trick first).
+watch(() => textures.manifest.value, (manifest, _old, onCleanup) => {
+  if (!import.meta.client || !manifest) {
+    return
+  }
+  const first = new Set(priorityCodes.value)
+  const urls = [...manifest.cards]
+    .sort((a, b) => Number(first.has(b.cardCode)) - Number(first.has(a.cardCode)))
+    .map(card => card.faceUrl)
+    .filter((url): url is string => Boolean(url))
+  onCleanup(preloadImages(urls))
+})
 /** Card width / height of the deck format (tarot 61 × 112 mm or poker). */
 const cardRatio = computed(() => textures.manifest.value?.cardRatio ?? 2 / 3)
 
@@ -113,7 +133,7 @@ type FlightState = {
   card: CardId
   faceUrl: string | null
   from: { left: number, top: number, width: number, height: number }
-  to: { left: number, top: number }
+  to: { x: number, y: number, height: number, rotate: number, fade?: boolean }
 }
 
 const flights = ref<FlightState[]>([])
@@ -130,7 +150,7 @@ const celebratedBouts = new Set<string>()
 
 /** Keep the finished trick readable before sweeping cards away. */
 const TRICK_HOLD_MS = 2_000
-const TRICK_COLLECT_MS = 1_400
+const TRICK_COLLECT_MS = 900
 const TRICK_SUMMARY_TTL_MS = TRICK_HOLD_MS + TRICK_COLLECT_MS + 200
 
 function pushFx(event: Omit<TableFxEvent, 'id'>, ttlMs = 1_600) {
@@ -204,11 +224,18 @@ function measureScene() {
   return { width: box.width, height: box.height, left: box.left, top: box.top }
 }
 
-function trickCenter(width: number, height: number, cardW: number, cardH: number) {
-  return {
-    left: width / 2 - cardW * 0.35,
-    top: height * 0.36 - cardH * 0.35,
+/** Where a played card lands: its spot on the felt (centre, height, angle). */
+function trickTarget(width: number, height: number, seat: number) {
+  const view = { width, height, mobile: isMobile.value }
+  const count = props.publicState.playerCount
+  if (trickLayout(view) === 'seat') {
+    // Same spot, size and lean as the card drawn by TrickOverlay.
+    const spot = seatTrickSpot(seat, localSeat.value, count, view)
+    return { x: spot.x, y: spot.y, height: seatTrickCardHeight(view, count), rotate: seatTrickTilt(seat, localSeat.value, count) }
   }
+  // Row: the card joins the end of the row, around the middle of the felt.
+  const cardH = trickCardHeight(view, count) ?? 84
+  return { x: width / 2, y: trickZone(view, count).centerY, height: cardH, rotate: ((seat % 5) - 2) * 4, fade: true }
 }
 
 function enqueueFlight(flight: FlightState) {
@@ -237,7 +264,7 @@ function spawnSeatFlight(seat: number, card: CardId) {
       width: cardW,
       height: cardH,
     },
-    to: trickCenter(width, height, cardW, cardH),
+    to: trickTarget(width, height, seat),
   })
 }
 
@@ -297,7 +324,7 @@ function onHandPlay(card: CardId, origin?: DOMRect) {
       width,
       height,
     },
-    to: trickCenter(scene.width, scene.height, width, height),
+    to: trickTarget(scene.width, scene.height, localSeat.value),
   })
   // Fire immediately — last-card plays never appear in publicState.trick.
   celebrateBout(card, localSeat.value)
@@ -463,13 +490,16 @@ onUnmounted(() => {
 })
 
 const visibleTrick = computed(() => {
+  // A card still in the air is drawn by its flight, not twice.
+  const flying = new Set(flights.value.map(item => item.card))
+  const landed = flying.size ? displayTrick.value.filter(entry => !flying.has(entry.card)) : displayTrick.value
   if (!suppressUntil.value) {
-    return displayTrick.value
+    return landed
   }
   let skipped = false
   const next: TrickEntry[] = []
-  for (let i = displayTrick.value.length - 1; i >= 0; i--) {
-    const entry = displayTrick.value[i]!
+  for (let i = landed.length - 1; i >= 0; i--) {
+    const entry = landed[i]!
     if (!skipped && entry.card === suppressUntil.value) {
       skipped = true
       continue
@@ -562,34 +592,52 @@ function onLoop({ delta }: { delta: number }) {
         />
 
         <!-- Dramatic salon key + cool rim (no EffectComposer) -->
-        <TresHemisphereLight :args="['#ffe8d0', '#3a2418', 0.7]" />
-        <TresAmbientLight :intensity="0.62" />
+        <TresHemisphereLight :args="['#ffe8d0', '#3a2418', amb.lights.hemi]" />
+        <TresAmbientLight :intensity="amb.lights.ambient" />
         <TresDirectionalLight
           :position="[2.8, 5.5, 4.0]"
-          :intensity="1.45"
+          :intensity="amb.lights.key"
           :cast-shadow="!isMobile && settings.shadows"
-          color="#ffe2b8"
+          :color="amb.lights.keyColor"
         />
         <TresDirectionalLight
           v-if="!isMobile"
           :position="[-4.5, 3.2, -2.5]"
-          :intensity="0.7"
+          :intensity="amb.lights.key * 0.48"
           color="#9aaccc"
         />
         <TresPointLight
           :position="[0, 2.4, 1.5]"
-          color="#ffd7a8"
-          :intensity="1.15"
+          :color="amb.lights.keyColor"
+          :intensity="amb.lights.spot ? 0.4 : 1.15"
           :distance="14"
           :decay="2"
         />
         <TresDirectionalLight
           :position="[0, 3.6, 4.2]"
-          :intensity="0.55"
+          :intensity="amb.lights.fill"
           color="#ffe8d0"
         />
-
+        <TresPointLight
+          v-if="amb.lights.wall"
+          :position="[0, 2.4, -2.6]"
+          :color="amb.lights.spotColor"
+          :intensity="amb.lights.wall"
+          :distance="6"
+          :decay="1.4"
+        />
+        <TresSpotLight
+          v-if="amb.lights.spot"
+          :position="[0, 5.2, 0.4]"
+          :intensity="amb.lights.spot"
+          :color="amb.lights.spotColor"
+          :angle="0.5"
+          :penumbra="0.6"
+          :distance="14"
+          :decay="1.2"
+        />
         <PlayTresTableFelt
+          :theme="ambianceId"
           :quality="profile"
           :shadows="!isMobile && settings.shadows"
         />
@@ -600,6 +648,7 @@ function onLoop({ delta }: { delta: number }) {
           :shadows="!isMobile && settings.shadows"
           :cast-salt="castSalt"
           :show-chandelier="!portraitView"
+          :theme="ambianceId"
         />
 
         <PlayTresOpponentStacks
@@ -611,6 +660,11 @@ function onLoop({ delta }: { delta: number }) {
         />
       </TresCanvas>
     </ClientOnly>
+    <div
+      v-if="amb.vignette"
+      class="pointer-events-none absolute inset-0 z-[5]"
+      :style="{ background: `radial-gradient(ellipse 75% 55% at 50% 48%, transparent 45%, rgba(0,0,0,${amb.vignette}) 100%)${amb.haze ? `, linear-gradient(${amb.haze}, ${amb.haze})` : ''}` }"
+    />
 
     <!-- Hold overlays until scene ready to avoid layout jump -->
     <div
@@ -633,6 +687,18 @@ function onLoop({ delta }: { delta: number }) {
         :scores="publicState.scores"
         :taker-seat="publicState.bid?.seat ?? null"
         :partner-seat="publicState.partnerSeat ?? null"
+        :state="publicState"
+        :face-urls="faceUrlMap"
+      />
+
+      <PlayEmoteBubbles
+        v-if="sceneSize.width > 0 && emotes?.length"
+        :emotes="emotes"
+        :local-seat="localSeat"
+        :player-count="publicState.playerCount"
+        :scene-width="sceneSize.width"
+        :scene-height="sceneSize.height"
+        :mobile="isMobile"
       />
 
       <PlayTrickOverlay
@@ -648,6 +714,7 @@ function onLoop({ delta }: { delta: number }) {
         :collecting-to-seat="collectingToSeat"
         :winner-name="winnerName"
         :hold-banner="holdBanner"
+        :called-king="publicState.calledKing ?? null"
       />
 
       <PlayChienOverlay

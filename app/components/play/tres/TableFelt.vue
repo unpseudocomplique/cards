@@ -4,13 +4,18 @@ import type { SalonTextureBundle } from '~/utils/playSalonMaterials'
 import { createSalonTextures } from '~/utils/playSalonMaterials'
 import type { PlayQualityProfile } from '~/composables/usePlayQuality'
 
+import { ambianceTheme } from '~/utils/ambianceThemes'
+
 const apronSide = DoubleSide
+const themeSpec = computed(() => ambianceTheme(props.theme))
 
 const props = withDefaults(defineProps<{
   radius?: number
   quality?: PlayQualityProfile
   shadows?: boolean
+  theme?: string
 }>(), {
+  theme: 'actuel',
   radius: 3.35,
   quality: 'medium',
   shadows: false,
@@ -127,7 +132,7 @@ onUnmounted(() => {
     >
       <TresRingGeometry :args="[radius * 0.9, radius * 1.1, quality === 'low' ? 48 : 72]" />
       <TresMeshStandardMaterial
-        color="#6b4228"
+        :color="themeSpec.wood"
         :map="woodMap"
         :roughness-map="woodRough"
         :roughness="0.4"
@@ -197,7 +202,7 @@ onUnmounted(() => {
     >
       <TresCircleGeometry :args="[radius * 0.86, quality === 'low' ? 48 : 72]" />
       <TresMeshStandardMaterial
-        color="#2f5c3f"
+        :color="themeSpec.felt"
         :map="feltMap"
         :roughness-map="feltRough"
         :roughness="0.94"
@@ -213,11 +218,11 @@ onUnmounted(() => {
     >
       <TresCircleGeometry :args="[radius * 0.4, 40]" />
       <TresMeshStandardMaterial
-        color="#0f2418"
+        :color="themeSpec.feltCenter"
         :roughness="1"
         :metalness="0"
         :transparent="true"
-        :opacity="0.4"
+        :opacity="themeSpec.feltCenterOpacity"
       />
     </TresMesh>
 

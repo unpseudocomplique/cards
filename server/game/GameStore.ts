@@ -434,6 +434,17 @@ class GameStore {
     }
   }
 
+  /** Send a message to every connected player of the table. */
+  broadcast(code: string, data: unknown): void {
+    const room = this.rooms.get(code)
+    if (!room) {
+      return
+    }
+    for (const peer of room.peers.values()) {
+      peer.send(data)
+    }
+  }
+
   private notifyPeers(code: string, excludeUserId?: string): void {
     const room = this.rooms.get(code)
     if (!room) {

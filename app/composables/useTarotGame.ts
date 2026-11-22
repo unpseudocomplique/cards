@@ -1,6 +1,7 @@
 import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 import type { Intent, PrivateGameView, PublicGameView } from '~~/shared/tarot'
+import type { EmoteMessage, TableEmote } from '~~/shared/play/emotes'
 
 export type { Intent, PrivateGameView, PublicGameView } from '~~/shared/tarot'
 
@@ -14,6 +15,7 @@ type ServerMessage =
   | { type: 'private', private?: PrivateGameView }
   | { type: 'error', error: string, reason?: string }
   | { type: 'applied', publicVersion?: number }
+  | EmoteMessage
 
 function localizeGameError(reason: string | undefined, fallback: string | undefined): string {
   const raw = reason ?? fallback ?? 'Erreur'
@@ -67,6 +69,7 @@ export function useTarotGame(code: Ref<string> | string) {
   const connected = ref(false)
   const error = ref<string | null>(null)
   const awarenessUsers = ref<AwarenessUser[]>([])
+  const { emotes, showEmote } = useTableEmotes()
   const yjsConnected = ref(false)
   const publicSyncDegraded = computed(() => connected.value && !yjsConnected.value)
 
@@ -125,6 +128,10 @@ export function useTarotGame(code: Ref<string> | string) {
 
   function sendHello() {
     sendJson({ type: 'hello' })
+  }
+
+  function sendEmote(emote: TableEmote) {
+    sendJson({ type: 'emote', emote })
   }
 
   function sendIntent(intent: Intent) {
@@ -191,6 +198,9 @@ export function useTarotGame(code: Ref<string> | string) {
       case 'applied':
         // Fallback when Yjs public sync is unavailable or lagged.
         void refreshPublic()
+        break
+      case 'emote':
+        showEmote(message.seat, message.emote)
         break
     }
   }
@@ -448,6 +458,8 @@ export function useTarotGame(code: Ref<string> | string) {
     error,
     publicSyncDegraded,
     sendIntent,
+    sendEmote,
+    emotes,
     join,
     awarenessUsers,
   }

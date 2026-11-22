@@ -1,3 +1,4 @@
+import { ambianceTheme, type AmbianceTheme } from '~/utils/ambianceThemes'
 import * as THREE from 'three'
 import type { SalonTextureQuality } from '~/utils/playSalonMaterials'
 import { SALON_TEXTURE_SIZE } from '~/utils/playSalonMaterials'
@@ -32,9 +33,9 @@ function toMap(el: HTMLCanvasElement, anisotropy = 2): THREE.CanvasTexture {
   return texture
 }
 
-function drawWallpaper(size: number): THREE.CanvasTexture {
+function drawWallpaper(size: number, theme: AmbianceTheme): THREE.CanvasTexture {
   const { el, ctx } = canvas(size, size)
-  ctx.fillStyle = '#3d2a20'
+  ctx.fillStyle = theme.wall.base
   ctx.fillRect(0, 0, size, size)
 
   // Damask-ish diamonds
@@ -42,7 +43,7 @@ function drawWallpaper(size: number): THREE.CanvasTexture {
   for (let y = 0; y < size + step; y += step) {
     for (let x = 0; x < size + step; x += step) {
       const ox = (Math.floor(y / step) % 2) * (step / 2)
-      ctx.strokeStyle = `rgba(120, 80, 50, ${0.18 + hash2(x, y, 3) * 0.12})`
+      ctx.strokeStyle = theme.wall.line
       ctx.lineWidth = 1.5
       ctx.beginPath()
       ctx.moveTo(x + ox, y)
@@ -67,12 +68,102 @@ function drawWallpaper(size: number): THREE.CanvasTexture {
   return texture
 }
 
-function drawCurtain(w: number, h: number): THREE.CanvasTexture {
+function drawBooks(w: number, h: number, theme: AmbianceTheme): THREE.CanvasTexture {
+  const { el, ctx } = canvas(w, h)
+  ctx.fillStyle = theme.curtain[0]
+  ctx.fillRect(0, 0, w, h)
+  const shelves = 5
+  const shelfH = h / shelves
+  const spines = ['#5a1a1a', '#1e3a2a', '#2a2440', '#6a4a1a', '#3a1a2a', '#1a2a3a', '#7a6a4a', '#4a2a14']
+  for (let s = 0; s < shelves; s++) {
+    let x = 4
+    const y0 = s * shelfH
+    while (x < w - 6) {
+      const bw = 6 + Math.floor(hash2(x, s, 4) * 12)
+      const bh = shelfH * (0.62 + hash2(x, s, 7) * 0.26)
+      ctx.fillStyle = spines[Math.floor(hash2(x, s, 11) * spines.length)]!
+      ctx.fillRect(x, y0 + shelfH - bh - 6, bw - 1, bh)
+      ctx.fillStyle = 'rgba(220, 180, 90, 0.35)'
+      ctx.fillRect(x + 1, y0 + shelfH - bh + 4, bw - 3, 2)
+      ctx.fillRect(x + 1, y0 + shelfH - 18, bw - 3, 2)
+      x += bw + (hash2(x, s, 13) > 0.93 ? 14 : 0)
+    }
+    ctx.fillStyle = theme.curtain[1]
+    ctx.fillRect(0, y0 + shelfH - 6, w, 6)
+  }
+  const shade = ctx.createLinearGradient(0, 0, 0, h)
+  shade.addColorStop(0, 'rgba(0,0,0,0.45)')
+  shade.addColorStop(1, 'rgba(0,0,0,0.1)')
+  ctx.fillStyle = shade
+  ctx.fillRect(0, 0, w, h)
+  return toMap(el, 2)
+}
+
+function drawWindow(w: number, h: number, theme: AmbianceTheme): THREE.CanvasTexture {
+  const { el, ctx } = canvas(w, h)
+  const sky = ctx.createLinearGradient(0, 0, 0, h)
+  sky.addColorStop(0, theme.curtain[0])
+  sky.addColorStop(1, theme.curtain[1])
+  ctx.fillStyle = sky
+  ctx.fillRect(0, 0, w, h)
+  // Rooftops with lit windows
+  ctx.fillStyle = '#070a12'
+  let x = 0
+  while (x < w) {
+    const bw = 40 + hash2(x, 1, 3) * 70
+    const top = h * (0.45 + hash2(x, 2, 5) * 0.2)
+    ctx.fillRect(x, top, bw, h - top)
+    ctx.beginPath()
+    ctx.moveTo(x, top)
+    ctx.lineTo(x + bw / 2, top - 14 - hash2(x, 3, 9) * 16)
+    ctx.lineTo(x + bw, top)
+    ctx.fill()
+    for (let wy = top + 10; wy < h - 10; wy += 18) {
+      for (let wx = x + 6; wx < x + bw - 10; wx += 14) {
+        if (hash2(wx, wy, 17) > 0.72) {
+          ctx.fillStyle = 'rgba(255, 196, 110, 0.85)'
+          ctx.fillRect(wx, wy, 6, 9)
+        }
+      }
+    }
+    ctx.fillStyle = '#070a12'
+    x += bw
+  }
+  // Rain
+  ctx.strokeStyle = 'rgba(180, 200, 255, 0.12)'
+  ctx.lineWidth = 1
+  for (let i = 0; i < 260; i++) {
+    const rx = hash2(i, 5, 2) * w
+    const ry = hash2(i, 6, 3) * h
+    ctx.beginPath()
+    ctx.moveTo(rx, ry)
+    ctx.lineTo(rx - 3, ry + 14)
+    ctx.stroke()
+  }
+  // Window frame: brass-dark mullions
+  ctx.fillStyle = '#2a1a0e'
+  const cols = 4
+  for (let c = 0; c <= cols; c++) {
+    ctx.fillRect(c * (w / cols) - 5, 0, 10, h)
+  }
+  ctx.fillRect(0, h * 0.42, w, 10)
+  ctx.fillRect(0, 0, w, 12)
+  ctx.fillRect(0, h - 12, w, 12)
+  return toMap(el, 2)
+}
+
+function drawCurtain(w: number, h: number, theme: AmbianceTheme): THREE.CanvasTexture {
+  if (theme.backdrop === 'books') {
+    return drawBooks(w, h, theme)
+  }
+  if (theme.backdrop === 'window') {
+    return drawWindow(w, h, theme)
+  }
   const { el, ctx } = canvas(w, h)
   const base = ctx.createLinearGradient(0, 0, w, 0)
-  base.addColorStop(0, '#4a1420')
-  base.addColorStop(0.5, '#8a2434')
-  base.addColorStop(1, '#4a1420')
+  base.addColorStop(0, theme.curtain[0])
+  base.addColorStop(0.5, theme.curtain[1])
+  base.addColorStop(1, theme.curtain[0])
   ctx.fillStyle = base
   ctx.fillRect(0, 0, w, h)
 
@@ -163,11 +254,11 @@ function drawPainting(size: number, themeIndex: number): THREE.CanvasTexture {
   return toMap(el, 3)
 }
 
-export function createAmbianceArt(quality: SalonTextureQuality): AmbianceArtBundle {
+export function createAmbianceArt(quality: SalonTextureQuality, theme: AmbianceTheme = ambianceTheme('actuel')): AmbianceArtBundle {
   const size = SALON_TEXTURE_SIZE[quality]
   const paintingSize = Math.max(256, Math.floor(size * 0.75))
-  const wallpaper = drawWallpaper(size)
-  const curtain = drawCurtain(size, Math.floor(size * 1.2))
+  const wallpaper = drawWallpaper(size, theme)
+  const curtain = drawCurtain(size, Math.floor(size * 1.2), theme)
   const paintings = [0, 1, 2].map(i => drawPainting(paintingSize, i))
 
   return {

@@ -3,6 +3,8 @@ import { gameStore } from '~~/server/game/GameStore'
 import type { PeerHandle } from '~~/server/game/types'
 import { toPrivateView } from '~~/shared/tarot'
 import type { Intent } from '~~/shared/tarot'
+import { EMOTE_COOLDOWN_MS, isTableEmote } from '~~/shared/play/emotes'
+import type { EmoteMessage } from '~~/shared/play/emotes'
 
 type WsPeerContext = {
   code: string
@@ -10,6 +12,8 @@ type WsPeerContext = {
   seat: number | null
   helloReceived: boolean
   handle: PeerHandle | null
+  /** Last reaction sent, for the anti-spam cooldown. */
+  lastEmoteAt: number
 }
 
 const peerContext = new WeakMap<object, WsPeerContext>()
@@ -51,7 +55,9 @@ function sendPrivate(peer: { send: (data: string) => void }, code: string, seat:
   })
 }
 
-function parseMessage(message: unknown): { type: string, intent?: Intent } | null {
+type ClientMessage = { type: string, intent?: Intent, emote?: unknown }
+
+function parseMessage(message: unknown): ClientMessage | null {
   const text = typeof message === 'string'
     ? message
     : message instanceof ArrayBuffer
@@ -59,7 +65,7 @@ function parseMessage(message: unknown): { type: string, intent?: Intent } | nul
       : String(message)
 
   try {
-    return JSON.parse(text) as { type: string, intent?: Intent }
+    return JSON.parse(text) as ClientMessage
   } catch {
     return null
   }
@@ -121,6 +127,7 @@ async function openPeer(peer: WsPeer): Promise<void> {
       seat: resolveSeat(code, session.user.id),
       helloReceived: false,
       handle: null,
+      lastEmoteAt: 0,
     })
   } catch {
     peer.close(4401, 'Unauthorized')
@@ -194,6 +201,21 @@ function handleMessage(peer: WsPeer, message: unknown): void {
     if (ctx.seat !== null) {
       sendPrivate(peer, ctx.code, ctx.seat)
     }
+    return
+  }
+
+  if (parsed.type === 'emote') {
+    // Seated players only, from a fixed list, and not too often.
+    if (!ctx.helloReceived || ctx.seat === null || !isTableEmote(parsed.emote)) {
+      return
+    }
+    const now = Date.now()
+    if (now - ctx.lastEmoteAt < EMOTE_COOLDOWN_MS) {
+      return
+    }
+    ctx.lastEmoteAt = now
+    const emote: EmoteMessage = { type: 'emote', seat: ctx.seat, emote: parsed.emote }
+    gameStore.broadcast(ctx.code, emote)
     return
   }
 
