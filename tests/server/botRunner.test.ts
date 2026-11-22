@@ -35,8 +35,16 @@ describe('BotRunner', () => {
       return
     }
 
-    const biddingSeat = started.state.currentSeat
-    const seatInfo = started.state.seats[biddingSeat]
+    // A bot sits on the dealer's left: it cuts the pack by itself.
+    expect(started.state.phase).toBe('Cutting')
+    expect(started.state.seats[started.state.currentSeat]?.controlledBy).toBe('bot')
+    vi.advanceTimersByTime(2_600)
+    const dealt = gameStore.get(code)!
+    expect(dealt.phase).toBe('Bidding')
+    expect(dealt.lastCut?.seat).toBe(3)
+
+    const biddingSeat = dealt.currentSeat
+    const seatInfo = dealt.seats[biddingSeat]
     expect(seatInfo?.controlledBy).toBe('bot')
 
     scheduleIfBotTurn(code)

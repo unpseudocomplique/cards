@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { apply, botChelemIntent, chooseBotIntent, createEmptyGame, TAKEOVER_BOT_LEVEL, toPrivateView } from '~~/shared/tarot'
+import { apply, botChelemIntent, chooseBotIntent, chooseCutIntent, createEmptyGame, TAKEOVER_BOT_LEVEL, toPrivateView } from '~~/shared/tarot'
 import type { Actor, ApplyResult, GameState, Intent } from '~~/shared/tarot'
 import type { PeerHandle, Room } from './types'
 
@@ -11,10 +11,14 @@ const TRICK_RESOLVE_PAUSE_MS = 3_600
  * and only move on alone if nobody does for this long.
  */
 const SCORING_HUMAN_FALLBACK_MS = 45_000
+/** A person who does not cut the pack: cut for them after this long. */
+const CUT_HUMAN_FALLBACK_MS = 40_000
 
-type BotDelayKind = 'bid' | 'playLead' | 'playFollow' | 'king' | 'scoring' | 'trickPause' | 'chienReveal' | 'openingLead'
+type BotDelayKind = 'cut' | 'bid' | 'playLead' | 'playFollow' | 'king' | 'scoring' | 'trickPause' | 'chienReveal' | 'openingLead'
 
 const BOT_DELAY_MS: Record<BotDelayKind, { min: number, max: number }> = {
+  // Leave time to see the pack put down and the cut happen.
+  cut: { min: 1_600, max: 2_600 },
   bid: { min: 900, max: 2_400 },
   playLead: { min: 700, max: 1_600 },
   playFollow: { min: 450, max: 1_200 },
@@ -54,6 +58,9 @@ function botDelayForState(state: GameState): number {
     && (state.phase === 'DogEcarta' || state.phase === 'ReadyToPlay')
   ) {
     return randomDelayMs('king')
+  }
+  if (state.phase === 'Cutting') {
+    return randomDelayMs('cut')
   }
   if (state.phase === 'Bidding') {
     return randomDelayMs('bid')
@@ -175,7 +182,11 @@ class GameStore {
     return true
   }
 
-  applyIntent(code: string, intent: Intent, actor: Actor): ApplyResult {
+  /**
+   * `byServer`: the server acts for that player (timer fallback), so their own
+   * socket gets the update too; normally the WS handler answers the actor.
+   */
+  applyIntent(code: string, intent: Intent, actor: Actor, byServer = false): ApplyResult {
     const room = this.rooms.get(code)
     if (!room) {
       return { ok: false, error: 'UNKNOWN_TABLE', reason: `Table ${code} not found` }
@@ -189,7 +200,7 @@ class GameStore {
 
     room.state = result.state
     console.log(`[tarot] ${code} intent ${intent.type} ok → phase=${result.state.phase} v=${result.state.version}`)
-    this.afterStateUpdate(code, actor.userId)
+    this.afterStateUpdate(code, byServer ? undefined : actor.userId)
     const trickJustWon = result.events.some(event => event.type === 'trickWon')
     this.scheduleIfBotTurn(code, trickJustWon ? 'trickPause' : undefined)
     return result
@@ -289,8 +300,24 @@ class GameStore {
         if (!current || current.state.phase !== 'Scoring') {
           return
         }
-        this.applyIntent(code, { type: 'continue' }, { userId: current.state.hostUserId })
+        this.applyIntent(code, { type: 'continue' }, { userId: current.state.hostUserId }, true)
       }, scoringDelay)
+      return
+    }
+
+    // A person cuts with the slider; if they never do, cut for them so the
+    // table does not wait forever.
+    if (state.phase === 'Cutting' && humanAtSeat(state, state.currentSeat)) {
+      const cutterSeat = state.currentSeat
+      room.botTimer = setTimeout(() => {
+        room.botTimer = null
+        const current = this.rooms.get(code)
+        const seatInfo = current?.state.seats[cutterSeat]
+        if (!current || current.state.phase !== 'Cutting' || current.state.currentSeat !== cutterSeat || !seatInfo?.userId) {
+          return
+        }
+        this.applyIntent(code, chooseCutIntent(current.state, cutterSeat), { userId: seatInfo.userId, seat: cutterSeat }, true)
+      }, CUT_HUMAN_FALLBACK_MS)
       return
     }
 
@@ -364,7 +391,8 @@ class GameStore {
     }
 
     if (
-      state.phase !== 'Bidding'
+      state.phase !== 'Cutting'
+      && state.phase !== 'Bidding'
       && state.phase !== 'DogEcarta'
       && state.phase !== 'ReadyToPlay'
       && state.phase !== 'Trick'
@@ -387,7 +415,8 @@ class GameStore {
 
       const phase = current.state.phase
       if (
-        phase !== 'Bidding'
+        phase !== 'Cutting'
+        && phase !== 'Bidding'
         && phase !== 'DogEcarta'
         && phase !== 'ReadyToPlay'
         && phase !== 'Trick'

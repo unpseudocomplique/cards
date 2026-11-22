@@ -45,7 +45,7 @@ const phase = computed(() => {
   return tarotPhaseLabel(props.state.phase)
 })
 
-const showTurn = computed(() => ['Bidding', 'Trick', 'ReadyToPlay', 'DogEcarta'].includes(props.state.phase))
+const showTurn = computed(() => ['Cutting', 'Bidding', 'Trick', 'ReadyToPlay', 'DogEcarta'].includes(props.state.phase))
 
 const takerName = computed(() => {
   if (takerSeat.value === null) {

@@ -30,6 +30,15 @@ function actorForSeat(state: GameState, seat: number) {
   return { userId, seat }
 }
 
+/** The cutter lifts half the pack; returns the dealt state. */
+function cutPack(state: GameState, at = 39): GameState {
+  const result = apply(state, { type: 'cut', at }, actorForSeat(state, state.currentSeat))
+  if (!result.ok) {
+    throw new Error(result.reason)
+  }
+  return result.state
+}
+
 describe('createEmptyGame + lobby flow', () => {
   it('4p addBot×3 then start enters Bidding with dealt hands', () => {
     let state = createEmptyGame({
@@ -48,12 +57,21 @@ describe('createEmptyGame + lobby flow', () => {
       return
     }
 
-    expect(start.state.phase).toBe('Bidding')
+    // The pack is shuffled and put down for the dealer's left neighbour to cut.
+    expect(start.state.phase).toBe('Cutting')
     expect(start.state.dealIndex).toBe(1)
-    expect(start.state.hands.every(hand => hand.length === 18)).toBe(true)
-    expect(start.state.chien).toHaveLength(6)
-    expect(start.state.bidState).not.toBeNull()
-    expect(start.state.currentSeat).toBe(expectedSeat(start.state.bidState!))
+    expect(start.state.deck).toHaveLength(78)
+    expect(start.state.currentSeat).toBe(3)
+    expect(start.state.hands.every(hand => hand.length === 0)).toBe(true)
+
+    const dealt = cutPack(start.state)
+    expect(dealt.phase).toBe('Bidding')
+    expect(dealt.dealIndex).toBe(1)
+    expect(dealt.deck).toBeUndefined()
+    expect(dealt.hands.every(hand => hand.length === 18)).toBe(true)
+    expect(dealt.chien).toHaveLength(6)
+    expect(dealt.bidState).not.toBeNull()
+    expect(dealt.currentSeat).toBe(expectedSeat(dealt.bidState!))
   })
 })
 
@@ -75,7 +93,7 @@ describe('all-pass redeal', () => {
     if (!started.ok) {
       return
     }
-    state = started.state
+    state = cutPack(started.state)
 
     const beforeHands = state.hands.map(hand => [...hand])
     const beforeDealer = state.dealerSeat
@@ -91,9 +109,17 @@ describe('all-pass redeal', () => {
       state = bid.state
     }
 
-    expect(state.phase).toBe('Bidding')
+    // The hands are put back together as they are and cut again.
+    expect(state.phase).toBe('Cutting')
+    expect(state.redealReason).toBe('all_pass')
+    expect(state.deckSource).toBe('gathered')
     expect(state.dealerSeat).toBe((beforeDealer + 1) % 4)
     expect(state.dealIndex).toBe(beforeDealIndex)
+    expect(state.deck).toHaveLength(78)
+    expect(state.deck!.slice(0, 18)).toEqual([...beforeHands[1]!].reverse())
+
+    state = cutPack(state)
+    expect(state.phase).toBe('Bidding')
     expect(state.hands).not.toEqual(beforeHands)
     expect(state.bidState).not.toBeNull()
   })
@@ -410,7 +436,8 @@ describe('match end', () => {
     if (!continued.ok) {
       return
     }
-    expect(continued.state.phase).toBe('Bidding')
+    expect(continued.state.phase).toBe('Cutting')
+    expect(continued.state.deckSource).toBe('gathered')
     expect(continued.state.dealIndex).toBe(2)
     expect(continued.events.some(event => event.type === 'matchOver')).toBe(false)
   })

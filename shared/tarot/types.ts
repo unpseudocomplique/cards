@@ -11,6 +11,7 @@ export type PlayerCount = 3 | 4 | 5
 export type Phase =
   | 'Lobby'
   | 'Dealing'
+  | 'Cutting'
   | 'Bidding'
   | 'DogEcarta'
   | 'ReadyToPlay'
@@ -98,10 +99,23 @@ export type GameState = {
   lastDeltas?: Record<number, number>
   /** After Scoring, continue ends the match instead of redealing. */
   matchShouldEnd?: boolean
+  /**
+   * The face-down pack waiting to be cut and dealt (index 0 = top card).
+   * Secret: never sent to any client.
+   */
+  deck?: CardId[]
+  /** How the pack was put together: shuffled (first deal, petit sec) or the previous deal gathered as is. */
+  deckSource?: DeckSource
+  /** Why the pack is being cut again without a played deal. */
+  redealReason?: 'petit_sec' | 'all_pass'
+  /** The cut of this deal: who cut and how many cards they lifted. */
+  lastCut?: { seat: number, at: number }
   hostUserId: string
   /** Monotonic counter for deterministic re-deals within a match. */
   rngCounter: number
 }
+
+export type DeckSource = 'shuffled' | 'gathered'
 
 export type PoigneeTier = 10 | 13 | 15 | 8 | 18
 
@@ -125,6 +139,7 @@ export type GameEvent =
   | { type: 'botAdded', seat: number }
   | { type: 'botRemoved', seat: number }
   | { type: 'started' }
+  | { type: 'cut', seat: number, at: number }
   | { type: 'dealt', dealIndex: number }
   | { type: 'redeal', reason: 'petit_sec' | 'all_pass' }
   | { type: 'bidSpoken', seat: number, bid: Contract | 'passe' }
@@ -145,6 +160,7 @@ export type Intent =
   | { type: 'setBotLevel', seat: number, level: BotLevel }
   | { type: 'removeBot', seat: number }
   | { type: 'start' }
+  | { type: 'cut', at: number }
   | { type: 'bid', bid: Contract | 'passe' }
   | { type: 'callKing', king: CardId }
   | { type: 'discard', cards: CardId[] }
@@ -187,6 +203,11 @@ export type PublicGameView = {
   chelemAnnounce?: GameState['chelemAnnounce']
   lastDeltas?: Record<number, number>
   matchShouldEnd?: boolean
+  /** Cutting: cards in the face-down pack (the order stays secret). */
+  deckCount?: number
+  deckSource?: DeckSource
+  redealReason?: GameState['redealReason']
+  lastCut?: { seat: number, at: number }
 }
 
 export type PrivateGameView = PublicGameView & {

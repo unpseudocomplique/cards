@@ -3,6 +3,7 @@ import type { Phase } from '~~/shared/tarot'
 const PHASE_LABELS: Record<Phase, string> = {
   Lobby: 'Salle d\'attente',
   Dealing: 'Distribution',
+  Cutting: 'Coupe',
   Bidding: 'Enchères',
   DogEcarta: 'Chien et écart',
   ReadyToPlay: 'Prêt à jouer',

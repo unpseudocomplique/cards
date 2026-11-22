@@ -78,6 +78,9 @@ describe('seat reclaim', () => {
       return
     }
 
+    // The bot on the dealer's left cuts the pack, then the bots bid.
+    vi.advanceTimersByTime(2_600)
+    expect(gameStore.get(code)!.phase).toBe('Bidding')
     for (let i = 0; i < 3; i++) {
       vi.advanceTimersByTime(2_500)
     }
@@ -116,6 +119,9 @@ describe('seat reclaim', () => {
       return
     }
 
+    // The bot on the dealer's left cuts the pack, then the bots bid.
+    vi.advanceTimersByTime(2_600)
+    expect(gameStore.get(code)!.phase).toBe('Bidding')
     for (let i = 0; i < 3; i++) {
       vi.advanceTimersByTime(2_500)
     }

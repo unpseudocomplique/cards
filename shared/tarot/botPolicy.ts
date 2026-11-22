@@ -5,6 +5,7 @@ import { botSuit, isRealTrump, PLAIN_SUITS, rankOf, suitCardsDesc } from './bot/
 import { chooseBid } from './bot/bidding'
 import { chooseEcart } from './bot/ecart'
 import { buildKnowledge } from './bot/knowledge'
+import { cutRange } from './cut'
 import { choosePlay } from './bot/play'
 import { hashSeed, seededRng, type Rng } from './bot/rng'
 import type { BotLevel, CardId, GameState, Intent, PlayerCount } from './types'
@@ -170,6 +171,20 @@ function choosePlayIntent(state: GameState, seat: number, level: BotLevel): Inte
 }
 
 /**
+ * A cut like people make one: roughly in the middle of the pack, never the
+ * same place twice, always leaving more than 3 cards on each side.
+ */
+export function chooseCutIntent(state: GameState, seat: number): Intent {
+  const size = state.deck?.length ?? 78
+  const { min, max } = cutRange(size)
+  const rng = rngFor(state, seat, 'cut')
+  // Average of two draws: most cuts land near the middle, some far off it.
+  const spread = (rng() + rng()) / 2
+  const at = Math.round(min + spread * (max - min))
+  return { type: 'cut', at: Math.min(max, Math.max(min, at)) }
+}
+
+/**
  * What a bot does at `seat`. It only uses what that seat may know (see
  * `buildKnowledge`): its hand, the cards everyone saw and what the play shows.
  */
@@ -196,6 +211,8 @@ export function chooseBotIntent(state: GameState, seat: number, levelOverride?: 
   }
 
   switch (state.phase) {
+    case 'Cutting':
+      return chooseCutIntent(state, seat)
     case 'Bidding':
       return chooseBidIntent(state, seat, level)
     case 'DogEcarta':
