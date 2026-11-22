@@ -10,7 +10,9 @@ import {
   poigneePrimeForTier,
   poigneeTiers,
 } from './announces'
-import { dealHands } from './deal'
+import { buildTarot78Deck } from './deck'
+import { dealFromShuffled, shuffleDeck } from './deal'
+import { cutDeck, cutterSeat, gatherHands, gatherPlayedDeal, isValidCut } from './cut'
 import { mergeChienIntoHand, validateEcart } from './ecart'
 import { attackSeats, isAttackSeat } from './camps'
 import { legalMovesForSeat } from './legalMoves'
@@ -24,7 +26,7 @@ import type {
   Intent,
   PlayerCount,
 } from './types'
-import type { BotLevel, CardId } from './types'
+import type { BotLevel, CardId, DeckSource } from './types'
 
 export const BOT_LEVELS: BotLevel[] = ['facile', 'moyen', 'difficile']
 export const DEFAULT_BOT_LEVEL: BotLevel = 'moyen'
@@ -161,44 +163,98 @@ function resetDealFields(state: GameState): GameState {
     petitAuBoutCamp: undefined,
     lastDeltas: undefined,
     matchShouldEnd: undefined,
+    deck: undefined,
+    deckSource: undefined,
+    redealReason: undefined,
+    lastCut: undefined,
   }
 }
 
-function performDeal(
+/**
+ * Put the pack on the table for the cut. The dealer's left neighbour cuts
+ * (`handleCut`), then the dealer deals.
+ */
+function beginCut(
   state: GameState,
-  options: { incrementDealIndex: boolean },
-): {
-  state: GameState
-  events: GameEvent[]
-} {
-  let rngCounter = state.rngCounter
-  let dealResult = dealHands(state.playerCount, makeRng(rngCounter))
-  rngCounter++
-  let attempts = 1
-  const events: GameEvent[] = []
+  options: {
+    deck: CardId[]
+    source: DeckSource
+    dealerSeat: number
+    incrementDealIndex: boolean
+    redealReason?: GameState['redealReason']
+    rngCounter?: number
+  },
+): GameState {
+  return {
+    ...resetDealFields(state),
+    phase: 'Cutting',
+    dealerSeat: options.dealerSeat,
+    deck: [...options.deck],
+    deckSource: options.source,
+    redealReason: options.redealReason,
+    rngCounter: options.rngCounter ?? state.rngCounter,
+    dealIndex: state.dealIndex + (options.incrementDealIndex ? 1 : 0),
+    currentSeat: cutterSeat(options.dealerSeat, state.playerCount),
+  }
+}
 
-  while (dealResult.petitSecSeats.length > 0 && attempts < 10) {
+/** A freshly shuffled pack (first deal, or after a petit sec). */
+function shuffledPack(state: GameState, cards: CardId[] = buildTarot78Deck()): { deck: CardId[], rngCounter: number } {
+  return {
+    deck: shuffleDeck(cards, makeRng(state.rngCounter)),
+    rngCounter: state.rngCounter + 1,
+  }
+}
+
+function handleCut(state: GameState, intent: Extract<Intent, { type: 'cut' }>, actor: Actor): ApplyResult {
+  if (state.phase !== 'Cutting' || !state.deck) {
+    return failure('WRONG_PHASE', 'The pack is not waiting for a cut')
+  }
+  const seatOrError = requireTurnSeat(state, actor)
+  if (typeof seatOrError !== 'number') {
+    return seatOrError
+  }
+  const seat = seatOrError
+  if (!isValidCut(intent.at, state.deck.length)) {
+    return failure('ILLEGAL_MOVE', 'Each packet must keep more than 3 cards')
+  }
+
+  const pack = cutDeck(state.deck, intent.at)
+  const dealResult = dealFromShuffled(state.playerCount, pack, firstBidderSeat(state))
+  const events: GameEvent[] = [{ type: 'cut', seat, at: intent.at }]
+
+  if (dealResult.petitSecSeats.length > 0) {
+    // FFT: the deal is cancelled and the dealer's right neighbour deals again.
+    // The cards are shuffled first so the same hand does not come back.
     events.push({ type: 'redeal', reason: 'petit_sec' })
-    dealResult = dealHands(state.playerCount, makeRng(rngCounter))
-    rngCounter++
-    attempts++
+    const shuffled = shuffledPack(state, pack)
+    return success(
+      beginCut(state, {
+        deck: shuffled.deck,
+        rngCounter: shuffled.rngCounter,
+        source: 'shuffled',
+        dealerSeat: nextSeat(state, state.dealerSeat),
+        incrementDealIndex: false,
+        redealReason: 'petit_sec',
+      }),
+      events,
+    )
   }
 
   const bidState = createBidState(state.playerCount, firstBidderSeat(state))
   const next: GameState = {
-    ...resetDealFields(state),
+    ...state,
     phase: 'Bidding',
-    rngCounter,
-    dealIndex: state.dealIndex + (options.incrementDealIndex ? 1 : 0),
+    deck: undefined,
     hands: dealResult.hands.map(hand => [...hand]),
     chien: [...dealResult.chien],
     bidState,
     bidSpoken: [],
     currentSeat: expectedSeat(bidState),
+    lastCut: { seat, at: intent.at },
   }
-
   events.push({ type: 'dealt', dealIndex: next.dealIndex })
-  return { state: next, events }
+  return success(next, events)
 }
 
 function enterContractWon(state: GameState, seat: number, contract: Contract): GameState {
@@ -371,18 +427,14 @@ function handleContinue(state: GameState, actor: Actor): ApplyResult {
     )
   }
 
-  const dealerSeat = nextSeat(state, state.dealerSeat)
-  const redealt = performDeal(
-    {
-      ...state,
-      phase: 'Dealing',
-      dealerSeat,
-      lastDeltas: undefined,
-      matchShouldEnd: undefined,
-    },
-    { incrementDealIndex: true },
-  )
-  return success(redealt.state, redealt.events)
+  // The tricks are gathered as they are, without shuffling, then cut.
+  const next = beginCut(state, {
+    deck: gatherPlayedDeal(state),
+    source: 'gathered',
+    dealerSeat: nextSeat(state, state.dealerSeat),
+    incrementDealIndex: true,
+  })
+  return success(next, [])
 }
 
 function resolvePartnerSeat(
@@ -569,8 +621,16 @@ function handleStart(state: GameState, actor: Actor): ApplyResult {
     return failure('ILLEGAL_MOVE', 'All seats must be filled before starting')
   }
 
-  const dealing = performDeal({ ...state, phase: 'Dealing' }, { incrementDealIndex: true })
-  return success(dealing.state, [{ type: 'started' }, ...dealing.events])
+  // First deal: a shuffled pack, cut by the dealer's left neighbour.
+  const shuffled = shuffledPack(state)
+  const next = beginCut(state, {
+    deck: shuffled.deck,
+    rngCounter: shuffled.rngCounter,
+    source: 'shuffled',
+    dealerSeat: state.dealerSeat,
+    incrementDealIndex: true,
+  })
+  return success(next, [{ type: 'started' }])
 }
 
 function handleBid(state: GameState, intent: Extract<Intent, { type: 'bid' }>, actor: Actor): ApplyResult {
@@ -598,16 +658,16 @@ function handleBid(state: GameState, intent: Extract<Intent, { type: 'bid' }>, a
 
   if (result.outcome?.type === 'all_pass') {
     events.push({ type: 'redeal', reason: 'all_pass' })
-    const dealerSeat = nextSeat(state, state.dealerSeat)
-    const redealt = performDeal(
-      {
-        ...next,
-        phase: 'Dealing',
-        dealerSeat,
-      },
-      { incrementDealIndex: false },
-    )
-    return success(redealt.state, [...events, ...redealt.events])
+    // FFT: the dealer's right neighbour deals again; the hands are put back
+    // together as they are and cut.
+    const redealt = beginCut(next, {
+      deck: gatherHands(next),
+      source: 'gathered',
+      dealerSeat: nextSeat(state, state.dealerSeat),
+      incrementDealIndex: false,
+      redealReason: 'all_pass',
+    })
+    return success(redealt, events)
   }
 
   if (result.outcome?.type === 'won') {
@@ -846,6 +906,8 @@ export function apply(state: GameState, intent: Intent, actor: Actor): ApplyResu
       return handleSetBotLevel(state, intent, actor)
     case 'start':
       return handleStart(state, actor)
+    case 'cut':
+      return handleCut(state, intent, actor)
     case 'bid':
       return handleBid(state, intent, actor)
     case 'callKing':

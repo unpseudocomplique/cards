@@ -93,8 +93,30 @@ const discardSize = computed<3 | 6>(() => publicState.value?.playerCount === 5 ?
 const canDiscard = computed(() => phase.value === 'DogEcarta' && isTaker.value && Boolean(privateState.value) && !needsKingCall.value)
 const showSummary = computed(() => phase.value === 'Scoring' || phase.value === 'MatchOver')
 
+/*
+ * The cut: shown while the pack waits on the table, then a moment more so
+ * everybody sees the lifted packet go under the rest before the deal.
+ */
+const CUT_REPLAY_MS = 1600
+const cutReplay = shallowRef<{ seat: number, at: number } | null>(null)
+let cutReplayTimer: ReturnType<typeof setTimeout> | undefined
+watch(() => [phase.value, publicState.value?.lastCut] as const, ([current, cut], [previous]) => {
+  if (previous === 'Cutting' && current !== 'Cutting' && cut) {
+    cutReplay.value = { ...cut }
+    clearTimeout(cutReplayTimer)
+    cutReplayTimer = setTimeout(() => {
+      cutReplay.value = null
+    }, CUT_REPLAY_MS)
+  } else if (current === 'Cutting') {
+    cutReplay.value = null
+  }
+})
+onBeforeUnmount(() => clearTimeout(cutReplayTimer))
+const showCut = computed(() => phase.value === 'Cutting' || Boolean(cutReplay.value))
+
 const showHand = computed(() =>
   Boolean(privateState.value?.hand?.length)
+  && !cutReplay.value
   && !canDiscard.value
   && !needsKingCall.value
   && !showSummary.value
@@ -265,7 +287,19 @@ function play(card: CardId) {
       </div>
 
       <div
-        v-if="phase === 'Bidding'"
+        v-if="showCut"
+        class="pointer-events-auto mt-3 w-full short:mt-2"
+      >
+        <PlayCutDock
+          :state="publicState"
+          :local-seat="localSeat"
+          :replay="cutReplay"
+          @cut="sendIntent({ type: 'cut', at: $event })"
+        />
+      </div>
+
+      <div
+        v-else-if="phase === 'Bidding'"
         class="pointer-events-auto mt-3 w-full short:mt-2"
       >
         <PlayBidDock

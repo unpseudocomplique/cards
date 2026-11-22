@@ -6,7 +6,7 @@
  * and only ever receives what its player is allowed to see.
  */
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { chooseBotIntent } from '../../shared/tarot'
+import { chooseBotIntent, cutDeck, dealFromShuffled } from '../../shared/tarot'
 import type { CardId, Contract, GameState, Intent, PrivateGameView } from '../../shared/tarot'
 import type { gameStore as GameStoreInstance } from '../../server/game/GameStore'
 
@@ -218,6 +218,20 @@ function humanStep(code: string, clients: Client[], strategy: Strategy = {}): bo
   return true
 }
 
+/** The host starts; a human cutter then cuts the pack (a bot cuts on its timer). */
+function startDeal(code: string, clients: Client[], at = 39): void {
+  clients[0]!.intent({ type: 'start' })
+  // A petit sec puts the pack back on the table for a new cut.
+  for (let tries = 0; tries < 10 && serverState(code).phase === 'Cutting'; tries++) {
+    const state = serverState(code)
+    const cutter = clientForSeat(clients, state, state.currentSeat)
+    if (!cutter || state.seats[state.currentSeat]?.controlledBy !== 'human') {
+      return
+    }
+    cutter.intent({ type: 'cut', at })
+  }
+}
+
 function expectInSync(code: string, clients: Client[]): void {
   const state = serverState(code)
   for (const client of clients) {
@@ -288,7 +302,7 @@ describe('real-time multiplayer table', () => {
   for (const playerCount of [3, 4, 5] as const) {
     it(`plays a full ${playerCount}-human match in sync without leaking cards`, async () => {
       const { code, clients } = await seatHumans(playerCount, playerCount)
-      clients[0]!.intent({ type: 'start' })
+      startDeal(code, clients)
       expectInSync(code, clients)
 
       let steps = 0
@@ -321,7 +335,7 @@ describe('real-time multiplayer table', () => {
 
   it('plays a full match with 2 humans and 3 bots, bots driven by the server timers', async () => {
     const { code, clients } = await seatHumans(5, 2)
-    clients[0]!.intent({ type: 'start' })
+    startDeal(code, clients)
     let guard = 0
     while (serverState(code).phase !== 'MatchOver' && guard < 3_000) {
       if (!humanStep(code, clients)) {
@@ -339,15 +353,15 @@ describe('real-time multiplayer table', () => {
 
   it('two tables do not get the same deal', async () => {
     const first = await seatHumans(4, 4)
-    first.clients[0]!.intent({ type: 'start' })
+    startDeal(first.code, first.clients)
     const second = await seatHumans(4, 4)
-    second.clients[0]!.intent({ type: 'start' })
+    startDeal(second.code, second.clients)
     expect(serverState(first.code).hands).not.toEqual(serverState(second.code).hands)
   })
 
   it('5 players: only the called partner can tell, everybody learns when the king is played', async () => {
     const { code, clients } = await seatHumans(5, 5)
-    clients[0]!.intent({ type: 'start' })
+    startDeal(code, clients)
 
     let checkedBeforeReveal = false
     let checkedAfterReveal = false
@@ -392,7 +406,7 @@ describe('real-time multiplayer table', () => {
 
   it('prise: everyone sees the dog before the taker discards it', async () => {
     const { code, clients } = await seatHumans(4, 4)
-    clients[0]!.intent({ type: 'start' })
+    startDeal(code, clients)
     const strategy: Strategy = {
       bid: (_seat, state) => state.bidSpoken.length === 0 ? 'prise' : 'passe'
     }
@@ -416,7 +430,7 @@ describe('real-time multiplayer table', () => {
   for (const contract of ['garde_sans', 'garde_contre'] as const) {
     it(`${contract}: nobody sees the dog`, async () => {
       const { code, clients } = await seatHumans(4, 4)
-      clients[0]!.intent({ type: 'start' })
+      startDeal(code, clients)
       const strategy: Strategy = {
         bid: (_seat, state) => state.bidSpoken.length === 0 ? contract : 'passe'
       }
@@ -433,7 +447,7 @@ describe('real-time multiplayer table', () => {
 
   it('5 players: the dog is shown only after the king is called', async () => {
     const { code, clients } = await seatHumans(5, 5)
-    clients[0]!.intent({ type: 'start' })
+    startDeal(code, clients)
     const strategy: Strategy = {
       bid: (_seat, state) => state.bidSpoken.length === 0 ? 'garde' : 'passe'
     }
@@ -455,7 +469,7 @@ describe('real-time multiplayer table', () => {
 
   it('a refresh where the old socket closes after the new one is up keeps the player seated', async () => {
     const { code, clients } = await seatHumans(4, 4)
-    clients[0]!.intent({ type: 'start' })
+    startDeal(code, clients)
     const guest = clients[2]!
     const oldPeer = guest.peer
 
@@ -478,7 +492,7 @@ describe('real-time multiplayer table', () => {
 
   it('a hello sent before the server has read the session is still answered (refresh)', async () => {
     const { code, clients } = await seatHumans(4, 4)
-    clients[0]!.intent({ type: 'start' })
+    startDeal(code, clients)
     const guest = clients[3]!
     guest.disconnect()
     guest.view = null
@@ -524,7 +538,7 @@ describe('real-time multiplayer table', () => {
 
   it('a player who drops is replaced by a bot, then takes the seat back with the same hand', async () => {
     const { code, clients } = await seatHumans(4, 4)
-    clients[0]!.intent({ type: 'start' })
+    startDeal(code, clients)
     const leaver = clients[1]!
     const seat = 1
 
@@ -586,7 +600,7 @@ describe('real-time multiplayer table', () => {
 
   it('a disconnected player is not left behind by the scoring screen', async () => {
     const { code, clients } = await seatHumans(4, 4)
-    clients[0]!.intent({ type: 'start' })
+    startDeal(code, clients)
     let guard = 0
     while (guard < 400 && serverState(code).phase !== 'Scoring') {
       humanStep(code, clients)
@@ -603,14 +617,89 @@ describe('real-time multiplayer table', () => {
     clients[1]!.intent({ type: 'continue' })
     clients[2]!.intent({ type: 'continue' })
     expect(serverState(code).dealIndex).toBe(dealIndex + 1)
-    expect(serverState(code).phase).toBe('Bidding')
+    expect(serverState(code).phase).toBe('Cutting')
     expect(clients[2]!.errors).toEqual([])
+    expectInSync(code, clients)
+  })
+
+  it('the next deal is the previous tricks gathered as they are, cut by the dealer\'s left neighbour', async () => {
+    const { code, clients } = await seatHumans(4, 4)
+    startDeal(code, clients)
+    let guard = 0
+    while (guard < 400 && serverState(code).phase !== 'Scoring') {
+      humanStep(code, clients)
+      guard++
+    }
+    const scored = serverState(code)
+    const tricks = scored.playedTricks!.map(trick => trick.map(entry => entry.card))
+    clients[0]!.intent({ type: 'continue' })
+
+    const cutting = serverState(code)
+    expect(cutting.phase).toBe('Cutting')
+    expect(cutting.deckSource).toBe('gathered')
+    expect(cutting.dealerSeat).toBe((scored.dealerSeat + 1) % 4)
+    expect(cutting.currentSeat).toBe(scored.dealerSeat)
+    expect(new Set(cutting.deck)).toEqual(new Set(scored.hands.flat().concat(tricks.flat(), scored.ecart, scored.chien)))
+    expect(cutting.deck).toHaveLength(78)
+    // Not shuffled: most tricks are still side by side in the pack (the Excuse may have moved).
+    const together = tricks.filter((trick) => {
+      const positions = trick.map(card => cutting.deck!.indexOf(card)).sort((a, b) => a - b)
+      return positions.at(-1)! - positions[0]! === trick.length - 1
+    })
+    expect(together.length).toBeGreaterThanOrEqual(tricks.length - 2)
+
+    // Everybody sees the pack waiting for the cut, nobody sees its order.
+    for (const client of clients) {
+      expect(client.view?.phase).toBe('Cutting')
+      expect(client.view?.deckCount).toBe(78)
+      expect(client.view?.deckSource).toBe('gathered')
+      expect(client.view?.hand).toEqual([])
+    }
+
+    // Only the cutter may cut, and never leaving 3 cards or fewer on a side.
+    const cutter = clientForSeat(clients, cutting, cutting.currentSeat)!
+    const other = clients.find(client => client !== cutter)!
+    other.intent({ type: 'cut', at: 30 })
+    expect(other.errors.at(-1)?.error).toBe('NOT_YOUR_TURN')
+    cutter.intent({ type: 'cut', at: 3 })
+    expect(cutter.errors.at(-1)?.error).toBe('ILLEGAL_MOVE')
+    cutter.intent({ type: 'cut', at: 75 })
+    expect(cutter.errors.at(-1)?.error).toBe('ILLEGAL_MOVE')
+
+    const deck = [...cutting.deck!]
+    const firstSeat = (cutting.dealerSeat + 1) % 4
+    // Pick a cut that does not give anyone a petit sec (that would cancel the deal).
+    let at = 20
+    while (dealFromShuffled(4, cutDeck(deck, at), firstSeat).petitSecSeats.length > 0) {
+      at++
+    }
+    cutter.intent({ type: 'cut', at })
+    const dealt = serverState(code)
+    expect(dealt.phase).toBe('Bidding')
+    expect(dealt.lastCut).toEqual({ seat: cutting.currentSeat, at })
+    // The first packet goes to the dealer's right: the cards just under the cut.
+    expect(dealt.hands[firstSeat]!.slice(0, 3)).toEqual(deck.slice(at, at + 3))
+    for (const client of clients) {
+      expect(client.view?.lastCut).toEqual({ seat: cutting.currentSeat, at })
+    }
+    expectInSync(code, clients)
+    expectNoLeaks(clients)
+  })
+
+  it('a player who never cuts gets the pack cut for them', async () => {
+    const { code, clients } = await seatHumans(4, 4)
+    clients[0]!.intent({ type: 'start' })
+    expect(serverState(code).phase).toBe('Cutting')
+    vi.advanceTimersByTime(20_000)
+    expect(serverState(code).phase).toBe('Cutting')
+    vi.advanceTimersByTime(25_000)
+    expect(serverState(code).phase).toBe('Bidding')
     expectInSync(code, clients)
   })
 
   it('the scoring screen still moves on by itself if every human is away', async () => {
     const { code, clients } = await seatHumans(4, 4)
-    clients[0]!.intent({ type: 'start' })
+    startDeal(code, clients)
     let guard = 0
     while (guard < 400 && serverState(code).phase !== 'Scoring') {
       humanStep(code, clients)
@@ -623,7 +712,7 @@ describe('real-time multiplayer table', () => {
 
   it('a late visitor cannot join a running game and only sees public information', async () => {
     const { code, clients } = await seatHumans(4, 4)
-    clients[0]!.intent({ type: 'start' })
+    startDeal(code, clients)
     const visitor = new Client('visitor', code)
     await visitor.connect()
     visitor.hello()
@@ -637,7 +726,7 @@ describe('real-time multiplayer table', () => {
 
   it('a player cannot act for another seat or out of turn', async () => {
     const { code, clients } = await seatHumans(4, 4)
-    clients[0]!.intent({ type: 'start' })
+    startDeal(code, clients)
     const state = serverState(code)
     const notTurn = clients.find(c => c.view!.seat !== state.currentSeat)!
     notTurn.intent({ type: 'bid', bid: 'passe' })

@@ -682,7 +682,7 @@ function onLoop({ delta }: { delta: number }) {
         :scene-width="sceneSize.width"
         :scene-height="sceneSize.height"
         :mobile="isMobile"
-        :active-seat="['Bidding', 'Trick', 'ReadyToPlay'].includes(publicState.phase) ? publicState.currentSeat : null"
+        :active-seat="['Cutting', 'Bidding', 'Trick', 'ReadyToPlay'].includes(publicState.phase) ? publicState.currentSeat : null"
         :highlight-seat="collectingToSeat"
         :scores="publicState.scores"
         :taker-seat="publicState.bid?.seat ?? null"

@@ -92,6 +92,14 @@ export function toPublicView(state: GameState): PublicGameView {
     chelemAnnounce: state.chelemAnnounce,
     lastDeltas: state.lastDeltas ? { ...state.lastDeltas } : undefined,
     matchShouldEnd: state.matchShouldEnd,
+    ...(state.phase === 'Cutting'
+      ? {
+          deckCount: state.deck?.length ?? 0,
+          deckSource: state.deckSource,
+          redealReason: state.redealReason,
+        }
+      : {}),
+    ...(state.lastCut ? { lastCut: { ...state.lastCut } } : {}),
   }
 }
 
