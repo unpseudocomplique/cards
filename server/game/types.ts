@@ -5,6 +5,8 @@ export interface PeerHandle {
 }
 
 export type Room = {
+  /** Unique id of this table's match (statistics). */
+  matchId: string
   state: GameState
   peers: Map<string, PeerHandle>
   botTimer: ReturnType<typeof setTimeout> | null

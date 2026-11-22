@@ -137,6 +137,7 @@ function resetDealFields(state: GameState): GameState {
   return {
     ...state,
     hands: Array.from({ length: state.playerCount }, () => [] as CardId[]),
+    dealtHands: undefined,
     chien: [],
     dogShown: undefined,
     dogSeen: undefined,
@@ -252,6 +253,7 @@ function handleCut(state: GameState, intent: Extract<Intent, { type: 'cut' }>, a
     phase: 'Bidding',
     deck: undefined,
     hands: dealResult.hands.map(hand => [...hand]),
+    dealtHands: dealResult.hands.map(hand => [...hand]),
     chien: [...dealResult.chien],
     bidState,
     bidSpoken: [],

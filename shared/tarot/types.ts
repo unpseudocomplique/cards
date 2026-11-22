@@ -61,6 +61,8 @@ export type GameState = {
   currentSeat: number
   seats: SeatInfo[]
   hands: CardId[][]
+  /** Each seat's hand as dealt, before the dog (secret: for the statistics only). */
+  dealtHands?: CardId[][]
   chien: CardId[]
   /**
    * Prise / garde: the dog cards turned face up for everyone until the taker
