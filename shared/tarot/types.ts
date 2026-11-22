@@ -84,6 +84,8 @@ export type GameState = {
   dogSeen?: CardId[]
   /** Completed tricks of this deal in play order (public: everyone saw them). */
   playedTricks?: Array<Array<{ seat: number, card: CardId }>>
+  /** Winner of each trick in playedTricks, same order. */
+  playedTrickWinners?: number[]
   /** Trumps the taker had to put in the écart, shown to the defence (FFT). */
   ecartShownTrumps?: CardId[]
   /** Camp that kept its Excuse after a lost trick and owes a low card in exchange. */
@@ -223,6 +225,11 @@ export type PublicGameView = {
   autoContinueAt?: number
   lastTrick: Array<{ seat: number, card: CardId }> | null
   lastTrickWinnerSeat: number | null
+  /**
+   * The last finished trick of this deal, kept until the next one is complete
+   * (lastTrick is cleared at the next card), so players can look at it again.
+   */
+  previousTrick?: { cards: Array<{ seat: number, card: CardId }>, winnerSeat: number } | null
   poignees?: PoigneeShown[]
   ecartShownTrumps?: CardId[]
   chelemAnnounce?: GameState['chelemAnnounce']

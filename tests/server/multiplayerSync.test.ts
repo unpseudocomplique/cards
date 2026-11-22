@@ -68,6 +68,8 @@ class Client {
   messages: ServerMessage[] = []
   /** Every card id this player has legitimately been allowed to see so far. */
   leaks: string[] = []
+  /** Cards this player has seen face up in a trick. */
+  private playedSeen = new Set<string>()
 
   constructor(userId: string, readonly code: string) {
     this.userId = userId
@@ -115,7 +117,12 @@ class Client {
 
   /** Cards this player may know: own hand + whatever is face up for everyone. */
   private checkPrivacy(view: PrivateGameView): void {
+    for (const entry of [...view.trick, ...(view.lastTrick ?? [])]) {
+      this.playedSeen.add(entry.card)
+    }
     const allowed = new Set<string>([
+      // The previous trick, brought back on demand: only cards already seen in a trick.
+      ...(view.previousTrick?.cards ?? []).map(entry => entry.card).filter(card => this.playedSeen.has(card)),
       ...view.hand,
       ...view.trick.map(entry => entry.card),
       ...(view.lastTrick ?? []).map(entry => entry.card),

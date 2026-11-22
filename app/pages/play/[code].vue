@@ -239,6 +239,21 @@ function play(card: CardId) {
 /* The score notebook on the table. */
 const scoresOpen = shallowRef(false)
 
+/* The previous trick, brought back with one tap. */
+const lastTrickOpen = shallowRef(false)
+const canReviewTrick = computed(() =>
+  (phase.value === 'Trick' || phase.value === 'ReadyToPlay')
+  && Boolean(publicState.value?.previousTrick?.cards.length)
+)
+watch(canReviewTrick, (can) => {
+  if (!can) {
+    lastTrickOpen.value = false
+  }
+})
+
+/* Sounds and vibrations (set in the table settings). */
+useTableSoundCues({ publicState, privateState, emotes })
+
 /* Phones held sideways: full screen at the first touch. */
 useTableFullscreen().install()
 </script>
@@ -287,7 +302,10 @@ useTableFullscreen().install()
           :degraded="publicSyncDegraded"
           :offline="!connected"
           :called-partner="isCalledPartner"
+          :can-review-trick="canReviewTrick"
+          :review-open="lastTrickOpen"
           @leave="leaveOpen = true"
+          @last-trick="lastTrickOpen = !lastTrickOpen"
           @emote="sendEmote"
           @scores="scoresOpen = true"
         />
@@ -389,6 +407,26 @@ useTableFullscreen().install()
           :state="publicState"
           :local-seat="localSeat"
           @close="scoresOpen = false"
+        />
+      </div>
+    </Transition>
+
+    <Transition
+      enter-active-class="transition duration-200 ease-out"
+      enter-from-class="opacity-0"
+      leave-active-class="transition duration-150 ease-in"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="lastTrickOpen && publicState"
+        class="absolute inset-0 z-[70] grid place-items-center bg-black/50 px-3 backdrop-blur-[2px]"
+        @click.self="lastTrickOpen = false"
+      >
+        <PlayLastTrickPeek
+          :state="publicState"
+          :local-seat="localSeat"
+          :face-url-for="faceUrlFor"
+          @close="lastTrickOpen = false"
         />
       </div>
     </Transition>

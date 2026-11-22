@@ -3,7 +3,7 @@ import type { PublicGameView } from '~~/shared/tarot'
 import type { TableEmote } from '~~/shared/play/emotes'
 
 /**
- * Corners of the table: leave (top left), the score plaque (top centre on
+ * Corners of the table: leave and the previous trick (top left), the score plaque (top centre on
  * upright phones, beside the leave button elsewhere), reactions and settings
  * (top right, clear of the score notebook).
  */
@@ -15,12 +15,16 @@ defineProps<{
   offline?: boolean
   /** The local player holds the called king: the taker's (secret) partner. */
   calledPartner?: boolean
+  /** A trick has been played this deal: offer to look at it again. */
+  canReviewTrick?: boolean
+  reviewOpen?: boolean
 }>()
 
 const emit = defineEmits<{
   leave: []
   scores: []
   emote: [emote: TableEmote]
+  lastTrick: []
 }>()
 </script>
 
@@ -33,6 +37,20 @@ const emit = defineEmits<{
         class="[&_svg]:rotate-180"
         @click="emit('leave')"
       />
+      <Transition
+        enter-active-class="transition duration-300 ease-out"
+        enter-from-class="-translate-y-2 scale-75 opacity-0"
+        leave-active-class="transition duration-150 ease-in"
+        leave-to-class="scale-75 opacity-0"
+      >
+        <PlayRoundButton
+          v-if="canReviewTrick"
+          icon="i-lucide-history"
+          label="Revoir le pli précédent"
+          :active="reviewOpen"
+          @click="emit('lastTrick')"
+        />
+      </Transition>
     </div>
 
     <div class="hud-plaque pointer-events-auto">
@@ -94,7 +112,7 @@ const emit = defineEmits<{
 
 <style scoped>
 .hud { position: relative; height: 0; }
-.hud-left { position: absolute; left: 0; top: 0; }
+.hud-left { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; gap: 14px; }
 .hud-plaque {
   position: absolute;
   top: calc(-1 * max(0.75rem, env(safe-area-inset-top)));
@@ -119,5 +137,6 @@ const emit = defineEmits<{
 @media (max-height: 520px) {
   .hud-plaque { top: calc(-1 * max(0.5rem, env(safe-area-inset-top))); }
   .hud-right { right: 64px; }
+  .hud-left { gap: 8px; }
 }
 </style>
