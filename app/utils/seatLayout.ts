@@ -4,6 +4,7 @@
  * The DOM overlays (trick cards, flights, reactions) all place themselves
  * from these anchors.
  */
+import { safeAreaInsets } from './safeArea'
 
 /** Screens taller than wide (phone in portrait). */
 export function isPortraitView(view: { width: number, height: number }) {
@@ -56,15 +57,18 @@ export function seatMedallion(seat: number, localSeat: number, playerCount: numb
   if (rel === 0) {
     const portrait = isPortraitView(view)
     return {
-      x: portrait ? Math.max(34, view.width * 0.11) : Math.max(36, view.width * 0.055),
+      x: (portrait ? Math.max(34, view.width * 0.11) : Math.max(36, view.width * 0.055)) + safeAreaInsets.left,
       y: view.height * (portrait ? 0.63 : isShortView(view) ? 0.52 : 0.55)
     }
   }
   const table = isPortraitView(view) ? UPRIGHT_SEATS : WIDE_SEATS
   const [fx, fy] = table[playerCount]?.[rel] ?? [0.5, 0.2]
   const size = medallionSize(view)
+  // Sideways iPhone: keep portraits clear of the notch / Dynamic Island.
+  const minX = size / 2 + 14 + safeAreaInsets.left
+  const maxX = view.width - size / 2 - 14 - safeAreaInsets.right
   return {
-    x: Math.min(view.width - size / 2 - 14, Math.max(size / 2 + 14, view.width * fx)),
+    x: Math.min(maxX, Math.max(minX, view.width * fx)),
     y: Math.max(size / 2 + (isShortView(view) ? 12 : 56), view.height * fy)
   }
 }

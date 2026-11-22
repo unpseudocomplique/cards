@@ -40,6 +40,7 @@ const deckLinks = computed<NavigationMenuItem[]>(() => (decks.value ?? []).slice
     unit="rem"
     storage="local"
     storage-key="cards-dashboard"
+    class="safe-area-pad"
   >
     <UDashboardSidebar
       id="app-sidebar"

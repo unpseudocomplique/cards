@@ -20,7 +20,7 @@ const links: NavigationMenuItem[] = [{
   <div class="flex min-h-dvh flex-col">
     <UHeader
       mode="slideover"
-      :ui="{ root: 'bg-default/70 backdrop-blur-lg border-b border-default/60' }"
+      :ui="{ root: 'bg-default/70 backdrop-blur-lg border-b border-default/60 pt-[env(safe-area-inset-top)]' }"
     >
       <!-- #left replaces UHeader's own title link (AppLogo is already a link). -->
       <template #left>
