@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { PublicGameView } from '~~/shared/tarot'
+import { BOT_LEVEL_LABELS, BOT_LEVELS, DEFAULT_BOT_LEVEL } from '~~/shared/tarot'
+import type { BotLevel, PublicGameView } from '~~/shared/tarot'
 
 const props = defineProps<{
   code: string
@@ -10,12 +11,25 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  addBot: []
+  addBot: [level: BotLevel]
+  setBotLevel: [seat: number, level: BotLevel]
   removeBot: [seat: number]
   start: []
 }>()
 
 const toast = useToast()
+
+const BOT_LEVEL_HINTS: Record<BotLevel, string> = {
+  facile: 'Joue simplement et se trompe souvent',
+  moyen: 'Retient les cartes tombées et joue pour son camp',
+  difficile: 'Déduit les coupes et simule les donnes possibles avant chaque carte'
+}
+const nextBotLevel = ref<BotLevel>(DEFAULT_BOT_LEVEL)
+
+function cycleBotLevel(seatId: number, current: BotLevel | undefined) {
+  const index = BOT_LEVELS.indexOf(current ?? DEFAULT_BOT_LEVEL)
+  emit('setBotLevel', seatId, BOT_LEVELS[(index + 1) % BOT_LEVELS.length]!)
+}
 const { copy, copied } = useClipboard({ copiedDuring: 2000 })
 const canShare = computed(() => import.meta.client && typeof navigator.share === 'function')
 
@@ -145,6 +159,27 @@ async function share() {
                 class="text-dimmed"
               > · hôte</span>
             </p>
+            <template v-if="seat.controlledBy === 'bot'">
+              <UButton
+                v-if="isHost"
+                :label="BOT_LEVEL_LABELS[seat.botLevel ?? DEFAULT_BOT_LEVEL]"
+                trailing-icon="i-lucide-refresh-cw"
+                size="xs"
+                color="info"
+                variant="soft"
+                class="-mt-1 rounded-full"
+                :aria-label="`Niveau de ${seat.name} : ${BOT_LEVEL_LABELS[seat.botLevel ?? DEFAULT_BOT_LEVEL]}. Changer`"
+                @click="cycleBotLevel(seat.seatId, seat.botLevel)"
+              />
+              <UBadge
+                v-else
+                :label="BOT_LEVEL_LABELS[seat.botLevel ?? DEFAULT_BOT_LEVEL]"
+                size="sm"
+                color="info"
+                variant="soft"
+                class="-mt-1 rounded-full"
+              />
+            </template>
           </div>
         </div>
 
@@ -183,17 +218,45 @@ async function share() {
 
         <!-- Host actions -->
         <div
+          v-if="isHost && !ready"
+          class="mx-auto flex w-full max-w-md flex-col items-center gap-2"
+        >
+          <p class="text-sm text-muted">
+            Niveau des bots
+          </p>
+          <div
+            class="grid w-full grid-cols-3 gap-1 rounded-xl bg-elevated/60 p-1 ring ring-default"
+            role="radiogroup"
+            aria-label="Niveau des bots"
+          >
+            <UButton
+              v-for="level in BOT_LEVELS"
+              :key="level"
+              :label="BOT_LEVEL_LABELS[level]"
+              role="radio"
+              :aria-checked="nextBotLevel === level"
+              :color="nextBotLevel === level ? 'primary' : 'neutral'"
+              :variant="nextBotLevel === level ? 'solid' : 'ghost'"
+              block
+              @click="nextBotLevel = level"
+            />
+          </div>
+          <p class="text-center text-xs text-dimmed">
+            {{ BOT_LEVEL_HINTS[nextBotLevel] }}
+          </p>
+        </div>
+        <div
           v-if="isHost"
           class="flex flex-col items-center gap-3 sm:flex-row sm:justify-center"
         >
           <UButton
-            label="Ajouter un bot"
+            :label="`Ajouter un bot ${BOT_LEVEL_LABELS[nextBotLevel].toLowerCase()}`"
             icon="i-lucide-bot"
             color="neutral"
             variant="subtle"
             size="lg"
             :disabled="ready"
-            @click="emit('addBot')"
+            @click="emit('addBot', nextBotLevel)"
           />
           <UButton
             label="Lancer la partie"

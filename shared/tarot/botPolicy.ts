@@ -1,227 +1,180 @@
-import { BID_RANK, expectedSeat, type Contract } from './bid'
-import { isOudler, isTrump } from './deck'
-import { validateEcart } from './ecart'
-import { KING_IDS } from './announces'
-import { toPrivateView } from './publicView'
-import { compareSuitRank, trickLedSuit, trumpValue } from './trick'
-import type { CardId, GameState, Intent, PlayerCount } from './types'
+import { expectedSeat } from './bid'
+import { callableCards, poigneeCards, poigneeTiers } from './announces'
+import { DEFAULT_BOT_LEVEL } from './apply'
+import { botSuit, isRealTrump, PLAIN_SUITS, rankOf, suitCardsDesc } from './bot/cards'
+import { chooseBid } from './bot/bidding'
+import { chooseEcart } from './bot/ecart'
+import { buildKnowledge } from './bot/knowledge'
+import { choosePlay } from './bot/play'
+import { hashSeed, seededRng, type Rng } from './bot/rng'
+import type { BotLevel, CardId, GameState, Intent, PlayerCount } from './types'
+
+export { evaluateHandStrength, handPoints } from './bot/bidding'
+
+export const BOT_LEVEL_LABELS: Record<BotLevel, string> = {
+  facile: 'Facile',
+  moyen: 'Moyen',
+  difficile: 'Difficile'
+}
 
 function chienSize(playerCount: PlayerCount): 6 | 3 {
   return playerCount === 5 ? 3 : 6
 }
 
-function isRealTrump(card: CardId): boolean {
-  return card.startsWith('trump-')
+function fullHandSize(playerCount: PlayerCount): number {
+  return playerCount === 3 ? 24 : playerCount === 5 ? 15 : 18
 }
 
-function isLegalDiscard(card: CardId): boolean {
-  return !isTrump(card) && !card.endsWith('-k')
+function seatLevel(state: GameState, seat: number, override?: BotLevel): BotLevel {
+  return override ?? state.seats[seat]?.botLevel ?? DEFAULT_BOT_LEVEL
 }
 
-function compareLowest(a: CardId, b: CardId): number {
-  if (a === 'excuse' && b !== 'excuse') {
-    return 1
-  }
-  if (b === 'excuse' && a !== 'excuse') {
-    return -1
-  }
-  if (isRealTrump(a) && isRealTrump(b)) {
-    return trumpValue(a)! - trumpValue(b)!
-  }
-  if (isRealTrump(a)) {
-    return 1
-  }
-  if (isRealTrump(b)) {
-    return -1
-  }
-  return compareSuitRank(a, b)
+function rngFor(state: GameState, seat: number, salt: string): Rng {
+  return seededRng(hashSeed(state.rngCounter, state.dealIndex, state.version, seat, salt))
 }
 
-function matchesLedSuit(card: CardId, ledSuit: ReturnType<typeof trickLedSuit>): boolean {
-  if (ledSuit === null) {
-    return false
-  }
-  if (ledSuit === 'trumps') {
-    return isRealTrump(card)
-  }
-  return card.startsWith(`${ledSuit}-`)
-}
-
-function pickLowestCard(moves: CardId[], trick: GameState['trick']): CardId {
-  const ledSuit = trick.length > 0 ? trickLedSuit(trick) : null
-  if (ledSuit) {
-    const following = moves.filter(card => matchesLedSuit(card, ledSuit))
-    if (following.length > 0) {
-      return [...following].sort(compareLowest)[0]!
-    }
-  }
-  return [...moves].sort(compareLowest)[0]!
-}
-
-/** Rough FFT hand strength used for bot bidding thresholds. */
-export function evaluateHandStrength(hand: CardId[]): number {
-  const realTrumps = hand.filter(isRealTrump)
-  const oudlers = hand.filter(isOudler).length
-  const highTrumps = realTrumps.filter(card => (trumpValue(card) ?? 0) >= 14).length
-  const kings = hand.filter(card => card.endsWith('-k')).length
-  const queens = hand.filter(card => card.endsWith('-q')).length
-  return realTrumps.length * 2
-    + oudlers * 5
-    + highTrumps * 2
-    + kings * 2
-    + queens
-}
-
-function chooseContractForStrength(strength: number, minOvercall: Contract | null): Contract | 'passe' {
-  // Conservative FFT-ish thresholds — bots were over-bidding weak-medium hands.
-  const thresholds: Array<{ contract: Contract, min: number }> = [
-    { contract: 'garde_contre', min: 38 },
-    { contract: 'garde_sans', min: 32 },
-    { contract: 'garde', min: 26 },
-    { contract: 'prise', min: 16 },
-  ]
-
-  let bid: Contract | 'passe' = 'passe'
-  for (const row of thresholds) {
-    if (strength >= row.min) {
-      bid = row.contract
-      break
-    }
-  }
-
-  if (bid === 'passe') {
-    return 'passe'
-  }
-  if (minOvercall && BID_RANK[bid] <= BID_RANK[minOvercall]) {
-    // Only stretch when the hand already clears the *needed* contract threshold.
-    const ladder: Contract[] = ['prise', 'garde', 'garde_sans', 'garde_contre']
-    const needed = ladder.find(contract => BID_RANK[contract] > BID_RANK[minOvercall])
-    if (!needed) {
-      return 'passe'
-    }
-    const neededMin = thresholds.find(row => row.contract === needed)?.min ?? 99
-    if (strength < neededMin) {
-      return 'passe'
-    }
-    return needed
-  }
-  return bid
-}
-
-function chooseBidIntent(state: GameState, seat: number): Intent {
+function chooseBidIntent(state: GameState, seat: number, level: BotLevel): Intent {
   if (!state.bidState) {
     throw new Error('chooseBotIntent: bidding state missing')
   }
   if (expectedSeat(state.bidState) !== seat) {
     throw new Error(`chooseBotIntent: seat ${seat} is not the expected bidder`)
   }
-
   const hand = state.hands[seat] ?? []
-  const strength = evaluateHandStrength(hand)
   const winner = state.bidState.currentWinner
-  const bid = chooseContractForStrength(strength, winner?.contract ?? null)
+  const bid = chooseBid(hand, state.playerCount, level, winner?.contract ?? null, rngFor(state, seat, 'bid'))
   return { type: 'bid', bid }
 }
 
-function pickEcartDiscard(hand: CardId[], size: 6 | 3): CardId[] {
-  const discard: CardId[] = []
-  const legal = hand.filter(isLegalDiscard).sort(compareLowest)
-  for (const card of legal) {
-    if (discard.length >= size) {
-      break
-    }
-    discard.push(card)
-  }
-
-  if (discard.length < size) {
-    const showableTrumps = hand
-      .filter(card => isRealTrump(card) && !isOudler(card))
-      .sort((a, b) => trumpValue(a)! - trumpValue(b)!)
-    for (const card of showableTrumps) {
-      if (discard.length >= size) {
-        break
-      }
-      discard.push(card)
-    }
-  }
-
-  const validation = validateEcart(hand, discard, size)
-  if (!validation.ok) {
-    throw new Error(`chooseBotIntent: failed to build legal ecart (${validation.reason})`)
-  }
-
-  return discard
-}
-
-function suitOf(card: CardId): string | null {
-  if (card === 'excuse' || isRealTrump(card)) {
-    return null
-  }
-  return card.split('-')[0] ?? null
-}
-
-function chooseCallKingIntent(state: GameState, seat: number): Intent {
+function chooseCallKingIntent(state: GameState, seat: number, level: BotLevel): Intent {
   if (!state.bid || seat !== state.bid.seat) {
     throw new Error('chooseBotIntent: only the taker may call a king')
   }
   const hand = state.hands[seat] ?? []
-  const suitCounts = new Map<string, number>()
-  for (const card of hand) {
-    const suit = suitOf(card)
-    if (!suit) {
-      continue
-    }
-    suitCounts.set(suit, (suitCounts.get(suit) ?? 0) + 1)
-  }
-
-  const ranked = [...KING_IDS]
-    .map(king => {
-      const suit = suitOf(king as CardId) ?? ''
-      return {
-        king: king as CardId,
-        inHand: hand.includes(king as CardId),
-        length: suitCounts.get(suit) ?? 0,
+  const callable = callableCards(hand)
+  const ranked = callable
+    .map((card) => {
+      const suit = botSuit(card)!
+      const inSuit = hand.filter(c => botSuit(c) === suit)
+      let score = inSuit.length
+      if (hand.includes(card)) {
+        // Calling one's own card means playing alone.
+        score -= 100
       }
-    })
-    .sort((a, b) => {
-      if (a.inHand !== b.inHand) {
-        return a.inHand ? 1 : -1
+      if (level !== 'facile') {
+        const rank = rankOf(card)
+        // Holding the honour just under the called card makes it master later.
+        if (inSuit.some(c => rankOf(c) === rank - 1)) {
+          score += 1.5
+        }
+        if (inSuit.length === 0) {
+          score -= 1
+        }
+        score += inSuit.filter(c => rankOf(c) >= 11).length * 0.3
       }
-      return b.length - a.length
+      return { card, score }
     })
-
-  return { type: 'callKing', king: ranked[0]!.king }
+    .sort((a, b) => b.score - a.score)
+  return { type: 'callKing', king: ranked[0]!.card }
 }
 
-function chooseDiscardIntent(state: GameState, seat: number): Intent {
+function chooseDiscardIntent(state: GameState, seat: number, level: BotLevel): Intent {
   if (!state.bid || seat !== state.bid.seat) {
     throw new Error('chooseBotIntent: only the taker may discard')
   }
-
   const hand = state.hands[seat] ?? []
-  const cards = pickEcartDiscard(hand, chienSize(state.playerCount))
-  return { type: 'discard', cards }
+  return { type: 'discard', cards: chooseEcart(hand, chienSize(state.playerCount), level, state.calledKing) }
 }
 
-function choosePlayIntent(state: GameState, seat: number): Intent {
-  const view = toPrivateView(state, seat)
-  if (view.legalMoves.length === 0) {
-    throw new Error('chooseBotIntent: no legal moves')
+/** Poignée to show before the bot's first card, if any (highest tier it holds). */
+function poigneeIntent(state: GameState, seat: number, level: BotLevel): Intent | null {
+  const hand = state.hands[seat] ?? []
+  if (hand.length !== fullHandSize(state.playerCount)) {
+    return null
   }
-  // Lead low non-trumps when possible; otherwise dump the lowest legal card.
-  if (state.trick.length === 0) {
-    const softLeads = view.legalMoves
-      .filter(card => !isRealTrump(card) && card !== 'excuse')
-      .sort(compareLowest)
-    if (softLeads.length > 0) {
-      return { type: 'playCard', card: softLeads[0]! }
+  if (state.poignees?.some(entry => entry.seat === seat)) {
+    return null
+  }
+  if (level === 'facile' && rngFor(state, seat, 'poignee')() < 0.5) {
+    return null
+  }
+  const tiers = [...poigneeTiers(state.playerCount)].reverse()
+  const tier = tiers.find(t => poigneeCards(hand, t) !== null)
+  return tier ? { type: 'announcePoignee', tier } : null
+}
+
+/**
+ * Would the taker win every trick? Only with the top trumps covering every
+ * trump left outside and side suits that are void or solid from the king.
+ */
+export function wantsChelem(hand: CardId[], ecart: CardId[]): boolean {
+  const trumps = hand.filter(isRealTrump)
+  const outside = 21 - trumps.length - ecart.filter(isRealTrump).length
+  let topRun = 0
+  for (const card of suitCardsDesc('trumps')) {
+    if (!hand.includes(card)) {
+      break
+    }
+    topRun++
+  }
+  if (topRun < outside) {
+    return false
+  }
+  for (const suit of PLAIN_SUITS) {
+    const cards = hand.filter(card => botSuit(card) === suit)
+    const top = suitCardsDesc(suit).slice(0, cards.length)
+    if (!top.every(card => cards.includes(card))) {
+      return false
     }
   }
-  const card = pickLowestCard(view.legalMoves, state.trick)
+  return true
+}
+
+function canAnnounceChelem(state: GameState, seat: number): boolean {
+  return state.phase === 'ReadyToPlay'
+    && Boolean(state.bid)
+    && state.bid!.seat === seat
+    && !state.chelemAnnounce
+    && state.trick.length === 0
+    && (state.playedTricks?.length ?? 0) === 0
+    && !(state.playerCount === 5 && !state.calledKing)
+}
+
+/** A bot taker announcing a chelem before the first card (or null). */
+export function botChelemIntent(state: GameState, seat: number, override?: BotLevel): Intent | null {
+  const level = seatLevel(state, seat, override)
+  if (level === 'facile' || !canAnnounceChelem(state, seat)) {
+    return null
+  }
+  if (!wantsChelem(state.hands[seat] ?? [], state.ecart)) {
+    return null
+  }
+  return { type: 'announceChelem', kind: 'announced' }
+}
+
+function choosePlayIntent(state: GameState, seat: number, level: BotLevel): Intent {
+  const chelem = botChelemIntent(state, seat, level)
+  if (chelem) {
+    return chelem
+  }
+  const poignee = poigneeIntent(state, seat, level)
+  if (poignee) {
+    return poignee
+  }
+  const knowledge = buildKnowledge(state, seat, level)
+  if (knowledge.legal.length === 0) {
+    throw new Error('chooseBotIntent: no legal moves')
+  }
+  const card = choosePlay(knowledge, rngFor(state, seat, 'play'))
   return { type: 'playCard', card }
 }
 
-export function chooseBotIntent(state: GameState, seat: number): Intent {
+/**
+ * What a bot does at `seat`. It only uses what that seat may know (see
+ * `buildKnowledge`): its hand, the cards everyone saw and what the play shows.
+ */
+export function chooseBotIntent(state: GameState, seat: number, levelOverride?: BotLevel): Intent {
+  const level = seatLevel(state, seat, levelOverride)
   if (
     state.playerCount === 5
     && state.bid
@@ -231,7 +184,7 @@ export function chooseBotIntent(state: GameState, seat: number): Intent {
     if (seat !== state.bid.seat) {
       throw new Error(`chooseBotIntent: waiting for taker to call a king`)
     }
-    return chooseCallKingIntent(state, seat)
+    return chooseCallKingIntent(state, seat, level)
   }
 
   if (state.phase === 'Scoring') {
@@ -244,12 +197,12 @@ export function chooseBotIntent(state: GameState, seat: number): Intent {
 
   switch (state.phase) {
     case 'Bidding':
-      return chooseBidIntent(state, seat)
+      return chooseBidIntent(state, seat, level)
     case 'DogEcarta':
-      return chooseDiscardIntent(state, seat)
+      return chooseDiscardIntent(state, seat, level)
     case 'Trick':
     case 'ReadyToPlay':
-      return choosePlayIntent(state, seat)
+      return choosePlayIntent(state, seat, level)
     default:
       throw new Error(`chooseBotIntent: unsupported phase ${state.phase}`)
   }

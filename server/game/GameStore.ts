@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { apply, chooseBotIntent, createEmptyGame, toPrivateView } from '~~/shared/tarot'
+import { apply, botChelemIntent, chooseBotIntent, createEmptyGame, TAKEOVER_BOT_LEVEL, toPrivateView } from '~~/shared/tarot'
 import type { Actor, ApplyResult, GameState, Intent } from '~~/shared/tarot'
 import type { PeerHandle, Room } from './types'
 
@@ -227,7 +227,7 @@ class GameStore {
 
       const nextSeats = room.state.seats.map((current, index) =>
         index === currentSeat
-          ? { ...current, controlledBy: 'bot' as const }
+          ? { ...current, controlledBy: 'bot' as const, botLevel: current.botLevel ?? TAKEOVER_BOT_LEVEL }
           : current,
       )
       room.state = { ...room.state, seats: nextSeats, version: room.state.version + 1 }
@@ -339,6 +339,28 @@ class GameStore {
         }
       }, delayMs)
       return
+    }
+
+    // A bot taker with an unbeatable hand announces a chelem before the first
+    // card, even when another seat leads (the announcement gives it the lead).
+    if (state.phase === 'ReadyToPlay' && state.bid && state.bid.seat !== state.currentSeat) {
+      const takerSeat = state.bid.seat
+      const taker = state.seats[takerSeat]
+      if (taker?.userId && taker.controlledBy === 'bot' && botChelemIntent(state, takerSeat)) {
+        room.botTimer = setTimeout(() => {
+          room.botTimer = null
+          const current = this.rooms.get(code)
+          const seatInfo = current?.state.seats[takerSeat]
+          if (!current || !seatInfo?.userId || seatInfo.controlledBy !== 'bot') {
+            return
+          }
+          const intent = botChelemIntent(current.state, takerSeat)
+          if (intent) {
+            this.applyIntent(code, intent, { userId: seatInfo.userId, seat: takerSeat })
+          }
+        }, randomDelayMs('king'))
+        return
+      }
     }
 
     if (

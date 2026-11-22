@@ -15,6 +15,7 @@ function publicSeats(state: GameState): PublicSeatInfo[] {
     name: seat.name,
     connected: seat.connected,
     controlledBy: seat.controlledBy,
+    ...(seat.botLevel ? { botLevel: seat.botLevel } : {}),
   }))
 }
 

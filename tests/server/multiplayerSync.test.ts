@@ -120,7 +120,10 @@ class Client {
       ...(view.lastTrick ?? []).map(entry => entry.card),
       ...(view.chienRevealed ?? []),
       ...(view.legalMoves ?? []),
-      ...(view.calledKing ? [view.calledKing] : [])
+      ...(view.calledKing ? [view.calledKing] : []),
+      // Shown to the whole table by the FFT rules.
+      ...(view.poignees ?? []).flatMap(entry => entry.cards),
+      ...(view.ecartShownTrumps ?? [])
     ])
     for (const card of collectCards(view, new Set())) {
       if (!allowed.has(card)) {

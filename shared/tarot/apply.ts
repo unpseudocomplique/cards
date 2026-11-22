@@ -24,7 +24,16 @@ import type {
   Intent,
   PlayerCount,
 } from './types'
-import type { CardId } from './types'
+import type { BotLevel, CardId } from './types'
+
+export const BOT_LEVELS: BotLevel[] = ['facile', 'moyen', 'difficile']
+export const DEFAULT_BOT_LEVEL: BotLevel = 'moyen'
+/** A player who leaves or drops is replaced by a bot that plays as well as it can. */
+export const TAKEOVER_BOT_LEVEL: BotLevel = 'difficile'
+
+export function isBotLevel(value: unknown): value is BotLevel {
+  return typeof value === 'string' && (BOT_LEVELS as string[]).includes(value)
+}
 
 function chienSize(playerCount: PlayerCount): 6 | 3 {
   return playerCount === 5 ? 3 : 6
@@ -128,6 +137,8 @@ function resetDealFields(state: GameState): GameState {
     hands: Array.from({ length: state.playerCount }, () => [] as CardId[]),
     chien: [],
     dogShown: undefined,
+    dogSeen: undefined,
+    playedTricks: [],
     ecart: [],
     bidState: null,
     bid: null,
@@ -228,6 +239,7 @@ function takeDog(state: GameState, seat: number): GameState {
     ...state,
     hands,
     dogShown: [...state.chien],
+    dogSeen: [...state.chien],
     chien: [],
   }
 }
@@ -418,6 +430,7 @@ function resolveCompletedTrick(state: GameState): ApplyResult {
     ...piles,
     trick: [],
     lastTrick: state.trick.map(entry => ({ ...entry })),
+    playedTricks: [...(state.playedTricks ?? []), state.trick.map(entry => ({ ...entry }))],
     lastTrickWinnerSeat: winnerSeat,
     currentSeat: winnerSeat,
     attackTricks: state.attackTricks + (attackWon ? 1 : 0),
@@ -493,10 +506,31 @@ function handleAddBot(state: GameState, intent: Extract<Intent, { type: 'addBot'
           name: intent.name ?? `Bot ${emptyIndex + 1}`,
           connected: true,
           controlledBy: 'bot' as const,
+          botLevel: isBotLevel(intent.level) ? intent.level : DEFAULT_BOT_LEVEL,
         }
       : seat,
   )
   return success({ ...state, seats }, [{ type: 'botAdded', seat: emptyIndex }])
+}
+
+function handleSetBotLevel(state: GameState, intent: Extract<Intent, { type: 'setBotLevel' }>, actor: Actor): ApplyResult {
+  if (state.phase !== 'Lobby') {
+    return failure('WRONG_PHASE', 'Bot level can only change in the Lobby')
+  }
+  if (!isHost(state, actor.userId)) {
+    return failure('UNAUTHORIZED', 'Only the host can change a bot level')
+  }
+  const seatInfo = state.seats[intent.seat]
+  if (!seatInfo || seatInfo.controlledBy !== 'bot') {
+    return failure('ILLEGAL_MOVE', 'Seat is not controlled by a bot')
+  }
+  if (!isBotLevel(intent.level)) {
+    return failure('ILLEGAL_MOVE', `Unknown bot level ${String(intent.level)}`)
+  }
+  const seats = state.seats.map((seat, index) =>
+    index === intent.seat ? { ...seat, botLevel: intent.level } : seat,
+  )
+  return success({ ...state, seats }, [])
 }
 
 function handleRemoveBot(state: GameState, intent: Extract<Intent, { type: 'removeBot' }>, actor: Actor): ApplyResult {
@@ -794,7 +828,7 @@ function handleLeave(state: GameState, actor: Actor): ApplyResult {
   }
   const seats = state.seats.map((current, index) =>
     index === seat
-      ? { ...current, connected: false, controlledBy: 'bot' as const }
+      ? { ...current, connected: false, controlledBy: 'bot' as const, botLevel: current.botLevel ?? TAKEOVER_BOT_LEVEL }
       : current,
   )
   return success({ ...state, seats }, [])
@@ -808,6 +842,8 @@ export function apply(state: GameState, intent: Intent, actor: Actor): ApplyResu
       return handleAddBot(state, intent, actor)
     case 'removeBot':
       return handleRemoveBot(state, intent, actor)
+    case 'setBotLevel':
+      return handleSetBotLevel(state, intent, actor)
     case 'start':
       return handleStart(state, actor)
     case 'bid':
