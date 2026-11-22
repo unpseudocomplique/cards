@@ -1,5 +1,6 @@
 import { legalMovesForSeat } from './legalMoves'
 import { sortHand } from './handSort'
+import { resolveTrick } from './trick'
 import type {
   CardId,
   GameState,
@@ -19,6 +20,16 @@ function publicSeats(state: GameState): PublicSeatInfo[] {
     ...(seat.picture ? { picture: seat.picture } : {}),
     ...(seat.character ? { character: seat.character } : {})
   }))
+}
+
+function previousTrick(state: GameState): PublicGameView['previousTrick'] {
+  const cards = state.playedTricks?.at(-1)
+  if (!cards?.length) {
+    return null
+  }
+  const index = (state.playedTricks?.length ?? 0) - 1
+  const winnerSeat = state.playedTrickWinners?.[index] ?? resolveTrick(cards).winnerSeat
+  return { cards: cards.map(entry => ({ ...entry })), winnerSeat }
 }
 
 function chienRevealed(state: GameState): CardId[] | null {
@@ -95,6 +106,7 @@ export function toPublicView(state: GameState): PublicGameView {
     autoContinueAt: state.autoContinueAt,
     lastTrick: state.lastTrick ? state.lastTrick.map(entry => ({ ...entry })) : null,
     lastTrickWinnerSeat: state.lastTrickWinnerSeat ?? null,
+    previousTrick: previousTrick(state),
     poignees: state.poignees?.map(entry => ({ ...entry, cards: [...entry.cards] })),
     ecartShownTrumps: state.ecartShownTrumps ? [...state.ecartShownTrumps] : undefined,
     chelemAnnounce: state.chelemAnnounce,

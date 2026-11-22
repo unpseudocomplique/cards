@@ -30,6 +30,10 @@ const emit = defineEmits<{
 }>()
 
 const deck = useDeckFaceUrls(toRef(props, 'code'))
+const sound = useTableSound()
+
+/** The card meets the felt a little before its flight ends (ease-out). */
+const CARD_LANDS_S = 0.26
 const isMobile = useMediaQuery('(max-width: 640px)')
 
 const localSeat = computed(() => props.privateState?.seat ?? 0)
@@ -135,6 +139,7 @@ function celebrateBout(card: CardId, seat: number) {
     return
   }
   celebratedBouts.add(softKey)
+  sound.play('bout', CARD_LANDS_S + 0.1)
   const label = boutLabel(card) ?? 'Bout'
   pushFx({
     kind: 'bout',
@@ -199,6 +204,7 @@ function trickTarget(width: number, height: number, seat: number) {
 
 function enqueueFlight(flight: FlightState) {
   flights.value = [...flights.value, flight]
+  sound.play('card', CARD_LANDS_S)
 }
 
 function onFlightDone(card: CardId) {
@@ -322,6 +328,10 @@ function beginCollect(winnerSeat: number, trickCards: TrickEntry[]) {
   holdTimer = setTimeout(() => {
     holdTimer = null
     collectingToSeat.value = winnerSeat
+    sound.play('gather')
+    if (props.privateState && winnerSeat === props.privateState.seat) {
+      sound.vibrate('trickWon')
+    }
     collectTimer = setTimeout(() => {
       displayTrick.value = []
       collectingToSeat.value = null
