@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** Glass panel floating over the 3D table. */
+/** Wood and brass panel laid over the table (king call, écart, summaries). */
 defineProps<{
   title: string
   description?: string
@@ -8,11 +8,11 @@ defineProps<{
 </script>
 
 <template>
-  <section class="w-full rounded-2xl bg-neutral-950/80 p-4 text-white shadow-2xl shadow-black/50 ring-1 ring-white/10 backdrop-blur-xl sm:p-5 short:px-4 short:py-3">
+  <section class="table-plaque relative w-full rounded-2xl p-4 sm:p-5 short:px-4 short:py-3">
     <header class="flex items-start gap-3">
       <div
         v-if="icon"
-        class="grid size-9 shrink-0 place-items-center rounded-full bg-amber-300/15 text-amber-200"
+        class="grid size-9 shrink-0 place-items-center rounded-full bg-gradient-to-b from-[#f6d98c] to-[#c9922f] text-[#3a2208] shadow-md ring-2 ring-[#fff0c4]/70"
       >
         <UIcon
           :name="icon"
@@ -20,12 +20,12 @@ defineProps<{
         />
       </div>
       <div class="min-w-0 flex-1">
-        <h2 class="font-display text-2xl leading-tight text-amber-50 short:text-xl">
+        <h2 class="font-display text-2xl leading-tight text-[#f6e7c4] short:text-xl">
           {{ title }}
         </h2>
         <p
           v-if="description"
-          class="mt-0.5 text-sm text-white/60 short:text-xs"
+          class="mt-0.5 text-sm text-[#f6e7c4]/65 short:text-xs"
         >
           {{ description }}
         </p>
@@ -37,7 +37,7 @@ defineProps<{
     </div>
     <footer
       v-if="$slots.footer"
-      class="mt-4 flex flex-wrap items-center justify-end gap-2 short:mt-2"
+      class="mt-4 flex flex-wrap items-center justify-end gap-3 short:mt-2"
     >
       <slot name="footer" />
     </footer>

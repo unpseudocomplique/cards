@@ -2,6 +2,11 @@
 import type { Contract, PublicGameView } from '~~/shared/tarot'
 import { contractLabels, contractRank, contracts } from '~/utils/tarotContracts'
 
+/**
+ * Bidding, in the middle of the cloth: who is thinking, the bid to beat, and
+ * on your turn one table button per contract you may still say. What each
+ * player said shows under their portrait (SeatMedallions).
+ */
 const props = defineProps<{
   state: PublicGameView
   myTurn: boolean
@@ -12,16 +17,17 @@ const emit = defineEmits<{
   bid: [bid: Contract | 'passe']
 }>()
 
-const spoken = computed(() => props.state.bidSpoken ?? [])
-
 const highest = computed<Contract | null>(() => {
-  const bids = spoken.value.filter(entry => entry.bid !== 'passe')
+  const bids = (props.state.bidSpoken ?? []).filter(entry => entry.bid !== 'passe')
   return (bids.at(-1)?.bid as Contract | undefined) ?? null
 })
 
-function allowed(contract: Contract) {
-  return !highest.value || contractRank[contract] > contractRank[highest.value]
-}
+const highestBy = computed(() => {
+  const entry = [...(props.state.bidSpoken ?? [])].reverse().find(item => item.bid !== 'passe')
+  return entry ? seatName(entry.seat) : null
+})
+
+const open = computed(() => contracts.filter(contract => !highest.value || contractRank[contract] > contractRank[highest.value]))
 
 function seatName(seat: number) {
   if (seat === props.localSeat) {
@@ -30,77 +36,74 @@ function seatName(seat: number) {
   return props.state.seats[seat]?.name ?? `Joueur ${seat + 1}`
 }
 
-const thinking = computed(() => seatName(props.state.currentSeat))
+const variants: Record<Contract, 'felt' | 'gold' | 'wine' | 'ink'> = {
+  prise: 'felt',
+  garde: 'gold',
+  garde_sans: 'wine',
+  garde_contre: 'ink'
+}
 
-/** Landscape phones: one tight block so the hand and the table stay visible. */
 const isShort = useMediaQuery('(max-height: 520px)')
-const buttonSize = computed(() => isShort.value ? 'md' : 'lg')
+const isNarrow = useMediaQuery('(max-width: 420px)')
+const buttonSize = computed(() => isShort.value || isNarrow.value ? 'md' : 'lg')
 </script>
 
 <template>
-  <div class="mx-auto w-full max-w-2xl rounded-2xl bg-neutral-950/75 p-3 text-white ring-1 ring-white/10 backdrop-blur-xl sm:p-4 short:max-w-3xl short:rounded-xl short:px-3 short:py-2">
-    <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-      <p class="shrink-0 font-medium short:text-sm">
-        <template v-if="myTurn">
-          À vous de parler
-        </template>
-        <span
-          v-else
-          class="flex items-center gap-2 text-white/70"
-        >
-          <UIcon
-            name="i-lucide-loader-circle"
-            class="size-4 animate-spin"
-          />
-          {{ thinking }} réfléchit…
-        </span>
-      </p>
-      <p
-        v-if="highest"
-        class="ml-auto text-xs text-white/60 short:order-last"
-      >
-        À battre : <span class="font-semibold text-amber-200">{{ contractLabels[highest] }}</span>
-      </p>
-
-      <div
-        v-if="spoken.length"
-        class="flex w-full flex-wrap gap-1 short:w-auto"
-      >
-        <span
-          v-for="(entry, index) in spoken"
-          :key="`${entry.seat}-${index}`"
-          class="rounded-md px-1.5 py-0.5 text-[11px]"
-          :class="entry.bid === 'passe' ? 'bg-white/5 text-white/50' : 'bg-amber-400/15 text-amber-100'"
-        >
-          {{ seatName(entry.seat) }} · {{ entry.bid === 'passe' ? 'Passe' : contractLabels[entry.bid] }}
-        </span>
-      </div>
-    </div>
-
-    <div
-      v-if="myTurn"
-      class="mt-3 flex flex-wrap gap-1.5 max-sm:grid max-sm:grid-cols-6 short:mt-2"
+  <div class="flex flex-col items-center text-center">
+    <Transition
+      mode="out-in"
+      enter-active-class="transition duration-300 ease-out"
+      enter-from-class="translate-y-2 opacity-0"
+      leave-active-class="transition duration-150 ease-in"
+      leave-to-class="-translate-y-1 opacity-0"
     >
-      <UButton
-        label="Passe"
-        color="neutral"
-        variant="subtle"
-        :size="buttonSize"
-        class="min-w-fit flex-1 justify-center max-sm:col-span-2 bg-white/10 text-white ring-white/15 hover:bg-white/15"
-        @click="emit('bid', 'passe')"
-      />
-      <UButton
-        v-for="contract in contracts"
-        :key="contract"
-        :label="contractLabels[contract]"
-        :size="buttonSize"
-        :color="contract === 'garde_sans' || contract === 'garde_contre' ? 'warning' : 'primary'"
-        :variant="allowed(contract) ? 'solid' : 'subtle'"
-        :disabled="!allowed(contract)"
-        class="min-w-fit flex-1 justify-center whitespace-nowrap"
-        :class="contract === 'garde_sans' || contract === 'garde_contre' ? 'max-sm:col-span-3' : 'max-sm:col-span-2'"
-        @click="emit('bid', contract)"
-      />
-    </div>
+      <div
+        v-if="myTurn"
+        key="mine"
+        class="flex flex-col items-center"
+      >
+        <p class="font-display text-3xl leading-none text-[#f6e7c4] [text-shadow:0_2px_8px_rgba(0,0,0,.8)] short:text-2xl">
+          À vous de parler
+        </p>
+        <p class="mt-1 text-xs text-[#f6e7c4]/70 [text-shadow:0_1px_3px_#000]">
+          <template v-if="highest">
+            {{ highestBy }} {{ highestBy === 'Vous' ? 'avez' : 'a' }} dit {{ contractLabels[highest] }}
+          </template>
+          <template v-else>
+            Personne n’a encore pris
+          </template>
+        </p>
+        <div class="mt-3 flex max-w-[min(36rem,94vw)] flex-wrap justify-center gap-x-2.5 gap-y-3 short:mt-2">
+          <PlayGameButton
+            label="Passe"
+            :size="buttonSize"
+            @click="emit('bid', 'passe')"
+          />
+          <PlayGameButton
+            v-for="contract in open"
+            :key="contract"
+            :label="contractLabels[contract]"
+            :variant="variants[contract]"
+            :size="buttonSize"
+            @click="emit('bid', contract)"
+          />
+        </div>
+      </div>
+      <p
+        v-else
+        key="wait"
+        class="flex items-center gap-2 rounded-full bg-black/45 px-3.5 py-1.5 text-sm text-[#f6e7c4]/85 ring-1 ring-[#c9a463]/40 backdrop-blur-sm"
+      >
+        <UIcon
+          name="i-lucide-loader-circle"
+          class="size-4 animate-spin"
+        />
+        {{ seatName(state.currentSeat) }} réfléchit…
+        <span
+          v-if="highest"
+          class="text-[#f6e7c4]/55"
+        >· à battre : {{ contractLabels[highest] }}</span>
+      </p>
+    </Transition>
   </div>
 </template>

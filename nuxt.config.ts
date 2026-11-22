@@ -1,6 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
-  modules: ['@nuxt/eslint', '@nuxt/image', '@nuxt/ui', '@vueuse/nuxt', 'nuxt-auth-utils', 'motion-v/nuxt', '@tresjs/nuxt'],
+  modules: ['@nuxt/eslint', '@nuxt/image', '@nuxt/ui', '@vueuse/nuxt', 'nuxt-auth-utils', 'motion-v/nuxt'],
 
   devtools: {
     enabled: true
@@ -12,7 +12,17 @@ export default defineNuxtConfig({
         lang: 'fr'
       },
       meta: [
-        { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' }
+        { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
+        // Added to the home screen, the app opens without browser bars (the
+        // only way to play full screen on an iPhone).
+        { name: 'mobile-web-app-capable', content: 'yes' },
+        { name: 'apple-mobile-web-app-capable', content: 'yes' },
+        { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
+        { name: 'apple-mobile-web-app-title', content: 'Cards' }
+      ],
+      link: [
+        { rel: 'manifest', href: '/manifest.webmanifest' },
+        { rel: 'apple-touch-icon', href: '/icon-192.png' }
       ]
     }
   },
@@ -62,18 +72,17 @@ export default defineNuxtConfig({
       yjsWebsocketUrl: process.env.NUXT_PUBLIC_YJS_WEBSOCKET_URL || 'ws://localhost:1234'
     }
   },
+
+  routeRules: {
+    // OAuth + session routes must never be prerendered (crawlLinks would bake localhost redirect_uri).
+    '/auth/**': { prerender: false }
+  },
   devServer: {
     port: 3003,
     host: 'localhost'
   },
 
   compatibilityDate: '2024-11-01',
-
-  routeRules: {
-    // OAuth + session routes must never be prerendered (crawlLinks would bake localhost redirect_uri).
-    '/auth/**': { prerender: false },
-    '/play/salon-cast': { ssr: false, prerender: false }
-  },
 
   nitro: {
     experimental: {
@@ -96,7 +105,7 @@ export default defineNuxtConfig({
         '/'
       ],
       crawlLinks: false,
-      ignore: ['/auth/**', '/play/salon-cast']
+      ignore: ['/auth/**']
     }
   },
 

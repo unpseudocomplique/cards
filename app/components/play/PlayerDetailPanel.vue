@@ -40,7 +40,7 @@ const role = computed(() => {
     return null
   }
   if (bid.seat === props.seat) {
-    return { label: `Preneur · ${contractLabels[bid.contract]}`, icon: 'i-lucide-crown', tone: 'text-amber-200' }
+    return { label: `Preneur · ${contractLabels[bid.contract]}`, icon: 'i-lucide-sword', tone: 'text-amber-200' }
   }
   if (props.state.partnerSeat === props.seat) {
     return { label: 'Partenaire du preneur', icon: 'i-lucide-handshake', tone: 'text-sky-200' }

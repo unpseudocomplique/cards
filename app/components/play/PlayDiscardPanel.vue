@@ -112,17 +112,16 @@ const shownTrumps = computed(() => validation.value?.ok ? validation.value.shown
     </p>
 
     <template #footer>
-      <UButton
+      <PlayGameButton
         v-if="selected.length"
         label="Tout retirer"
-        color="neutral"
-        variant="ghost"
-        class="text-white/70 hover:bg-white/10"
+        size="md"
         @click="selected = []"
       />
-      <UButton
+      <PlayGameButton
         label="Valider l’écart"
         icon="i-lucide-check"
+        variant="gold"
         size="lg"
         :disabled="!validation?.ok"
         @click="emit('discard', selected)"

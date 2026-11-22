@@ -235,6 +235,12 @@ function leaveTable() {
 function play(card: CardId) {
   sendIntent({ type: 'playCard', card })
 }
+
+/* The score notebook on the table. */
+const scoresOpen = shallowRef(false)
+
+/* Phones held sideways: full screen at the first touch. */
+useTableFullscreen().install()
 </script>
 
 <template>
@@ -257,19 +263,20 @@ function play(card: CardId) {
     class="relative h-dvh w-full overflow-hidden overscroll-none bg-neutral-950"
     :style="{ '--table-card-ratio': cardRatio }"
   >
-    <PlayTresTableScene
-      class="absolute inset-0"
-      :code="code"
-      :public-state="publicState"
-      :private-state="privateState"
-      :debug-gfx="debugGfx"
-      :show-hand="showHand"
-      :emotes="emotes"
-      @play="play"
-    />
-
-    <!-- Soft shade behind the HUD so it reads without a heavy panel -->
-    <div class="pointer-events-none absolute inset-x-0 top-0 z-30 h-36 bg-gradient-to-b from-black/75 via-black/35 to-transparent short:h-24" />
+    <ClientOnly>
+      <PlayTableBoard
+        class="absolute inset-0"
+        :code="code"
+        :public-state="publicState"
+        :private-state="privateState"
+        :debug-gfx="debugGfx"
+        :show-hand="showHand"
+        :emotes="emotes"
+        :called-partner="isCalledPartner"
+        @play="play"
+        @scores="scoresOpen = true"
+      />
+    </ClientOnly>
 
     <!-- HUD -->
     <div class="pointer-events-none absolute inset-0 z-40 flex flex-col px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4 short:pt-[max(0.5rem,env(safe-area-inset-top))] short:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
@@ -280,7 +287,6 @@ function play(card: CardId) {
           :degraded="publicSyncDegraded"
           :offline="!connected"
           :called-partner="isCalledPartner"
-          :king-face-url="publicState.calledKing ? faceUrlFor(publicState.calledKing) : null"
           @leave="leaveOpen = true"
           @emote="sendEmote"
         />
@@ -288,7 +294,7 @@ function play(card: CardId) {
 
       <div
         v-if="showCut"
-        class="pointer-events-auto mt-3 w-full short:mt-2"
+        class="pointer-events-auto mt-16 w-full short:mt-12"
       >
         <PlayCutDock
           :state="publicState"
@@ -300,7 +306,7 @@ function play(card: CardId) {
 
       <div
         v-else-if="phase === 'Bidding'"
-        class="pointer-events-auto mt-3 w-full short:mt-2"
+        class="pointer-events-auto absolute inset-x-0 top-[38%] flex justify-center px-3 upright:top-[40%] short:top-[35%]"
       >
         <PlayBidDock
           :state="publicState"
@@ -312,24 +318,22 @@ function play(card: CardId) {
 
       <div
         v-if="poigneeTier || canAnnounceChelem"
-        class="pointer-events-auto mx-auto mt-3 flex flex-wrap justify-center gap-2"
+        class="pointer-events-auto mx-auto mt-16 flex flex-wrap justify-center gap-3 short:mt-12"
       >
-        <UButton
+        <PlayGameButton
           v-if="poigneeTier"
           :label="`Annoncer : ${poigneeName}`"
           icon="i-lucide-hand"
-          color="warning"
-          variant="solid"
-          class="rounded-full shadow-lg"
+          variant="gold"
+          size="sm"
           @click="sendIntent({ type: 'announcePoignee', tier: poigneeTier })"
         />
-        <UButton
+        <PlayGameButton
           v-if="canAnnounceChelem"
           label="Annoncer un chelem"
           icon="i-lucide-crown"
-          color="warning"
-          variant="outline"
-          class="rounded-full bg-black/40 shadow-lg"
+          variant="wine"
+          size="sm"
           @click="chelemOpen = true"
         />
       </div>
@@ -351,16 +355,42 @@ function play(card: CardId) {
           :face-url-for="faceUrlFor"
           @discard="sendIntent({ type: 'discard', cards: $event })"
         />
+        <PlayMatchPodium
+          v-else-if="phase === 'MatchOver'"
+          :state="publicState"
+          :local-seat="localSeat"
+        />
         <PlayDealSummary
           v-else-if="showSummary"
           :state="publicState"
           :local-seat="localSeat"
           @continue="sendIntent({ type: 'continue' })"
+          @hold="sendIntent({ type: 'holdScoring' })"
         />
       </div>
     </div>
 
     <PlayCardZoom />
+
+    <Transition
+      enter-active-class="transition duration-300 ease-out"
+      enter-from-class="opacity-0 [&>div]:translate-y-6 [&>div]:rotate-3"
+      leave-active-class="transition duration-150 ease-in"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="scoresOpen && publicState"
+        class="absolute inset-0 z-[70] grid place-items-center bg-black/45 px-3 backdrop-blur-[2px]"
+        @click.self="scoresOpen = false"
+      >
+        <PlayScoresSheet
+          class="transition duration-300"
+          :state="publicState"
+          :local-seat="localSeat"
+          @close="scoresOpen = false"
+        />
+      </div>
+    </Transition>
 
     <UModal
       v-model:open="chelemOpen"

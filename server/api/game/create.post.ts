@@ -12,7 +12,7 @@ const createGameSchema = z.object({
 
 export default defineEventHandler(async (event) => {
   const session = await requireUserSession(event) as {
-    user: { id: string, username?: string, name?: string }
+    user: { id: string, username?: string, name?: string, picture?: string | null }
   }
   const body = await readBody(event)
   const result = createGameSchema.safeParse(body)
