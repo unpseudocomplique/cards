@@ -247,7 +247,7 @@ function joinTable() {
                   name="i-lucide-smartphone"
                   class="mt-0.5 size-4 shrink-0"
                 />
-                Sur téléphone, la table se joue en paysage.
+                Sur téléphone, en portrait comme en paysage (plein écran en paysage).
               </li>
               <li class="flex gap-2">
                 <UIcon

@@ -1,4 +1,5 @@
 import type { BidState, Contract } from './bid'
+import type { DealBreakdown } from './score'
 
 export type CardId = string & { readonly __brand: 'CardId' }
 
@@ -29,6 +30,10 @@ export type SeatInfo = {
   controlledBy: 'human' | 'bot'
   /** How well the bot plays this seat (bots and seats taken over by a bot). */
   botLevel?: BotLevel
+  /** Account photo of a person (absent for bots). */
+  picture?: string | null
+  /** Salon character a bot plays as (portrait + name), see shared/play/salonCharacters. */
+  character?: string
 }
 
 export type BotLevel = 'facile' | 'moyen' | 'difficile'
@@ -36,6 +41,7 @@ export type BotLevel = 'facile' | 'moyen' | 'difficile'
 export type GameConfig = {
   hostUserId: string
   hostName?: string
+  hostPicture?: string | null
   playerCount: PlayerCount
   endMode: EndMode
   endValue: number
@@ -90,6 +96,18 @@ export type GameState = {
   defenseTricks: number
   /** Face-down won-trick stacks per seat (visual + bookkeeping). */
   tricksWonBySeat: number[]
+  /** Card points each seat collected in its won tricks this deal (public: tricks are played face up). */
+  pointsWonBySeat?: number[]
+  /** Bouts each seat collected in its won tricks this deal. */
+  oudlersWonBySeat?: number[]
+  /** Every step of the last deal's score, while phase === Scoring. */
+  lastDeal?: DealBreakdown
+  /** One line per finished deal of the match, for the end-of-match podium. */
+  dealHistory?: DealRecord[]
+  /** Someone asked the table to wait on the deal summary: no automatic next deal. */
+  scoringHeld?: boolean
+  /** Server time (ms) when the table moves on by itself from the deal summary. */
+  autoContinueAt?: number
   /** Last completed trick (kept briefly for client FX / collect anim). */
   lastTrick: Array<{ seat: number, card: CardId }> | null
   lastTrickWinnerSeat: number | null
@@ -155,7 +173,7 @@ export type ApplyResult =
   | { ok: false, error: ApplyError, reason: string }
 
 export type Intent =
-  | { type: 'join', name: string }
+  | { type: 'join', name: string, picture?: string | null }
   | { type: 'addBot', name?: string, level?: BotLevel }
   | { type: 'setBotLevel', seat: number, level: BotLevel }
   | { type: 'removeBot', seat: number }
@@ -168,6 +186,7 @@ export type Intent =
   | { type: 'announceChelem', kind: 'announced' | 'defense' }
   | { type: 'playCard', card: CardId }
   | { type: 'continue' }
+  | { type: 'holdScoring' }
   | { type: 'leave' }
 
 export type PublicSeatInfo = Omit<SeatInfo, 'userId'> & { userId: string | null }
@@ -196,6 +215,12 @@ export type PublicGameView = {
   pilesAttackCount: number
   pilesDefenseCount: number
   tricksWonBySeat: number[]
+  pointsWonBySeat?: number[]
+  oudlersWonBySeat?: number[]
+  lastDeal?: DealBreakdown
+  dealHistory?: DealRecord[]
+  scoringHeld?: boolean
+  autoContinueAt?: number
   lastTrick: Array<{ seat: number, card: CardId }> | null
   lastTrickWinnerSeat: number | null
   poignees?: PoigneeShown[]
@@ -224,3 +249,15 @@ export interface DealResult {
 
 export const TAROT_SUITS = ['hearts', 'diamonds', 'clubs', 'spades'] as const
 export const TAROT_RANKS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'j', 'c', 'q', 'k'] as const
+
+export type DealRecord = {
+  takerSeat: number
+  partnerSeat?: number
+  contract: Contract
+  success: boolean
+  diff: number
+  deltas: Record<number, number>
+  tricksWonBySeat: number[]
+  petitAuBoutCamp?: 'attack' | 'defense'
+  chelem?: boolean
+}

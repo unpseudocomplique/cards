@@ -77,3 +77,30 @@ body {
     animation: none;
   }
 }
+
+/* Play table: wood and brass surfaces (see app/components/play/GameButton.vue). */
+@utility table-plaque {
+  color: #f6e7c4;
+  background:
+    repeating-linear-gradient(97deg, rgba(0, 0, 0, 0.1) 0 2px, transparent 2px 9px, rgba(255, 255, 255, 0.02) 9px 11px, transparent 11px 23px),
+    linear-gradient(#4a2c1a, #2b190e);
+  border: 1.5px solid #c9a463;
+  box-shadow:
+    0 0 0 3px rgba(58, 37, 18, 0.9),
+    0 18px 40px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+@utility table-menu {
+  color: #f6e7c4;
+  background: linear-gradient(#3e2617, #24150c);
+  border: 1.5px solid #c9a463;
+  box-shadow: 0 0 0 3px rgba(36, 21, 12, 0.9), 0 18px 34px rgba(0, 0, 0, 0.6);
+}
+
+/* Cream score sheet lying on the cloth. */
+@utility table-paper {
+  color: #3b2a18;
+  background: linear-gradient(#fbf3df, #f1e2bf);
+  box-shadow: 0 0 0 1.5px #c9a463, 0 16px 34px rgba(0, 0, 0, 0.6);
+}

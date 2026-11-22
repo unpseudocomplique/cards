@@ -200,7 +200,7 @@ const isShort = useMediaQuery('(max-height: 520px)')
 
 <template>
   <div
-    class="mx-auto w-full max-w-2xl rounded-2xl bg-neutral-950/75 p-3 text-white ring-1 ring-white/10 backdrop-blur-xl sm:p-4 short:max-w-3xl short:rounded-xl short:px-3 short:py-2"
+    class="table-plaque mx-auto w-full max-w-2xl rounded-2xl p-3 sm:p-4 short:max-w-3xl short:rounded-xl short:px-3 short:py-2"
     data-testid="cut-dock"
   >
     <div class="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
@@ -311,12 +311,12 @@ const isShort = useMediaQuery('(max-height: 520px)')
       <p class="flex-1 text-xs text-white/55">
         Glissez pour choisir. Au moins {{ range.min }} cartes de chaque côté.
       </p>
-      <UButton
+      <PlayGameButton
         :label="sent ? 'Coupe…' : 'Couper ici'"
         icon="i-lucide-scissors"
+        variant="gold"
         :size="isShort ? 'md' : 'lg'"
         :loading="sent"
-        class="rounded-full"
         @click="confirm"
       />
     </div>

@@ -17,6 +17,7 @@ export function createEmptyGame(config: GameConfig): GameState {
         seatId: 0,
         userId: config.hostUserId,
         name: config.hostName ?? 'Host',
+        picture: config.hostPicture ?? null,
         connected: true,
         controlledBy: 'human',
       }

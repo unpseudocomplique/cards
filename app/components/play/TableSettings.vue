@@ -2,6 +2,7 @@
 import { AMBIANCE_CHOICES } from '~/utils/ambianceThemes'
 
 const { themeId, setTheme } = usePlayAmbiance()
+const fullscreen = useTableFullscreen()
 
 const open = shallowRef(false)
 const root = ref<HTMLElement | null>(null)
@@ -16,16 +17,11 @@ onClickOutside(root, () => {
     ref="root"
     class="relative"
   >
-    <UButton
+    <PlayRoundButton
       icon="i-lucide-settings-2"
-      color="neutral"
-      variant="ghost"
-      size="sm"
-      square
-      class="rounded-lg bg-black/40 text-white/80 ring-1 ring-white/10 backdrop-blur-md hover:bg-black/60 hover:text-white"
-      :class="open ? 'bg-black/70 text-white ring-white/30' : ''"
+      label="Réglages de la table"
+      :active="open"
       :aria-expanded="open"
-      aria-label="Réglages de la table"
       @click="open = !open"
     />
     <Transition
@@ -36,12 +32,38 @@ onClickOutside(root, () => {
     >
       <div
         v-if="open"
-        class="absolute top-full right-0 z-50 mt-2 w-64 rounded-xl bg-neutral-950/92 p-1.5 shadow-2xl ring-1 ring-white/15 backdrop-blur-md"
+        class="absolute top-full right-0 z-50 mt-2 w-64 rounded-xl table-menu p-1.5"
         role="radiogroup"
-        aria-label="Ambiance de la pièce"
+        aria-label="Tapis de la table"
       >
+        <button
+          v-if="fullscreen.supported.value"
+          type="button"
+          class="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition hover:bg-white/10"
+          @click="fullscreen.toggle()"
+        >
+          <UIcon
+            :name="fullscreen.active.value ? 'i-lucide-minimize' : 'i-lucide-maximize'"
+            class="size-4 shrink-0 text-amber-300"
+          />
+          <span class="min-w-0">
+            <span class="block text-sm font-medium text-white">{{ fullscreen.active.value ? 'Quitter le plein écran' : 'Plein écran' }}</span>
+            <span class="block truncate text-xs text-white/50">Automatique en paysage sur téléphone</span>
+          </span>
+        </button>
+        <p
+          v-else-if="fullscreen.iosBrowser.value"
+          class="px-2 py-1.5 text-xs leading-snug text-white/60"
+        >
+          <UIcon
+            name="i-lucide-maximize"
+            class="mr-1 size-3.5 align-[-2px] text-amber-300"
+          />
+          Plein écran sur iPhone : Partager, puis « Sur l’écran d’accueil », et ouvrez Cards depuis l’icône.
+        </p>
+        <div class="my-1 h-px bg-white/10" />
         <p class="px-2 pt-1 pb-1.5 text-[10px] tracking-[0.12em] text-white/50 uppercase">
-          Ambiance
+          Tapis
         </p>
         <button
           v-for="choice in AMBIANCE_CHOICES"

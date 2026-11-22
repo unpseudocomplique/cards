@@ -32,18 +32,13 @@ function send(emote: TableEmote) {
     ref="root"
     class="relative"
   >
-    <UButton
+    <PlayRoundButton
       icon="i-lucide-smile-plus"
-      color="neutral"
-      variant="ghost"
-      size="sm"
-      square
-      class="rounded-lg bg-black/40 text-white/80 ring-1 ring-white/10 backdrop-blur-md hover:bg-black/60 hover:text-white"
-      :class="open ? 'bg-black/70 text-white ring-white/30' : ''"
+      label="Envoyer une réaction"
+      :active="open"
+      :class="coolingDown ? 'opacity-60' : ''"
       :aria-expanded="open"
-      aria-label="Envoyer une réaction"
-      :disabled="coolingDown"
-      @click="open = !open"
+      @click="!coolingDown && (open = !open)"
     />
     <Transition
       enter-active-class="transition duration-150 ease-out"
@@ -53,7 +48,7 @@ function send(emote: TableEmote) {
     >
       <div
         v-if="open"
-        class="absolute top-full right-0 z-50 mt-2 grid w-max grid-cols-4 gap-1 rounded-xl bg-neutral-950/90 p-1.5 shadow-2xl ring-1 ring-white/15 backdrop-blur-md"
+        class="absolute top-full right-0 z-50 mt-2 grid w-max grid-cols-4 gap-1 rounded-xl table-menu p-1.5"
         role="menu"
       >
         <button

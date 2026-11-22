@@ -16,6 +16,8 @@ function publicSeats(state: GameState): PublicSeatInfo[] {
     connected: seat.connected,
     controlledBy: seat.controlledBy,
     ...(seat.botLevel ? { botLevel: seat.botLevel } : {}),
+    ...(seat.picture ? { picture: seat.picture } : {}),
+    ...(seat.character ? { character: seat.character } : {}),
   }))
 }
 
@@ -85,6 +87,12 @@ export function toPublicView(state: GameState): PublicGameView {
     pilesAttackCount: state.pilesAttack.length,
     pilesDefenseCount: state.pilesDefense.length,
     tricksWonBySeat: [...(state.tricksWonBySeat ?? Array.from({ length: state.playerCount }, () => 0))],
+    pointsWonBySeat: state.pointsWonBySeat ? [...state.pointsWonBySeat] : undefined,
+    oudlersWonBySeat: state.oudlersWonBySeat ? [...state.oudlersWonBySeat] : undefined,
+    lastDeal: state.lastDeal ? { ...state.lastDeal, deltas: { ...state.lastDeal.deltas } } : undefined,
+    dealHistory: state.dealHistory?.map(entry => ({ ...entry, deltas: { ...entry.deltas }, tricksWonBySeat: [...entry.tricksWonBySeat] })),
+    scoringHeld: state.scoringHeld,
+    autoContinueAt: state.autoContinueAt,
     lastTrick: state.lastTrick ? state.lastTrick.map(entry => ({ ...entry })) : null,
     lastTrickWinnerSeat: state.lastTrickWinnerSeat ?? null,
     poignees: state.poignees?.map(entry => ({ ...entry, cards: [...entry.cards] })),
