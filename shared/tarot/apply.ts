@@ -2,22 +2,21 @@ import {
   applyBid,
   createBidState,
   expectedSeat,
-  type Contract,
+  type Contract
 } from './bid'
 import {
   callableCards,
   poigneeCards,
   poigneePrimeForTier,
-  poigneeTiers,
+  poigneeTiers
 } from './announces'
-import { buildTarot78Deck } from './deck'
+import { buildTarot78Deck, cardPoints, isOudler } from './deck'
 import { dealFromShuffled, shuffleDeck } from './deal'
 import { cutDeck, cutterSeat, gatherHands, gatherPlayedDeal, isValidCut } from './cut'
 import { mergeChienIntoHand, validateEcart } from './ecart'
-import { attackSeats, isAttackSeat } from './camps'
+import { isAttackSeat } from './camps'
 import { legalMovesForSeat } from './legalMoves'
 import { computeDealBreakdown } from './score'
-import { cardPoints, isOudler } from './deck'
 import { resolveTrick } from './trick'
 import { SALON_CHARACTERS } from '../play/salonCharacters'
 import type {
@@ -26,9 +25,8 @@ import type {
   GameEvent,
   GameState,
   Intent,
-  PlayerCount,
+  PlayerCount, BotLevel, CardId, DeckSource
 } from './types'
-import type { BotLevel, CardId, DeckSource } from './types'
 
 export const BOT_LEVELS: BotLevel[] = ['facile', 'moyen', 'difficile']
 export const DEFAULT_BOT_LEVEL: BotLevel = 'moyen'
@@ -52,13 +50,13 @@ function success(state: GameState, events: GameEvent[]): ApplyResult {
   return {
     ok: true,
     state: { ...state, version: state.version + 1 },
-    events,
+    events
   }
 }
 
 function failure(
   error: Extract<ApplyResult, { ok: false }>['error'],
-  reason: string,
+  reason: string
 ): ApplyResult {
   return { ok: false, error, reason }
 }
@@ -174,7 +172,7 @@ function resetDealFields(state: GameState): GameState {
     deck: undefined,
     deckSource: undefined,
     redealReason: undefined,
-    lastCut: undefined,
+    lastCut: undefined
   }
 }
 
@@ -191,7 +189,7 @@ function beginCut(
     incrementDealIndex: boolean
     redealReason?: GameState['redealReason']
     rngCounter?: number
-  },
+  }
 ): GameState {
   return {
     ...resetDealFields(state),
@@ -202,7 +200,7 @@ function beginCut(
     redealReason: options.redealReason,
     rngCounter: options.rngCounter ?? state.rngCounter,
     dealIndex: state.dealIndex + (options.incrementDealIndex ? 1 : 0),
-    currentSeat: cutterSeat(options.dealerSeat, state.playerCount),
+    currentSeat: cutterSeat(options.dealerSeat, state.playerCount)
   }
 }
 
@@ -210,7 +208,7 @@ function beginCut(
 function shuffledPack(state: GameState, cards: CardId[] = buildTarot78Deck()): { deck: CardId[], rngCounter: number } {
   return {
     deck: shuffleDeck(cards, makeRng(state.rngCounter)),
-    rngCounter: state.rngCounter + 1,
+    rngCounter: state.rngCounter + 1
   }
 }
 
@@ -243,9 +241,9 @@ function handleCut(state: GameState, intent: Extract<Intent, { type: 'cut' }>, a
         source: 'shuffled',
         dealerSeat: nextSeat(state, state.dealerSeat),
         incrementDealIndex: false,
-        redealReason: 'petit_sec',
+        redealReason: 'petit_sec'
       }),
-      events,
+      events
     )
   }
 
@@ -260,7 +258,7 @@ function handleCut(state: GameState, intent: Extract<Intent, { type: 'cut' }>, a
     bidState,
     bidSpoken: [],
     currentSeat: expectedSeat(bidState),
-    lastCut: { seat, at: intent.at },
+    lastCut: { seat, at: intent.at }
   }
   events.push({ type: 'dealt', dealIndex: next.dealIndex })
   return success(next, events)
@@ -272,7 +270,7 @@ function enterContractWon(state: GameState, seat: number, contract: Contract): G
     ...state,
     bid,
     bidState: null,
-    bidSpoken: state.bidState?.spoken ?? state.bidSpoken,
+    bidSpoken: state.bidState?.spoken ?? state.bidSpoken
   }
 
   if (contract === 'garde_sans' || contract === 'garde_contre') {
@@ -280,14 +278,14 @@ function enterContractWon(state: GameState, seat: number, contract: Contract): G
       ...base,
       phase: 'ReadyToPlay',
       currentSeat: firstLeaderSeat(state),
-      trick: [],
+      trick: []
     }
   }
 
   const dogEcarta: GameState = {
     ...base,
     phase: 'DogEcarta',
-    currentSeat: seat,
+    currentSeat: seat
   }
   // 5 players: the taker calls a king before the dog is turned over.
   if (state.playerCount === 5) {
@@ -305,7 +303,7 @@ function takeDog(state: GameState, seat: number): GameState {
     hands,
     dogShown: [...state.chien],
     dogSeen: [...state.chien],
-    chien: [],
+    chien: []
   }
 }
 
@@ -318,7 +316,7 @@ function takeDog(state: GameState, seat: number): GameState {
 function distributeTrickCards(
   state: GameState,
   winnerSeat: number,
-  lastTrick: boolean,
+  lastTrick: boolean
 ): Pick<GameState, 'pilesAttack' | 'pilesDefense' | 'excuseOwedBy'> {
   const pilesAttack = [...state.pilesAttack]
   const pilesDefense = [...state.pilesDefense]
@@ -392,19 +390,19 @@ function scoreDeal(state: GameState): { state: GameState, events: GameEvent[] } 
     defenseCards: state.pilesDefense,
     poigneePrime: poigneePrime || undefined,
     petitAuBoutCamp: state.petitAuBoutCamp,
-    chelem,
+    chelem
   })
   const deltas = breakdown.deltas
 
   const scores = state.scores.map((score, seat) => score + (deltas[seat] ?? 0))
   const events: GameEvent[] = [{ type: 'dealScored', deltas }]
 
-  const thresholdReached =
-    state.endMode === 'threshold'
-    && scores.some(score => Math.abs(score) >= state.endValue)
-  const dealsReached =
-    state.endMode === 'deals'
-    && state.dealIndex >= state.endValue
+  const thresholdReached
+    = state.endMode === 'threshold'
+      && scores.some(score => Math.abs(score) >= state.endValue)
+  const dealsReached
+    = state.endMode === 'deals'
+      && state.dealIndex >= state.endValue
 
   return {
     state: {
@@ -422,13 +420,13 @@ function scoreDeal(state: GameState): { state: GameState, events: GameEvent[] } 
         deltas,
         tricksWonBySeat: [...state.tricksWonBySeat],
         petitAuBoutCamp: state.petitAuBoutCamp,
-        chelem: chelem === 'announced_made' || chelem === 'unannounced_made' || undefined,
+        chelem: chelem === 'announced_made' || chelem === 'unannounced_made' || undefined
       }],
       scoringHeld: undefined,
       matchShouldEnd: thresholdReached || dealsReached,
-      currentSeat: state.dealerSeat,
+      currentSeat: state.dealerSeat
     },
-    events,
+    events
   }
 }
 
@@ -458,9 +456,9 @@ function handleContinue(state: GameState, actor: Actor): ApplyResult {
         phase: 'MatchOver',
         matchShouldEnd: undefined,
         autoContinueAt: undefined,
-        scoringHeld: undefined,
+        scoringHeld: undefined
       },
-      [{ type: 'matchOver' }],
+      [{ type: 'matchOver' }]
     )
   }
 
@@ -469,7 +467,7 @@ function handleContinue(state: GameState, actor: Actor): ApplyResult {
     deck: gatherPlayedDeal(state),
     source: 'gathered',
     dealerSeat: nextSeat(state, state.dealerSeat),
-    incrementDealIndex: true,
+    incrementDealIndex: true
   })
   return success(next, [])
 }
@@ -477,7 +475,7 @@ function handleContinue(state: GameState, actor: Actor): ApplyResult {
 function resolvePartnerSeat(
   state: GameState,
   king: CardId,
-  takerSeat: number,
+  takerSeat: number
 ): number | undefined {
   for (let seat = 0; seat < state.playerCount; seat++) {
     if (state.hands[seat]?.includes(king)) {
@@ -511,7 +509,7 @@ function resolveCompletedTrick(state: GameState): ApplyResult {
   const winnerCamp = attackWon ? 'attack' as const : 'defense' as const
   const petitInTrick = state.trick.some(entry => entry.card === 'trump-1')
   const tricksWonBySeat = state.tricksWonBySeat.map((count, seat) =>
-    seat === winnerSeat ? count + 1 : count,
+    seat === winnerSeat ? count + 1 : count
   )
   const pointsWonBySeat = [...(state.pointsWonBySeat ?? Array.from({ length: state.playerCount }, () => 0))]
   const oudlersWonBySeat = [...(state.oudlersWonBySeat ?? Array.from({ length: state.playerCount }, () => 0))]
@@ -537,14 +535,13 @@ function resolveCompletedTrick(state: GameState): ApplyResult {
     tricksWonBySeat,
     pointsWonBySeat,
     oudlersWonBySeat,
-    petitTrick: petitInTrick ? { number: previousTricks + 1, camp: winnerCamp } : state.petitTrick,
+    petitTrick: petitInTrick ? { number: previousTricks + 1, camp: winnerCamp } : state.petitTrick
   }
 
   if (lastTrick) {
     if (petitInTrick) {
       next = { ...next, petitAuBoutCamp: winnerCamp }
-    }
-    else if (excuseWonChelem && state.petitTrick?.number === previousTricks) {
+    } else if (excuseWonChelem && state.petitTrick?.number === previousTricks) {
       // Chelem with the Excuse played last: the Petit is "au bout" on the
       // second-to-last trick.
       next = { ...next, petitAuBoutCamp: state.petitTrick.camp }
@@ -577,14 +574,14 @@ function handleJoin(state: GameState, intent: Extract<Intent, { type: 'join' }>,
           name: intent.name,
           picture: intent.picture ?? null,
           connected: true,
-          controlledBy: 'human' as const,
+          controlledBy: 'human' as const
         }
-      : seat,
+      : seat
   )
 
   return success(
     { ...state, seats },
-    [{ type: 'joined', seat: emptyIndex, userId: actor.userId }],
+    [{ type: 'joined', seat: emptyIndex, userId: actor.userId }]
   )
 }
 
@@ -628,9 +625,9 @@ function handleAddBot(state: GameState, intent: Extract<Intent, { type: 'addBot'
           character: character?.id,
           connected: true,
           controlledBy: 'bot' as const,
-          botLevel: isBotLevel(intent.level) ? intent.level : DEFAULT_BOT_LEVEL,
+          botLevel: isBotLevel(intent.level) ? intent.level : DEFAULT_BOT_LEVEL
         }
-      : seat,
+      : seat
   )
   return success({ ...state, seats }, [{ type: 'botAdded', seat: emptyIndex }])
 }
@@ -650,7 +647,7 @@ function handleSetBotLevel(state: GameState, intent: Extract<Intent, { type: 'se
     return failure('ILLEGAL_MOVE', `Unknown bot level ${String(intent.level)}`)
   }
   const seats = state.seats.map((seat, index) =>
-    index === intent.seat ? { ...seat, botLevel: intent.level } : seat,
+    index === intent.seat ? { ...seat, botLevel: intent.level } : seat
   )
   return success({ ...state, seats }, [])
 }
@@ -673,9 +670,9 @@ function handleRemoveBot(state: GameState, intent: Extract<Intent, { type: 'remo
           userId: null,
           name: '',
           connected: false,
-          controlledBy: 'human' as const,
+          controlledBy: 'human' as const
         }
-      : seat,
+      : seat
   )
   return success({ ...state, seats }, [{ type: 'botRemoved', seat: intent.seat }])
 }
@@ -698,7 +695,7 @@ function handleStart(state: GameState, actor: Actor): ApplyResult {
     rngCounter: shuffled.rngCounter,
     source: 'shuffled',
     dealerSeat: state.dealerSeat,
-    incrementDealIndex: true,
+    incrementDealIndex: true
   })
   return success(next, [{ type: 'started' }])
 }
@@ -723,7 +720,7 @@ function handleBid(state: GameState, intent: Extract<Intent, { type: 'bid' }>, a
     ...state,
     bidState: result.state,
     bidSpoken: result.state.spoken,
-    currentSeat: result.outcome ? state.currentSeat : expectedSeat(result.state),
+    currentSeat: result.outcome ? state.currentSeat : expectedSeat(result.state)
   }
 
   if (result.outcome?.type === 'all_pass') {
@@ -735,7 +732,7 @@ function handleBid(state: GameState, intent: Extract<Intent, { type: 'bid' }>, a
       source: 'gathered',
       dealerSeat: nextSeat(state, state.dealerSeat),
       incrementDealIndex: false,
-      redealReason: 'all_pass',
+      redealReason: 'all_pass'
     })
     return success(redealt, events)
   }
@@ -744,7 +741,7 @@ function handleBid(state: GameState, intent: Extract<Intent, { type: 'bid' }>, a
     events.push({
       type: 'contractWon',
       seat: result.outcome.seat,
-      contract: result.outcome.contract,
+      contract: result.outcome.contract
     })
     next = enterContractWon(next, result.outcome.seat, result.outcome.contract)
   }
@@ -778,7 +775,7 @@ function handleCallKing(state: GameState, intent: Extract<Intent, { type: 'callK
   const called: GameState = {
     ...state,
     calledKing: intent.king,
-    partnerSeat,
+    partnerSeat
   }
   const dogStillHidden = state.phase === 'DogEcarta' && state.chien.length > 0
   return success(dogStillHidden ? takeDog(called, seat) : called, [])
@@ -829,16 +826,16 @@ function handleDiscard(state: GameState, intent: Extract<Intent, { type: 'discar
       ecart: [...intent.cards],
       ecartShownTrumps: validation.shownTrumps.length > 0 ? [...validation.shownTrumps] : undefined,
       currentSeat: firstLeaderSeat(state),
-      trick: [],
+      trick: []
     },
-    [{ type: 'ecartLocked', seat }],
+    [{ type: 'ecartLocked', seat }]
   )
 }
 
 function handleAnnouncePoignee(
   state: GameState,
   intent: Extract<Intent, { type: 'announcePoignee' }>,
-  actor: Actor,
+  actor: Actor
 ): ApplyResult {
   // FFT: shown just before the player plays their own first card.
   if (state.phase !== 'ReadyToPlay' && state.phase !== 'Trick') {
@@ -875,7 +872,7 @@ function handleAnnouncePoignee(
 function handleAnnounceChelem(
   state: GameState,
   intent: Extract<Intent, { type: 'announceChelem' }>,
-  actor: Actor,
+  actor: Actor
 ): ApplyResult {
   if (state.phase !== 'ReadyToPlay') {
     return failure('WRONG_PHASE', 'Chelem can only be announced before play')
@@ -929,19 +926,19 @@ function handlePlayCard(state: GameState, intent: Extract<Intent, { type: 'playC
   }
 
   const hands = state.hands.map((current, index) =>
-    index === seat ? removeOneCard(current, intent.card) : [...current],
+    index === seat ? removeOneCard(current, intent.card) : [...current]
   )
   const trick = [...state.trick, { seat, card: intent.card }]
   const events: GameEvent[] = [{ type: 'cardPlayed', seat, card: intent.card }]
 
-  let next: GameState = {
+  const next: GameState = {
     ...state,
     phase: 'Trick',
     hands,
     trick,
     currentSeat: nextSeat(state, seat),
     lastTrick: null,
-    lastTrickWinnerSeat: null,
+    lastTrickWinnerSeat: null
   }
 
   if (trick.length < state.playerCount) {
@@ -959,7 +956,7 @@ function handleLeave(state: GameState, actor: Actor): ApplyResult {
   const seats = state.seats.map((current, index) =>
     index === seat
       ? { ...current, connected: false, controlledBy: 'bot' as const, botLevel: current.botLevel ?? TAKEOVER_BOT_LEVEL }
-      : current,
+      : current
   )
   return success({ ...state, seats }, [])
 }

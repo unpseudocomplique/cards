@@ -6,7 +6,7 @@ const SUIT_FR: Record<string, string> = {
   hearts: 'cœur',
   diamonds: 'carreau',
   clubs: 'trèfle',
-  spades: 'pique',
+  spades: 'pique'
 }
 
 const RANK_FR: Record<string, string> = {
@@ -14,21 +14,21 @@ const RANK_FR: Record<string, string> = {
   q: 'Dame',
   c: 'Cavalier',
   j: 'Valet',
-  '1': 'As',
-  '10': '10',
-  '9': '9',
-  '8': '8',
-  '7': '7',
-  '6': '6',
-  '5': '5',
-  '4': '4',
-  '3': '3',
-  '2': '2',
+  1: 'As',
+  10: '10',
+  9: '9',
+  8: '8',
+  7: '7',
+  6: '6',
+  5: '5',
+  4: '4',
+  3: '3',
+  2: '2'
 }
 
 export function cardLabelFr(card: CardId): string {
   if (card === 'excuse') {
-    return "l'Excuse"
+    return 'l\'Excuse'
   }
   if (card.startsWith('trump-')) {
     const value = card.slice('trump-'.length)
@@ -68,7 +68,7 @@ function seatLabel(state: SeatNamed, seat: number): string {
  */
 export function describeTrick(
   state: Pick<PublicGameView, 'playerCount' | 'bid' | 'partnerSeat' | 'seats'>,
-  trick: Array<{ seat: number, card: CardId }>,
+  trick: Array<{ seat: number, card: CardId }>
 ): TrickSummary {
   const { winnerSeat } = resolveTrick(trick)
   const winningEntry = trick.find(entry => entry.seat === winnerSeat)!
@@ -80,7 +80,7 @@ export function describeTrick(
   const steal = isPetitStolen(state, trick, winnerSeat)
   if (steal.stolen) {
     details.push(
-      `${seatLabel(state, steal.thiefSeat)} vole le Petit de ${seatLabel(state, steal.victimSeat)}`,
+      `${seatLabel(state, steal.thiefSeat)} vole le Petit de ${seatLabel(state, steal.victimSeat)}`
     )
   }
 
@@ -98,11 +98,9 @@ export function describeTrick(
   let how = `avec ${cardLabelFr(winningCard)}`
   if (ledSuit === 'trumps') {
     how = `plus fort à l'atout (${cardLabelFr(winningCard)})`
-  }
-  else if (trumpValue(winningCard) != null) {
+  } else if (trumpValue(winningCard) != null) {
     how = `coupe avec ${cardLabelFr(winningCard)}`
-  }
-  else if (ledSuit) {
+  } else if (ledSuit) {
     how = `plus fort en ${SUIT_FR[ledSuit] ?? ledSuit} (${cardLabelFr(winningCard)})`
   }
 
@@ -119,6 +117,6 @@ export function describeTrick(
     details,
     winnerSeat,
     winningCard,
-    accent,
+    accent
   }
 }

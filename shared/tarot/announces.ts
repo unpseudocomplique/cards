@@ -3,7 +3,7 @@ import type { CardId, PlayerCount } from './types'
 export const KING_IDS = ['hearts-k', 'diamonds-k', 'clubs-k', 'spades-k'] as const
 export type KingId = (typeof KING_IDS)[number]
 
-export function isKingCard(card: CardId): card is KingId {
+export function isKingCard(card: CardId): card is CardId & KingId {
   return (KING_IDS as readonly string[]).includes(card)
 }
 
@@ -20,7 +20,7 @@ export function poigneeTiers(playerCount: PlayerCount): Array<8 | 10 | 13 | 15 |
 
 export function poigneePrimeForTier(
   playerCount: PlayerCount,
-  tier: 8 | 10 | 13 | 15 | 18,
+  tier: 8 | 10 | 13 | 15 | 18
 ): number | null {
   const tiers = poigneeTiers(playerCount)
   const index = tiers.indexOf(tier)

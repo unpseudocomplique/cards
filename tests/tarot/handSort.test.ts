@@ -17,7 +17,7 @@ describe('sortHand', () => {
       c('diamonds-q'),
       c('spades-8'),
       c('spades-10'),
-      c('spades-9'),
+      c('spades-9')
     ]
     expect(sortHand(hand)).toEqual([
       c('trump-21'),
@@ -30,7 +30,7 @@ describe('sortHand', () => {
       c('spades-8'),
       c('hearts-k'),
       c('hearts-1'),
-      c('diamonds-q'),
+      c('diamonds-q')
     ])
   })
 
@@ -43,7 +43,7 @@ describe('sortHand', () => {
       c('clubs-10'),
       c('clubs-c'),
       c('clubs-q'),
-      c('clubs-9'),
+      c('clubs-9')
     ]
     expect(sortHand(hand)).toEqual([
       c('clubs-k'),
@@ -53,7 +53,7 @@ describe('sortHand', () => {
       c('clubs-10'),
       c('clubs-9'),
       c('clubs-8'),
-      c('clubs-1'),
+      c('clubs-1')
     ])
   })
 })

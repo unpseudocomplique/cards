@@ -42,7 +42,7 @@ async function registerOrLogin() {
   if (!res.ok) {
     res = await req('/api/auth/register', {
       method: 'POST',
-      body: { email, password, confirmPassword: password, username: 'TarotE2e' },
+      body: { email, password, confirmPassword: password, username: 'TarotE2e' }
     })
   }
   const setCookie = res.headers.getSetCookie?.() ?? []
@@ -58,7 +58,7 @@ async function ensureDeck() {
   if (existing?.id) return existing.id
   const created = await (await req('/api/decks', {
     method: 'POST',
-    body: { title: 'Screenshot Tarot 78', type: 'tarot78', visualStyle: 'illustration royale contemporaine' },
+    body: { title: 'Screenshot Tarot 78', type: 'tarot78', visualStyle: 'illustration royale contemporaine' }
   })).json()
   return created.id
 }
@@ -90,7 +90,7 @@ function waitPrivate(ws, timeout = 8000) {
 async function bootstrapTable(deckId) {
   const created = await (await req('/api/game/create', {
     method: 'POST',
-    body: { playerCount: 4, endMode: 'deals', endValue: 1, deckId },
+    body: { playerCount: 4, endMode: 'deals', endValue: 1, deckId }
   })).json()
   const code = created.code
   const ws = await wsConnect(code)
@@ -132,18 +132,18 @@ async function main() {
   const browser = await chromium.launch({
     executablePath: '/usr/bin/google-chrome',
     headless: true,
-    args: ['--no-sandbox', '--disable-gpu', '--window-size=1440,900'],
+    args: ['--no-sandbox', '--disable-gpu', '--window-size=1440,900']
   })
   const context = await browser.newContext({
     viewport: { width: 1440, height: 900 },
-    deviceScaleFactor: 1,
+    deviceScaleFactor: 1
   })
   const cookieName = cookieJar.split('=')[0]
   const cookieValue = cookieJar.slice(cookieName.length + 1)
   await context.addCookies([{
     name: cookieName,
     value: cookieValue,
-    url: baseUrl,
+    url: baseUrl
   }])
   const page = await context.newPage()
   await page.goto(`${baseUrl}/play/${code}`, { waitUntil: 'domcontentloaded', timeout: 60000 })

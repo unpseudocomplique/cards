@@ -19,8 +19,8 @@ export function useDeckFaceUrls(code: Ref<string> | string) {
     {
       watch: [codeRef],
       server: false,
-      default: () => null,
-    },
+      default: () => null
+    }
   )
 
   const faceUrls = computed(() => {
@@ -46,6 +46,6 @@ export function useDeckFaceUrls(code: Ref<string> | string) {
     faceUrlFor,
     pending,
     error,
-    refresh,
+    refresh
   }
 }

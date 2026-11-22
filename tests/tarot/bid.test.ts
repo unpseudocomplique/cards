@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest'
 import {
   applyBid,
   createBidState,
-  expectedSeat,
+  expectedSeat
 } from '../../shared/tarot/bid'
 import type { BidState } from '../../shared/tarot/bid'
 
-function applyAll(state: BidState, bids: Array<{ seat: number; bid: Parameters<typeof applyBid>[2] }>) {
+function applyAll(state: BidState, bids: Array<{ seat: number, bid: Parameters<typeof applyBid>[2] }>) {
   let current = state
-  let lastOutcome: { type: 'all_pass' } | { type: 'won'; seat: number; contract: string } | undefined
+  let lastOutcome: { type: 'all_pass' } | { type: 'won', seat: number, contract: string } | undefined
   for (const { seat, bid } of bids) {
     const result = applyBid(current, seat, bid)
     expect(result.ok).toBe(true)
@@ -64,7 +64,7 @@ describe('applyBid', () => {
       { seat: 1, bid: 'passe' },
       { seat: 2, bid: 'passe' },
       { seat: 3, bid: 'passe' },
-      { seat: 0, bid: 'passe' },
+      { seat: 0, bid: 'passe' }
     ])
     expect(result.ok).toBe(true)
     if (!result.ok) return
@@ -76,14 +76,14 @@ describe('applyBid', () => {
       { seat: 0, bid: 'prise' },
       { seat: 1, bid: 'passe' },
       { seat: 2, bid: 'garde' },
-      { seat: 3, bid: 'passe' },
+      { seat: 3, bid: 'passe' }
     ])
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.outcome).toEqual({
       type: 'won',
       seat: 2,
-      contract: 'garde',
+      contract: 'garde'
     })
   })
 
@@ -113,7 +113,7 @@ describe('applyBid', () => {
     const done = applyAll(createBidState(3, 0), [
       { seat: 0, bid: 'passe' },
       { seat: 1, bid: 'passe' },
-      { seat: 2, bid: 'passe' },
+      { seat: 2, bid: 'passe' }
     ])
     expect(done.ok).toBe(true)
     if (!done.ok) return

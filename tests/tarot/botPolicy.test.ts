@@ -27,7 +27,7 @@ function biddingState(hand: CardId[], overrides: Partial<GameState> = {}): GameS
     playerCount: 4,
     endMode: 'threshold',
     endValue: 1000,
-    deckId: 'deck-test',
+    deckId: 'deck-test'
   })
   return {
     ...base,
@@ -43,7 +43,7 @@ function biddingState(hand: CardId[], overrides: Partial<GameState> = {}): GameS
       [c('hearts-1'), c('hearts-2'), c('hearts-3')],
       hand,
       [c('clubs-1'), c('clubs-2'), c('clubs-3')],
-      [c('diamonds-1'), c('diamonds-2'), c('diamonds-3')],
+      [c('diamonds-1'), c('diamonds-2'), c('diamonds-3')]
     ],
     chien: [c('spades-1'), c('spades-2'), c('spades-3'), c('spades-4'), c('spades-5'), c('spades-6')],
     seats: base.seats.map((seat, index) => ({
@@ -51,9 +51,9 @@ function biddingState(hand: CardId[], overrides: Partial<GameState> = {}): GameS
       userId: `user:${index}`,
       name: `P${index}`,
       connected: true,
-      controlledBy: index === 1 ? 'bot' as const : 'human' as const,
+      controlledBy: index === 1 ? 'bot' as const : 'human' as const
     })),
-    ...overrides,
+    ...overrides
   }
 }
 
@@ -63,7 +63,7 @@ function playState(overrides: Partial<GameState> = {}): GameState {
     playerCount: 4,
     endMode: 'threshold',
     endValue: 1000,
-    deckId: 'deck-test',
+    deckId: 'deck-test'
   })
   return {
     ...base,
@@ -85,9 +85,9 @@ function playState(overrides: Partial<GameState> = {}): GameState {
       userId: `user:${index}`,
       name: `P${index}`,
       connected: true,
-      controlledBy: 'bot' as const,
+      controlledBy: 'bot' as const
     })),
-    ...overrides,
+    ...overrides
   }
 }
 
@@ -102,16 +102,16 @@ describe('chooseBotIntent bidding', () => {
   const weak = hand18(
     'trump-2', 'trump-5', 'trump-9',
     'hearts-1', 'hearts-3', 'hearts-6', 'hearts-8', 'clubs-2', 'clubs-4', 'clubs-7', 'clubs-j',
-    'diamonds-2', 'diamonds-5', 'diamonds-9', 'spades-1', 'spades-4', 'spades-6', 'spades-10',
+    'diamonds-2', 'diamonds-5', 'diamonds-9', 'spades-1', 'spades-4', 'spades-6', 'spades-10'
   )
   const decent = hand18(
     'trump-21', 'trump-4', 'trump-8', 'trump-11', 'trump-13', 'trump-17',
     'hearts-k', 'hearts-q', 'hearts-3', 'hearts-5',
-    'clubs-2', 'clubs-6', 'clubs-9', 'diamonds-c', 'diamonds-3', 'diamonds-8', 'spades-7', 'spades-j',
+    'clubs-2', 'clubs-6', 'clubs-9', 'diamonds-c', 'diamonds-3', 'diamonds-8', 'spades-7', 'spades-j'
   )
   const monster = hand18(
     'trump-21', 'trump-1', 'excuse', 'trump-20', 'trump-19', 'trump-18', 'trump-17', 'trump-16', 'trump-12', 'trump-9', 'trump-7',
-    'hearts-k', 'hearts-q', 'spades-k', 'spades-2', 'spades-3', 'spades-5', 'spades-6',
+    'hearts-k', 'hearts-q', 'spades-k', 'spades-2', 'spades-3', 'spades-5', 'spades-6'
   )
 
   it.each(['facile', 'moyen', 'difficile'] as const)('passes with a weak hand (%s)', (level) => {
@@ -156,13 +156,13 @@ describe('chooseBotIntent DogEcarta', () => {
       c('hearts-1'), c('hearts-2'), c('hearts-3'), c('hearts-4'), c('hearts-5'), c('hearts-6'),
       c('hearts-7'), c('hearts-8'), c('hearts-9'), c('hearts-10'), c('hearts-j'), c('hearts-q'),
       c('trump-3'), c('trump-4'), c('trump-5'), c('trump-6'), c('trump-7'), c('trump-8'),
-      c('trump-1'), c('trump-21'), c('excuse'), c('hearts-k'),
+      c('trump-1'), c('trump-21'), c('excuse'), c('hearts-k')
     ]
     const state = playState({
       phase: 'DogEcarta',
       currentSeat: 0,
       bid: { seat: 0, contract: 'prise' },
-      hands: [hand, [], [], []],
+      hands: [hand, [], [], []]
     })
 
     const intent = chooseBotIntent(state, 0)
@@ -188,9 +188,9 @@ describe('chooseBotIntent play', () => {
         [c('hearts-k')],
         [c('hearts-2'), c('clubs-5'), c('trump-10')],
         [c('diamonds-3')],
-        [c('spades-8')],
+        [c('spades-8')]
       ],
-      trick: [{ seat: 0, card: c('hearts-7') }],
+      trick: [{ seat: 0, card: c('hearts-7') }]
     })
 
     const intent = chooseBotIntent(state, 1)
@@ -214,13 +214,13 @@ describe('chooseBotIntent play', () => {
         [c('clubs-2'), c('clubs-3')],
         [c('clubs-4'), c('clubs-5')],
         [c('clubs-6'), c('clubs-7')],
-        [c('hearts-c'), c('hearts-3'), c('clubs-8')],
+        [c('hearts-c'), c('hearts-3'), c('clubs-8')]
       ],
       trick: [
         { seat: 0, card: c('hearts-7') },
         { seat: 1, card: c('hearts-k') },
-        { seat: 2, card: c('hearts-2') },
-      ],
+        { seat: 2, card: c('hearts-2') }
+      ]
     })
     for (const level of ['moyen', 'difficile'] as const) {
       expect(chooseBotIntent(state, 3, level)).toEqual({ type: 'playCard', card: c('hearts-c') })
@@ -235,13 +235,13 @@ describe('chooseBotIntent play', () => {
         [c('clubs-2'), c('trump-20')],
         [c('clubs-4'), c('clubs-5')],
         [c('clubs-6'), c('clubs-7')],
-        [c('trump-1'), c('trump-15'), c('hearts-3')],
+        [c('trump-1'), c('trump-15'), c('hearts-3')]
       ],
       trick: [
         { seat: 0, card: c('clubs-9') },
         { seat: 1, card: c('clubs-10') },
-        { seat: 2, card: c('clubs-3') },
-      ],
+        { seat: 2, card: c('clubs-3') }
+      ]
     })
     for (const level of ['moyen', 'difficile'] as const) {
       expect(chooseBotIntent(state, 3, level)).toEqual({ type: 'playCard', card: c('trump-1') })
@@ -252,7 +252,7 @@ describe('chooseBotIntent play', () => {
     // Seat 2 (defence) has no clubs; the taker plays after it and already trumped clubs.
     const history = [
       [{ seat: 0, card: c('clubs-k') }, { seat: 1, card: c('clubs-1') }, { seat: 2, card: c('clubs-4') }, { seat: 3, card: c('clubs-5') }],
-      [{ seat: 0, card: c('clubs-q') }, { seat: 1, card: c('clubs-2') }, { seat: 2, card: c('spades-2') }, { seat: 3, card: c('trump-5') }],
+      [{ seat: 0, card: c('clubs-q') }, { seat: 1, card: c('clubs-2') }, { seat: 2, card: c('spades-2') }, { seat: 3, card: c('trump-5') }]
     ]
     const state = playState({
       bid: { seat: 3, contract: 'garde' },
@@ -262,12 +262,12 @@ describe('chooseBotIntent play', () => {
         [c('hearts-2'), c('trump-2')],
         [c('hearts-4'), c('hearts-5')],
         [c('trump-1'), c('trump-12'), c('hearts-6')],
-        [c('trump-20'), c('trump-19'), c('hearts-8')],
+        [c('trump-20'), c('trump-19'), c('hearts-8')]
       ],
       trick: [
         { seat: 0, card: c('clubs-9') },
-        { seat: 1, card: c('clubs-10') },
-      ],
+        { seat: 1, card: c('clubs-10') }
+      ]
     })
     expect(chooseBotIntent(state, 2, 'difficile')).toEqual({ type: 'playCard', card: c('trump-12') })
   })
@@ -276,7 +276,7 @@ describe('chooseBotIntent play', () => {
     const state = playState({
       currentSeat: 1,
       hands: [[c('hearts-2')], [c('excuse'), c('hearts-9')], [c('hearts-3'), c('hearts-4')], [c('hearts-5'), c('hearts-6')]],
-      trick: [{ seat: 0, card: c('hearts-7') }],
+      trick: [{ seat: 0, card: c('hearts-7') }]
     })
     for (const level of ['facile', 'moyen', 'difficile'] as const) {
       expect(chooseBotIntent(state, 1, level)).toEqual({ type: 'playCard', card: c('excuse') })
@@ -289,21 +289,21 @@ describe('chooseBotIntent play', () => {
         hands: [[c('hearts-k')], [c('trump-3'), c('trump-20'), c('clubs-5')], [], []],
         trick: [
           { seat: 0, card: c('hearts-7') },
-          { seat: 2, card: c('trump-7') },
+          { seat: 2, card: c('trump-7') }
         ],
-        currentSeat: 1,
+        currentSeat: 1
       },
       {
         phase: 'ReadyToPlay',
         hands: [[c('hearts-2'), c('clubs-3')], [c('diamonds-4')], [], []],
         trick: [],
-        currentSeat: 0,
+        currentSeat: 0
       },
       {
         hands: [[c('hearts-k')], [c('clubs-5'), c('diamonds-j')], [], []],
         trick: [{ seat: 0, card: c('hearts-7') }],
-        currentSeat: 1,
-      },
+        currentSeat: 1
+      }
     ]
 
     for (const overrides of scenarios) {
@@ -335,7 +335,7 @@ describe('chooseBotIntent guardrails', () => {
       playerCount: 4,
       endMode: 'threshold',
       endValue: 1000,
-    deckId: 'deck-test',
+      deckId: 'deck-test'
     })
     expect(() => chooseBotIntent(state, 0)).toThrow(/phase/i)
   })

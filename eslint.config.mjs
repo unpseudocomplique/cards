@@ -6,5 +6,9 @@ export default withNuxt({
     '@typescript-eslint/no-explicit-any': 'off'
   }
 }).append({
-  ignores: ['app/components/play/tres/salon-cast/generated/**']
+  ignores: [
+    'app/components/play/tres/salon-cast/generated/**',
+    // Vendored Cursor skill examples (third-party three.js samples), not app code
+    '.cursor/**'
+  ]
 })
