@@ -221,7 +221,84 @@ const spring = computed(() =>
     : { type: 'spring' as const, stiffness: 180, damping: 20, mass: 0.8 },
 )
 
+/*
+ * Press and hold a card to see it big; slide the finger to look at the
+ * neighbours; let go to put it back. A hold never plays the card.
+ */
+const { zoom, show: showZoom, close: closeZoom } = useCardZoom()
+const LONG_PRESS_MS = 350
+let pressTimer: ReturnType<typeof setTimeout> | null = null
+let pressStart: { x: number, y: number } | null = null
+let holding = false
+/** The click that ends a hold must not play the card. */
+let swallowClick = false
+
+function clearPress() {
+  if (pressTimer) {
+    clearTimeout(pressTimer)
+    pressTimer = null
+  }
+  pressStart = null
+}
+
+function cardAt(x: number, y: number): CardId | null {
+  const el = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-hand-card]')
+  return (el?.dataset.handCard as CardId | undefined) ?? null
+}
+
+function onPressStart(card: CardId, event: PointerEvent) {
+  if (event.pointerType === 'mouse' && event.button !== 0) {
+    return
+  }
+  clearPress()
+  swallowClick = false
+  pressStart = { x: event.clientX, y: event.clientY }
+  pressTimer = setTimeout(() => {
+    pressTimer = null
+    holding = true
+    swallowClick = true
+    showZoom(card, faceUrlFor(card), 'hold')
+  }, LONG_PRESS_MS)
+}
+
+function onPressMove(event: PointerEvent) {
+  if (holding) {
+    const card = cardAt(event.clientX, event.clientY)
+    if (card && zoom.value?.card !== card) {
+      showZoom(card, faceUrlFor(card), 'hold')
+    }
+    return
+  }
+  // A real drag is not a hold.
+  if (pressStart && Math.hypot(event.clientX - pressStart.x, event.clientY - pressStart.y) > 10) {
+    clearPress()
+  }
+}
+
+function onPressEnd() {
+  clearPress()
+  if (holding) {
+    holding = false
+    closeZoom()
+  }
+}
+
+// The finger (or mouse) can be released anywhere, not only over a card.
+useEventListener('pointerup', onPressEnd)
+useEventListener('pointercancel', onPressEnd)
+
+onUnmounted(() => {
+  clearPress()
+  if (holding) {
+    closeZoom()
+  }
+})
+
 function onPlay(card: CardId, event: MouseEvent) {
+  if (swallowClick) {
+    swallowClick = false
+    return
+  }
   if (!isPlayable(card) || pendingPlay.value) {
     return
   }
@@ -280,10 +357,9 @@ function onPlay(card: CardId, event: MouseEvent) {
           v-for="card in visibleCards"
           :key="card"
           type="button"
-          class="absolute inset-0 origin-bottom touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
-          :class="isPlayable(card)
-            ? 'pointer-events-auto cursor-pointer'
-            : 'pointer-events-none cursor-default'"
+          class="pointer-events-auto absolute inset-0 origin-bottom touch-none select-none [-webkit-touch-callout:none] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+          :class="isPlayable(card) ? 'cursor-pointer' : 'cursor-default'"
+          :data-hand-card="card"
           :initial="prefersReduced ? false : { opacity: 0, y: 24, scale: 0.92 }"
           :animate="cardMotion(card)"
           :exit="prefersReduced
@@ -291,9 +367,14 @@ function onPlay(card: CardId, event: MouseEvent) {
             : { opacity: 0, scale: 0.92, transition: { duration: 0.15 } }"
           :transition="spring"
           :style="{ zIndex: cardMotion(card).zIndex }"
-          :disabled="!isPlayable(card)"
+          :aria-disabled="!isPlayable(card)"
           :aria-label="card"
           @click.stop="onPlay(card, $event)"
+          @pointerdown="onPressStart(card, $event)"
+          @pointermove="onPressMove"
+          @pointerup="onPressEnd"
+          @pointercancel="onPressEnd"
+          @contextmenu.prevent
         >
           <PlayDeckCard
             :card-id="card"

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { PublicGameView } from '~~/shared/tarot'
 import { seatColor } from '~/utils/seatColors'
 import { seatLabelAnchor, wonCountInTag, wonPileAnchor } from '~/utils/seatLayout'
 
@@ -16,40 +17,16 @@ const props = defineProps<{
   scores?: number[]
   takerSeat?: number | null
   partnerSeat?: number | null
-  /** Prototype: tag tinted with the seat colour used on the trick cards. */
-  colorTags?: boolean
+  /** Full table state, for the player detail panel. */
+  state?: PublicGameView
+  faceUrls?: Map<string, string | null>
 }>()
 
-/** Tap a name tag to see that player's score, tricks and side for a moment. */
+/** Tap a name tag to open that player's detail panel. */
 const openSeat = shallowRef<number | null>(null)
-let closeTimer: ReturnType<typeof setTimeout> | null = null
 
 function toggleSeat(seat: number) {
   openSeat.value = openSeat.value === seat ? null : seat
-  if (closeTimer) {
-    clearTimeout(closeTimer)
-  }
-  if (openSeat.value !== null) {
-    closeTimer = setTimeout(() => {
-      openSeat.value = null
-    }, 4000)
-  }
-}
-
-onUnmounted(() => {
-  if (closeTimer) {
-    clearTimeout(closeTimer)
-  }
-})
-
-function roleLabel(seat: number) {
-  if (props.takerSeat === seat) {
-    return 'Preneur'
-  }
-  if (props.partnerSeat === seat) {
-    return 'Partenaire'
-  }
-  return props.takerSeat != null ? 'Défense' : null
 }
 
 const view = computed(() => ({ width: props.sceneWidth, height: props.sceneHeight, mobile: props.mobile }))
@@ -103,13 +80,12 @@ function layers(won: number) {
             class="size-3 shrink-0 opacity-70"
           />
           <span
-            v-if="colorTags"
             class="size-2.5 shrink-0 rounded-full ring-1 ring-black/40"
             :style="{ background: seatColor(opponent.seat) }"
           />
           <span class="truncate">{{ opponent.name }}</span>
           <UIcon
-            v-if="colorTags && partnerSeat === opponent.seat"
+            v-if="partnerSeat === opponent.seat"
             name="i-lucide-handshake"
             class="size-3 shrink-0 text-sky-300"
           />
@@ -120,27 +96,6 @@ function layers(won: number) {
             :class="activeSeat === opponent.seat ? 'text-neutral-950' : 'text-amber-300'"
           />
         </button>
-        <Transition
-          enter-active-class="transition duration-150 ease-out"
-          enter-from-class="-translate-y-1 opacity-0"
-          leave-active-class="transition duration-150 ease-in"
-          leave-to-class="-translate-y-1 opacity-0"
-        >
-          <div
-            v-if="openSeat === opponent.seat"
-            class="absolute top-full left-1/2 z-10 mt-1.5 -translate-x-1/2 rounded-xl bg-neutral-950/90 px-3 py-2 text-xs whitespace-nowrap text-white shadow-xl ring-1 ring-white/15 backdrop-blur-md"
-          >
-            <p class="font-semibold tabular-nums">
-              {{ scores?.[opponent.seat] ?? 0 }} pts · {{ opponent.won }} pli{{ opponent.won > 1 ? 's' : '' }}
-            </p>
-            <p
-              v-if="roleLabel(opponent.seat)"
-              class="mt-0.5 text-white/60"
-            >
-              {{ roleLabel(opponent.seat) }}
-            </p>
-          </div>
-        </Transition>
       </div>
 
       <!-- Won tricks, on the felt beside them -->
@@ -167,5 +122,27 @@ function layers(won: number) {
         </div>
       </div>
     </template>
+
+    <!-- Player detail panel, over the table -->
+    <Transition
+      enter-active-class="transition duration-200 ease-out"
+      enter-from-class="scale-95 opacity-0"
+      leave-active-class="transition duration-150 ease-in"
+      leave-to-class="scale-95 opacity-0"
+    >
+      <div
+        v-if="openSeat !== null && state"
+        class="pointer-events-auto absolute inset-0 z-[60] grid place-items-center bg-black/30 px-4"
+        @click.self="openSeat = null"
+      >
+        <PlayPlayerDetailPanel
+          :state="state"
+          :seat="openSeat"
+          :local-seat="localSeat"
+          :face-urls="faceUrls ?? new Map()"
+          @close="openSeat = null"
+        />
+      </div>
+    </Transition>
   </div>
 </template>

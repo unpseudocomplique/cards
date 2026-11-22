@@ -77,6 +77,14 @@ export const AMBIANCE_THEMES: Record<AmbianceThemeId, AmbianceTheme> = {
   },
 }
 
+/** Shown in the table settings, in this order. */
+export const AMBIANCE_CHOICES: Array<{ id: AmbianceThemeId, label: string, hint: string }> = [
+  { id: 'nuit', label: 'Salon de nuit', hint: 'Pénombre, lumière sur la table' },
+  { id: 'club', label: 'Cercle de jeu', hint: 'Bibliothèque, vert et acajou' },
+  { id: 'bistrot', label: 'Bistrot parisien', hint: 'Toits de Paris sous la pluie' },
+  { id: 'actuel', label: 'Salon éclairé', hint: 'Le salon d’avant, tout illuminé' },
+]
+
 export function ambianceTheme(id: string | null | undefined): AmbianceTheme {
   return AMBIANCE_THEMES[(id ?? 'actuel') as AmbianceThemeId] ?? AMBIANCE_THEMES.actuel
 }

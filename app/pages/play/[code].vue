@@ -27,6 +27,8 @@ const {
   error,
   publicSyncDegraded,
   sendIntent,
+  sendEmote,
+  emotes,
   join
 } = useTarotGame(code)
 
@@ -240,6 +242,7 @@ function play(card: CardId) {
       :private-state="privateState"
       :debug-gfx="debugGfx"
       :show-hand="showHand"
+      :emotes="emotes"
       @play="play"
     />
 
@@ -255,9 +258,9 @@ function play(card: CardId) {
           :degraded="publicSyncDegraded"
           :offline="!connected"
           :called-partner="isCalledPartner"
-          :king-card="route.query.king === '1'"
           :king-face-url="publicState.calledKing ? faceUrlFor(publicState.calledKing) : null"
           @leave="leaveOpen = true"
+          @emote="sendEmote"
         />
       </div>
 
@@ -322,6 +325,8 @@ function play(card: CardId) {
         />
       </div>
     </div>
+
+    <PlayCardZoom />
 
     <UModal
       v-model:open="chelemOpen"

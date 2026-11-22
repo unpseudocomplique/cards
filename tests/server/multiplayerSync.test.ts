@@ -28,6 +28,7 @@ type ServerMessage
   = | { type: 'private', private: PrivateGameView }
     | { type: 'error', error: string, reason?: string }
     | { type: 'applied', publicVersion: number }
+    | { type: 'emote', seat: number, emote: string }
 
 let handler: Handler
 let gameStore: typeof GameStoreInstance
@@ -642,5 +643,29 @@ describe('real-time multiplayer table', () => {
     notTurn.intent({ type: 'bid', bid: 'passe' })
     expect(notTurn.errors.at(-1)?.error).toBe('NOT_YOUR_TURN')
     expect(serverState(code).version).toBe(state.version)
+  })
+
+  it('a reaction reaches every player, from the sender\'s seat, without spam or made-up emojis', async () => {
+    const { clients } = await seatHumans(4, 3)
+    const [host, guest, third] = clients as [Client, Client, Client]
+    const emotesOf = (client: Client) => client.messages.filter(message => message.type === 'emote')
+
+    handler.message(guest.peer, JSON.stringify({ type: 'emote', emote: '👏' }))
+    for (const client of clients) {
+      expect(emotesOf(client)).toEqual([{ type: 'emote', seat: 1, emote: '👏' }])
+    }
+
+    // Too soon after the previous one: dropped.
+    handler.message(guest.peer, JSON.stringify({ type: 'emote', emote: '😂' }))
+    expect(emotesOf(host)).toHaveLength(1)
+
+    // Not in the list: dropped, and no error noise either.
+    handler.message(third.peer, JSON.stringify({ type: 'emote', emote: '<script>' }))
+    expect(emotesOf(host)).toHaveLength(1)
+    expect(third.errors).toEqual([])
+
+    vi.advanceTimersByTime(1_300)
+    handler.message(guest.peer, JSON.stringify({ type: 'emote', emote: '😂' }))
+    expect(emotesOf(third).at(-1)).toEqual({ type: 'emote', seat: 1, emote: '😂' })
   })
 })

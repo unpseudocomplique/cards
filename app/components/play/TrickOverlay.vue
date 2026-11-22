@@ -2,7 +2,7 @@
 import { AnimatePresence, motion } from 'motion-v'
 import type { CardId } from '~~/shared/tarot'
 import { resolveTrick } from '~~/shared/tarot'
-import { trickCardHeight as trickCardHeightFor, trickSpot, trickZone, wonPileAnchor } from '~/utils/seatLayout'
+import { seatTrickCardHeight, seatTrickSpot, trickCardHeight as trickCardHeightFor, trickLayout, trickZone, wonPileAnchor } from '~/utils/seatLayout'
 import { seatColor } from '~/utils/seatColors'
 
 export type TrickEntry = { seat: number, card: CardId }
@@ -23,11 +23,13 @@ const props = defineProps<{
   holdBanner?: string | null
   /** 5 players: the king the taker called, flagged when it lands on the felt. */
   calledKing?: CardId | null
-  /** Prototype: 'seat' = each card in front of its player, 'row' = coloured row. */
-  variant?: 'current' | 'seat' | 'row'
 }>()
 
-const variant = computed(() => props.variant ?? 'current')
+/**
+ * Upright phones and wide screens: each card lies in front of the player who
+ * laid it. Landscape phones have no height for that: a coloured, numbered row.
+ */
+const variant = computed(() => trickLayout({ width: props.sceneWidth, height: props.sceneHeight }))
 
 /** The card that currently takes the trick. */
 const leaderSeat = computed(() => {
@@ -41,41 +43,22 @@ const leaderSeat = computed(() => {
   }
 })
 
-const seatTrickHeight = computed(() => {
-  const base = trickCardHeight.value ?? 100
-  return Math.round(base * (props.playerCount === 5 ? 1.0 : 1.1))
-})
+const view = computed(() => ({ width: props.sceneWidth, height: props.sceneHeight, mobile: props.mobile ?? false }))
 
-/** Upright phones: a fixed ring of spots around the trick centre, one per seat. */
-const UPRIGHT_SPOTS: Record<number, Array<[number, number]>> = {
-  3: [[0, 0.62], [-0.55, -0.35], [0.55, -0.35]],
-  4: [[0, 0.62], [-0.6, 0], [0, -0.62], [0.6, 0]],
-  5: [[0, 0.62], [-0.66, 0.12], [-0.33, -0.56], [0.33, -0.56], [0.66, 0.12]],
-}
+const seatTrickHeight = computed(() => seatTrickCardHeight(view.value, props.playerCount))
 
 function seatSpot(seat: number) {
-  const view = { width: props.sceneWidth, height: props.sceneHeight, mobile: props.mobile ?? false }
-  const h = seatTrickHeight.value
-  const w = h * 0.62
-  const rel = (seat - props.localSeat + props.playerCount) % props.playerCount
-  const zone = trickZone(view, props.playerCount)
-  const upright = props.sceneHeight > props.sceneWidth * 1.15
-  void trickSpot
-  let x: number
-  let y: number
-  const [fx, fy] = UPRIGHT_SPOTS[props.playerCount]![rel]!
-  if (upright) {
-    x = zone.centerX + fx * (props.sceneWidth / 2 - w / 2 - 10)
-    y = zone.centerY + h * 0.25 + fy * (h * 1.4)
-  } else {
-    // Landscape and desktop: a flatter ring that stays clear of the hand.
-    x = zone.centerX + fx * Math.min(props.sceneWidth / 2 - w / 2 - 10, w * 3.2)
-    y = zone.centerY + fy * (h * (props.sceneHeight <= 520 ? 0.9 : 1.15))
+  return seatTrickSpot(seat, props.localSeat, props.playerCount, view.value)
+}
+
+/** Sweep from the card's own spot to the winner's pile. */
+function seatCollect(seat: number) {
+  if (props.collectingToSeat == null) {
+    return { x: 0, y: 0, scale: 1, opacity: 1 }
   }
-  return {
-    x: Math.min(props.sceneWidth - w / 2 - 6, Math.max(w / 2 + 6, x)),
-    y,
-  }
+  const target = wonPileAnchor(props.collectingToSeat, props.localSeat, props.playerCount, view.value)
+  const spot = seatSpot(seat)
+  return { x: target.x - spot.x, y: target.y - spot.y, scale: 0.45, opacity: 0.15 }
 }
 
 /** Local and side players: name under the card, so it never hides under a neighbour. */
@@ -99,6 +82,15 @@ function seatTilt(seat: number) {
 }
 
 const prefersReduced = usePreferredReducedMotion()
+
+/** Tap a card on the felt to see it big. */
+const { show: showZoom } = useCardZoom()
+
+function zoomCard(card: CardId) {
+  if (props.collectingToSeat == null) {
+    showZoom(card, faceUrlFor(card), 'tap')
+  }
+}
 
 /** Phones: trick cards sized from the screen (see seatLayout's trickCardHeight). */
 const trickCardHeight = computed(() =>
@@ -164,22 +156,22 @@ const spring = computed(() =>
         class="absolute"
         :style="{ left: `${seatSpot(entry.seat).x}px`, top: `${seatSpot(entry.seat).y}px`, zIndex: index + 1 }"
         :initial="prefersReduced ? false : { opacity: 0, scale: 0.7 }"
-        :animate="{
-          opacity: collectOffset(entry.seat).opacity,
-          x: collectingToSeat != null ? collectOffset(entry.seat).x - (seatSpot(entry.seat).x - sceneWidth / 2) : 0,
-          y: collectingToSeat != null ? collectOffset(entry.seat).y : 0,
-          scale: collectOffset(entry.seat).scale,
-        }"
+        :animate="seatCollect(entry.seat)"
         :exit="{ opacity: 0, scale: 0.5 }"
-        :transition="spring"
+        :transition="collectingToSeat != null
+          ? { type: 'spring', stiffness: 220, damping: 20, mass: 0.85 }
+          : spring"
       >
         <div
           class="relative -translate-x-1/2 -translate-y-1/2"
           :style="{ rotate: `${seatTilt(entry.seat)}deg` }"
         >
           <div
-            class="relative rounded-[6px] transition-transform duration-300"
+            class="pointer-events-auto relative cursor-zoom-in rounded-[6px] transition-transform duration-300"
             :class="leaderSeat === entry.seat && collectingToSeat == null ? '-translate-y-1.5' : ''"
+            role="button"
+            :aria-label="`Agrandir la carte de ${seatLabel(entry.seat) ?? ''}`"
+            @click="zoomCard(entry.card)"
             :style="{
               height: `${seatTrickHeight}px`,
               aspectRatio: 'var(--table-card-ratio, 2 / 3)',
@@ -228,7 +220,7 @@ const spring = computed(() =>
     <div
       v-if="collectingToSeat != null && winnerName || holdBanner"
       class="absolute left-1/2 -translate-x-1/2 -translate-y-1/2"
-      :style="{ top: `${trickZone({ width: sceneWidth, height: sceneHeight, mobile: mobile ?? false }, playerCount).centerY}px` }"
+      :style="{ top: `${trickZone(view, playerCount).centerY}px` }"
     >
       <div class="w-max max-w-[min(18rem,80vw)] rounded-2xl border border-white/15 bg-neutral-950/85 px-3.5 py-1.5 text-center shadow-xl backdrop-blur-md">
         <p class="font-display text-lg leading-tight text-amber-50">
@@ -264,28 +256,30 @@ const spring = computed(() =>
         >
           <div
             v-if="trickCardHeight"
-            class="relative rounded-[6px] transition-transform duration-300"
-            :class="variant === 'row' && leaderSeat === entry.seat && collectingToSeat == null ? '-translate-y-2' : ''"
+            class="pointer-events-auto relative cursor-zoom-in rounded-[6px] transition-transform duration-300"
+            role="button"
+            :aria-label="`Agrandir la carte de ${seatLabel(entry.seat) ?? ''}`"
+            @click="zoomCard(entry.card)"
+            :class="leaderSeat === entry.seat && collectingToSeat == null ? '-translate-y-2' : ''"
             :style="{
               height: `${trickCardHeight}px`,
               aspectRatio: 'var(--table-card-ratio, 2 / 3)',
-              boxShadow: variant !== 'row' ? undefined
-                : entry.card === calledKing
-                  ? '0 0 0 3px #38bdf8, 0 0 22px 6px rgba(56,189,248,0.55)'
-                  : leaderSeat === entry.seat && collectingToSeat == null
-                    ? '0 0 0 3px #fcd34d, 0 0 20px 4px rgba(252,211,77,0.45)'
-                    : undefined,
+              boxShadow: entry.card === calledKing
+                ? '0 0 0 3px #38bdf8, 0 0 22px 6px rgba(56,189,248,0.55)'
+                : leaderSeat === entry.seat && collectingToSeat == null
+                  ? '0 0 0 3px #fcd34d, 0 0 20px 4px rgba(252,211,77,0.45)'
+                  : undefined,
             }"
           >
             <p
-              v-if="variant === 'row' && entry.card === calledKing && collectingToSeat == null"
+              v-if="entry.card === calledKing && collectingToSeat == null"
               class="absolute inset-x-0 bottom-0 z-10 flex items-center justify-center gap-1 rounded-b-[6px] bg-sky-400 py-0.5 text-[9px] font-bold tracking-wide text-sky-950 uppercase"
             >
               <UIcon name="i-lucide-handshake" class="size-3" />
               Appelé
             </p>
             <span
-              v-if="variant === 'row' && leaderSeat === entry.seat && collectingToSeat == null"
+              v-if="leaderSeat === entry.seat && collectingToSeat == null"
               class="absolute -top-2.5 -right-2.5 z-10 grid size-6 place-items-center rounded-full bg-amber-300 text-neutral-950 shadow-lg ring-2 ring-neutral-950/60"
             >
               <UIcon name="i-lucide-crown" class="size-3.5" />
@@ -305,18 +299,12 @@ const spring = computed(() =>
             size="sm"
           />
           <p
-            v-if="variant === 'row' && collectingToSeat == null"
+            v-if="collectingToSeat == null"
             class="mx-auto mt-1.5 flex w-fit max-w-[5rem] items-center gap-1 rounded-full py-0.5 pr-2 pl-0.5 text-[12px] leading-tight font-semibold text-neutral-950 shadow-md"
             :style="{ background: seatColor(entry.seat) }"
           >
             <span class="grid size-4 shrink-0 place-items-center rounded-full bg-neutral-950/80 text-[10px] text-white tabular-nums">{{ index + 1 }}</span>
             <span class="truncate">{{ seatLabel(entry.seat) }}</span>
-          </p>
-          <p
-            v-else-if="seatLabel(entry.seat) && collectingToSeat == null"
-            class="mx-auto mt-1 w-fit max-w-[4.5rem] truncate rounded-md bg-black/55 px-1.5 py-px text-center text-[10px] text-white/85 backdrop-blur-sm sm:text-xs"
-          >
-            {{ seatLabel(entry.seat) }}
           </p>
         </motion.div>
       </AnimatePresence>

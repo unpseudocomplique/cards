@@ -165,7 +165,8 @@ export function seatLabelAnchor(seat: number, localSeat: number, playerCount: nu
     y = Math.min(anchor.y, zone.centerY - zone.halfHeight - 6)
   } else if (behindTrick) {
     const pile = feltPileAnchor(seat, localSeat, playerCount, view)
-    const side = pile.x < zone.centerX ? 1 : -1
+    // Keep the tag on the player's own side of the trick.
+    const side = pile.x < zone.centerX ? -1 : 1
     x = zone.centerX + side * (zone.halfWidth + LABEL_HALF_WIDTH)
     y = Math.max(anchor.y, zone.centerY - zone.halfHeight + 24)
   }
@@ -205,8 +206,47 @@ export function wonPileAnchor(seat: number, localSeat: number, playerCount: numb
   return feltPileAnchor(seat, localSeat, playerCount, view)
 }
 
-/** Where a seat's card lands on the felt, in front of that player (screen px). */
-export function trickSpot(seat: number, localSeat: number, playerCount: number, view: TableViewport, radius = 1.2): ScreenPoint {
-  const angle = seatAngle(seat, localSeat, playerCount)
-  return project(view, [Math.cos(angle) * radius * 1.15, 0.12, Math.sin(angle) * radius])
+/**
+ * How the current trick is laid out: in front of each player (upright phones,
+ * desktop) or as a numbered row (landscape phones, no height to spare).
+ */
+export function trickLayout(view: { width: number, height: number }): 'seat' | 'row' {
+  return isShortView(view) ? 'row' : 'seat'
+}
+
+/** Ring of spots around the trick centre, by seat relative to the local player. */
+const SEAT_TRICK_SPOTS: Record<number, Array<[number, number]>> = {
+  3: [[0, 0.62], [-0.55, -0.35], [0.55, -0.35]],
+  4: [[0, 0.62], [-0.6, 0], [0, -0.62], [0.6, 0]],
+  5: [[0, 0.62], [-0.66, 0.12], [-0.33, -0.56], [0.33, -0.56], [0.66, 0.12]],
+}
+
+/** Height (px) of the trick cards when each lies in front of its player. */
+export function seatTrickCardHeight(view: { width: number, height: number }, playerCount: number): number {
+  return trickCardHeight(view, playerCount) ?? 100
+}
+
+/** Centre (px) of the spot where a seat's card lies, in front of that player. */
+export function seatTrickSpot(seat: number, localSeat: number, playerCount: number, view: TableViewport): ScreenPoint {
+  const h = seatTrickCardHeight(view, playerCount)
+  const w = h * 0.62
+  const rel = (seat - localSeat + playerCount) % playerCount
+  const zone = trickZone(view, playerCount)
+  const [fx, fy] = SEAT_TRICK_SPOTS[playerCount]?.[rel] ?? [0, 0]
+  let x: number
+  let y: number
+  if (isPortraitView(view)) {
+    x = zone.centerX + fx * (view.width / 2 - w / 2 - 10)
+    y = zone.centerY + h * 0.25 + fy * h * 1.4
+  } else {
+    x = zone.centerX + fx * Math.min(view.width / 2 - w / 2 - 10, w * 3.2)
+    // Wide screens show the table lower: keep the cards on the felt.
+    y = isShortView(view)
+      ? zone.centerY + fy * h * 0.9
+      : zone.centerY + h * 0.4 + fy * h * 1.15
+  }
+  return {
+    x: Math.min(view.width - w / 2 - 6, Math.max(w / 2 + 6, x)),
+    y,
+  }
 }

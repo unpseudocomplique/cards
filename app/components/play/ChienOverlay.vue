@@ -22,6 +22,8 @@ const spring = computed(() =>
     ? { type: 'tween' as const, duration: 0.01 }
     : { type: 'spring' as const, stiffness: 280, damping: 26 },
 )
+
+const { show: showZoom } = useCardZoom()
 </script>
 
 <template>
@@ -38,6 +40,10 @@ const spring = computed(() =>
             :initial="prefersReduced ? false : { opacity: 0, y: -12, scale: 0.9 }"
             :animate="{ opacity: 1, y: 0, scale: 1 }"
             :transition="{ ...spring, delay: index * 0.04 }"
+            class="pointer-events-auto cursor-zoom-in"
+            role="button"
+            aria-label="Agrandir la carte"
+            @click="showZoom(card, faceUrlFor(card), 'tap')"
           >
             <PlayDeckCard
               :card-id="card"

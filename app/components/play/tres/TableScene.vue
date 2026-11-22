@@ -7,8 +7,9 @@ import {
   isPetitStolen,
   resolveTrick,
 } from '~~/shared/tarot'
-import { isPortraitView, seatAnchor, tableCamera } from '~/utils/seatLayout'
+import { isPortraitView, seatAnchor, seatTrickSpot, tableCamera, trickLayout } from '~/utils/seatLayout'
 import { ambianceTheme } from '~/utils/ambianceThemes'
+import type { ShownEmote } from '~/composables/useTableEmotes'
 import type { TableFxEvent } from '~/components/play/TableFxOverlay.vue'
 
 const props = defineProps<{
@@ -17,6 +18,8 @@ const props = defineProps<{
   privateState: PrivateGameView | null
   debugGfx?: boolean
   showHand?: boolean
+  /** Players' reactions, shown above their heads. */
+  emotes?: ShownEmote[]
 }>()
 
 const emit = defineEmits<{
@@ -37,10 +40,8 @@ const castSalt = computed(() => {
 })
 
 const localSeat = computed(() => props.privateState?.seat ?? 0)
-const route = useRoute()
-const protoTrick = computed(() => (['seat', 'row'].includes(String(route.query.trick)) ? String(route.query.trick) : 'current') as 'current' | 'seat' | 'row')
-const protoAmb = computed(() => String(route.query.amb ?? 'actuel'))
-const amb = computed(() => ambianceTheme(protoAmb.value))
+const { themeId: ambianceId } = usePlayAmbiance()
+const amb = computed(() => ambianceTheme(ambianceId.value))
 const fps = shallowRef(0)
 let frames = 0
 let lastTs = 0
@@ -209,7 +210,13 @@ function measureScene() {
   return { width: box.width, height: box.height, left: box.left, top: box.top }
 }
 
-function trickCenter(width: number, height: number, cardW: number, cardH: number) {
+function trickCenter(width: number, height: number, cardW: number, cardH: number, seat?: number) {
+  const view = { width, height, mobile: isMobile.value }
+  if (seat !== undefined && trickLayout(view) === 'seat') {
+    // The card lands on its player's spot (see TrickOverlay).
+    const spot = seatTrickSpot(seat, localSeat.value, props.publicState.playerCount, view)
+    return { left: spot.x - cardW / 2, top: spot.y - cardH / 2 }
+  }
   return {
     left: width / 2 - cardW * 0.35,
     top: height * 0.36 - cardH * 0.35,
@@ -242,7 +249,7 @@ function spawnSeatFlight(seat: number, card: CardId) {
       width: cardW,
       height: cardH,
     },
-    to: trickCenter(width, height, cardW, cardH),
+    to: trickCenter(width, height, cardW, cardH, seat),
   })
 }
 
@@ -302,7 +309,7 @@ function onHandPlay(card: CardId, origin?: DOMRect) {
       width,
       height,
     },
-    to: trickCenter(scene.width, scene.height, width, height),
+    to: trickCenter(scene.width, scene.height, width, height, localSeat.value),
   })
   // Fire immediately — last-card plays never appear in publicState.trick.
   celebrateBout(card, localSeat.value)
@@ -612,7 +619,7 @@ function onLoop({ delta }: { delta: number }) {
           :decay="1.2"
         />
         <PlayTresTableFelt
-          :theme="protoAmb"
+          :theme="ambianceId"
           :quality="profile"
           :shadows="!isMobile && settings.shadows"
         />
@@ -623,7 +630,7 @@ function onLoop({ delta }: { delta: number }) {
           :shadows="!isMobile && settings.shadows"
           :cast-salt="castSalt"
           :show-chandelier="!portraitView"
-          :theme="protoAmb"
+          :theme="ambianceId"
         />
 
         <PlayTresOpponentStacks
@@ -662,7 +669,18 @@ function onLoop({ delta }: { delta: number }) {
         :scores="publicState.scores"
         :taker-seat="publicState.bid?.seat ?? null"
         :partner-seat="publicState.partnerSeat ?? null"
-        :color-tags="protoTrick !== 'current'"
+        :state="publicState"
+        :face-urls="faceUrlMap"
+      />
+
+      <PlayEmoteBubbles
+        v-if="sceneSize.width > 0 && emotes?.length"
+        :emotes="emotes"
+        :local-seat="localSeat"
+        :player-count="publicState.playerCount"
+        :scene-width="sceneSize.width"
+        :scene-height="sceneSize.height"
+        :mobile="isMobile"
       />
 
       <PlayTrickOverlay
@@ -679,7 +697,6 @@ function onLoop({ delta }: { delta: number }) {
         :winner-name="winnerName"
         :hold-banner="holdBanner"
         :called-king="publicState.calledKing ?? null"
-        :variant="protoTrick"
       />
 
       <PlayChienOverlay

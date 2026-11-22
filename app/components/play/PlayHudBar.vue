@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { Contract, PublicGameView } from '~~/shared/tarot'
+import type { TableEmote } from '~~/shared/play/emotes'
 import { tarotPhaseLabel } from '~/utils/tarotPhaseLabel'
 import { contractLabels } from '~/utils/tarotContracts'
-import { tarotCardLabel } from '~/utils/tarotCardLabel'
 
 const props = defineProps<{
   state: PublicGameView
@@ -12,8 +12,7 @@ const props = defineProps<{
   offline?: boolean
   /** The local player holds the called king: the taker's (secret) partner. */
   calledPartner?: boolean
-  /** Prototype: called king shown as a small card beside the contract. */
-  kingCard?: boolean
+  /** Face of the called king (5 players), shown as a small card. */
   kingFaceUrl?: string | null
 }>()
 
@@ -33,6 +32,7 @@ const partnerName = computed(() => {
 
 const emit = defineEmits<{
   leave: []
+  emote: [emote: TableEmote]
 }>()
 
 const takerSeat = computed(() => props.state.bid?.seat ?? null)
@@ -54,15 +54,14 @@ const takerName = computed(() => {
   return takerSeat.value === props.localSeat ? 'Vous' : props.state.seats[takerSeat.value]?.name ?? null
 })
 
-/** 5 players: the king the taker called, shown as soon as it is known. */
-const calledKing = computed(() => props.state.calledKing ? tarotCardLabel(props.state.calledKing) : null)
-
 /**
  * Phones (narrow or landscape): scores fold away behind a button so the
  * table keeps the space; wider screens always show them.
  */
 const compact = useMediaQuery('(max-width: 639px), (max-height: 520px)')
 const scoresOpen = shallowRef(false)
+/** Very narrow phones: the Scores button keeps only its icon. */
+const narrow = useMediaQuery('(max-width: 420px)')
 const showScores = computed(() => !compact.value || scoresOpen.value)
 
 const goal = computed(() => props.state.endMode === 'threshold'
@@ -96,14 +95,6 @@ const goal = computed(() => props.state.endMode === 'threshold'
               class="size-3 shrink-0 text-amber-300"
             />
             <span class="truncate">{{ takerName }}</span>
-            <template v-if="calledKing && !kingCard">
-              <span class="text-white/30">·</span>
-              <span class="shrink-0">appelle</span>
-              <span
-                class="shrink-0 rounded bg-[#f7f1e6] px-1 font-bold leading-tight"
-                :class="calledKing.color === 'red' ? 'text-red-700' : 'text-stone-900'"
-              >{{ calledKing.shortLabel }}</span>
-            </template>
           </template>
           <span
             v-else
@@ -112,7 +103,7 @@ const goal = computed(() => props.state.endMode === 'threshold'
         </p>
       </div>
       <div
-        v-if="kingCard && state.calledKing"
+        v-if="state.calledKing"
         class="flex shrink-0 items-center gap-2 rounded-lg bg-black/45 py-1 pr-2.5 pl-1 ring-1 backdrop-blur-md"
         :class="partnerName ? 'ring-sky-300/60' : 'ring-white/15'"
       >
@@ -182,10 +173,15 @@ const goal = computed(() => props.state.endMode === 'threshold'
             />
           </div>
         </UTooltip>
+        <PlayEmotePicker
+          v-if="localSeat !== null"
+          @send="emit('emote', $event)"
+        />
+        <PlayTableSettings />
         <UButton
           v-if="compact"
           :icon="scoresOpen ? 'i-lucide-chevron-up' : 'i-lucide-trophy'"
-          :label="scoresOpen ? undefined : 'Scores'"
+          :label="scoresOpen || narrow ? undefined : 'Scores'"
           color="neutral"
           variant="ghost"
           size="sm"
