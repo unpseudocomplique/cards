@@ -19,6 +19,7 @@ defineProps<{
 
 const emit = defineEmits<{
   leave: []
+  scores: []
   emote: [emote: TableEmote]
 }>()
 </script>
@@ -39,6 +40,7 @@ const emit = defineEmits<{
         :state="state"
         :local-seat="localSeat"
         :called-partner="calledPartner"
+        @scores="emit('scores')"
       />
       <Transition
         enter-active-class="transition duration-500 ease-out"

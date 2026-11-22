@@ -289,6 +289,7 @@ useTableFullscreen().install()
           :called-partner="isCalledPartner"
           @leave="leaveOpen = true"
           @emote="sendEmote"
+          @scores="scoresOpen = true"
         />
       </div>
 
