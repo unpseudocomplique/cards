@@ -163,6 +163,34 @@ watch(() => publicState.value?.ecartShownTrumps?.join(','), (key) => {
   })
 })
 
+/* Chelem — FFT: the taker announces it before the first card, then leads. */
+const chelemOpen = shallowRef(false)
+const canAnnounceChelem = computed(() =>
+  phase.value === 'ReadyToPlay'
+  && isTaker.value
+  && !needsKingCall.value
+  && !publicState.value?.chelemAnnounce
+)
+
+function announceChelem() {
+  chelemOpen.value = false
+  sendIntent({ type: 'announceChelem', kind: 'announced' })
+}
+
+watch(() => publicState.value?.chelemAnnounce, (kind, previous) => {
+  const takerSeat = publicState.value?.bid?.seat
+  if (kind !== 'announced' || previous === 'announced' || takerSeat === undefined) {
+    return
+  }
+  toast.add({
+    title: takerSeat === localSeat.value ? 'Vous annoncez un chelem' : `${seatName(takerSeat)} annonce un chelem`,
+    description: 'Le preneur doit remporter tous les plis. Il entame.',
+    icon: 'i-lucide-crown',
+    color: 'warning',
+    duration: 10000
+  })
+})
+
 const debugGfx = computed(() => String(route.query.debugGfx ?? '') === '1')
 
 /* Errors as toasts rather than banners covering the table. */
@@ -244,16 +272,26 @@ function play(card: CardId) {
       </div>
 
       <div
-        v-if="poigneeTier"
-        class="pointer-events-auto mx-auto mt-3"
+        v-if="poigneeTier || canAnnounceChelem"
+        class="pointer-events-auto mx-auto mt-3 flex flex-wrap justify-center gap-2"
       >
         <UButton
+          v-if="poigneeTier"
           :label="`Annoncer : ${poigneeName}`"
           icon="i-lucide-hand"
           color="warning"
           variant="solid"
           class="rounded-full shadow-lg"
           @click="sendIntent({ type: 'announcePoignee', tier: poigneeTier })"
+        />
+        <UButton
+          v-if="canAnnounceChelem"
+          label="Annoncer un chelem"
+          icon="i-lucide-crown"
+          color="warning"
+          variant="outline"
+          class="rounded-full bg-black/40 shadow-lg"
+          @click="chelemOpen = true"
         />
       </div>
 
@@ -282,6 +320,28 @@ function play(card: CardId) {
         />
       </div>
     </div>
+
+    <UModal
+      v-model:open="chelemOpen"
+      title="Annoncer un chelem ?"
+      description="Vous vous engagez à remporter tous les plis. Réussi : +400 points. Raté : −200 points. Vous entamez le premier pli."
+      :ui="{ footer: 'justify-end' }"
+    >
+      <template #footer="{ close }">
+        <UButton
+          label="Annuler"
+          color="neutral"
+          variant="ghost"
+          @click="close"
+        />
+        <UButton
+          label="Annoncer"
+          color="warning"
+          icon="i-lucide-crown"
+          @click="announceChelem"
+        />
+      </template>
+    </UModal>
 
     <UModal
       v-model:open="leaveOpen"

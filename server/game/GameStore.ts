@@ -12,7 +12,7 @@ const TRICK_RESOLVE_PAUSE_MS = 3_600
  */
 const SCORING_HUMAN_FALLBACK_MS = 45_000
 
-type BotDelayKind = 'bid' | 'playLead' | 'playFollow' | 'king' | 'scoring' | 'trickPause' | 'chienReveal'
+type BotDelayKind = 'bid' | 'playLead' | 'playFollow' | 'king' | 'scoring' | 'trickPause' | 'chienReveal' | 'openingLead'
 
 const BOT_DELAY_MS: Record<BotDelayKind, { min: number, max: number }> = {
   bid: { min: 900, max: 2_400 },
@@ -24,6 +24,8 @@ const BOT_DELAY_MS: Record<BotDelayKind, { min: number, max: number }> = {
   trickPause: { min: TRICK_RESOLVE_PAUSE_MS, max: TRICK_RESOLVE_PAUSE_MS + 500 },
   // Prise / garde: let everyone read the dog before a bot taker discards it.
   chienReveal: { min: 4_800, max: 5_400 },
+  // First card of the deal: leave a human taker time to announce a chelem.
+  openingLead: { min: 4_000, max: 4_800 },
 }
 
 function randomCode(): string {
@@ -59,12 +61,20 @@ function botDelayForState(state: GameState): number {
   if (state.phase === 'DogEcarta') {
     return randomDelayMs('chienReveal')
   }
+  if (state.phase === 'ReadyToPlay' && state.bid && !state.chelemAnnounce && humanAtSeat(state, state.bid.seat)) {
+    return randomDelayMs('openingLead')
+  }
   if (state.phase === 'Trick' || state.phase === 'ReadyToPlay') {
     return state.trick.length === 0
       ? randomDelayMs('playLead')
       : randomDelayMs('playFollow')
   }
   return randomDelayMs('playFollow')
+}
+
+function humanAtSeat(state: GameState, seat: number): boolean {
+  const info = state.seats[seat]
+  return Boolean(info?.userId && info.controlledBy === 'human' && info.connected)
 }
 
 function findSeatByUserId(state: GameState, userId: string): number | null {
