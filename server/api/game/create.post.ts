@@ -35,6 +35,7 @@ export default defineEventHandler(async (event) => {
   const { code } = gameStore.createTable({
     hostUserId: session.user.id,
     hostName,
+    hostPicture: session.user.picture ?? null,
     playerCount: result.data.playerCount,
     endMode: result.data.endMode,
     endValue: result.data.endValue,

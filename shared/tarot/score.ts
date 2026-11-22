@@ -87,7 +87,37 @@ function chelemPart(chelem: DealScoreInput['chelem']): number {
   }
 }
 
+/** Every step of a deal's score, for the end-of-deal sheet. */
+export type DealBreakdown = {
+  contract: Contract
+  takerSeat: number
+  partnerSeat?: number
+  /** Bouts (oudlers) in the taker's camp. */
+  oudlers: 0 | 1 | 2 | 3
+  /** Points the attack needed with those bouts. */
+  required: number
+  /** Points the attack made (half point settled for the winning camp). */
+  points: number
+  success: boolean
+  /** points - required. */
+  diff: number
+  base: number
+  multiplier: number
+  /** ± (25 + |diff|) × multiplier. */
+  contractPart: number
+  poigneePart: number
+  petitPart: number
+  chelemPart: number
+  /** What each defender pays (negative) or receives, before the defence chelem bonus. */
+  perDefender: number
+  deltas: Record<number, number>
+}
+
 export function computeDealScore(input: DealScoreInput): Record<number, number> {
+  return computeDealBreakdown(input).deltas
+}
+
+export function computeDealBreakdown(input: DealScoreInput): DealBreakdown {
   const {
     playerCount,
     contract,
@@ -121,7 +151,8 @@ export function computeDealScore(input: DealScoreInput): Record<number, number> 
     petitPart = -10 * mult
   }
 
-  const S = contractPart + poigneePart + petitPart + chelemPart(chelem)
+  const chelemValue = chelemPart(chelem)
+  const S = contractPart + poigneePart + petitPart + chelemValue
 
   const defenders = defenderSeats(playerCount, takerSeat, partnerSeat)
 
@@ -157,5 +188,22 @@ export function computeDealScore(input: DealScoreInput): Record<number, number> 
     }
   }
 
-  return deltas
+  return {
+    contract,
+    takerSeat,
+    partnerSeat,
+    oudlers,
+    required,
+    points: takerPoints,
+    success,
+    diff,
+    base: 25,
+    multiplier: mult,
+    contractPart,
+    poigneePart,
+    petitPart,
+    chelemPart: chelemValue,
+    perDefender: -S,
+    deltas,
+  }
 }

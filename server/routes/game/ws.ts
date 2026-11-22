@@ -14,6 +14,8 @@ type WsPeerContext = {
   handle: PeerHandle | null
   /** Last reaction sent, for the anti-spam cooldown. */
   lastEmoteAt: number
+  /** Account photo, put on the seat when this person joins. */
+  picture: string | null
 }
 
 const peerContext = new WeakMap<object, WsPeerContext>()
@@ -120,7 +122,7 @@ async function openPeer(peer: WsPeer): Promise<void> {
   }
 
   try {
-    const session = await requireUserSession(peer as unknown as Parameters<typeof requireUserSession>[0]) as { user: { id: string } }
+    const session = await requireUserSession(peer as unknown as Parameters<typeof requireUserSession>[0]) as { user: { id: string, picture?: string | null } }
     peerContext.set(peer, {
       code,
       userId: session.user.id,
@@ -128,6 +130,7 @@ async function openPeer(peer: WsPeer): Promise<void> {
       helloReceived: false,
       handle: null,
       lastEmoteAt: 0,
+      picture: session.user.picture ?? null,
     })
   } catch {
     peer.close(4401, 'Unauthorized')
@@ -181,10 +184,14 @@ function handleMessage(peer: WsPeer, message: unknown): void {
       userId: ctx.userId,
       seat: ctx.seat ?? undefined,
     }
-    const result = gameStore.applyIntent(ctx.code, parsed.intent, actor)
+    // The seat photo comes from the session, never from the client.
+    const intent = parsed.intent.type === 'join'
+      ? { ...parsed.intent, picture: ctx.picture }
+      : parsed.intent
+    const result = gameStore.applyIntent(ctx.code, intent, actor)
     // Several players (or the fallback timer) can press "Donne suivante" at
     // once: only the first counts, the others just get the fresh state.
-    if (!result.ok && parsed.intent.type === 'continue' && result.error === 'WRONG_PHASE' && ctx.seat !== null) {
+    if (!result.ok && (parsed.intent.type === 'continue' || parsed.intent.type === 'holdScoring') && result.error === 'WRONG_PHASE' && ctx.seat !== null) {
       sendPrivate(peer, ctx.code, ctx.seat)
       return
     }

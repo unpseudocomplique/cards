@@ -16,8 +16,10 @@ import { cutDeck, cutterSeat, gatherHands, gatherPlayedDeal, isValidCut } from '
 import { mergeChienIntoHand, validateEcart } from './ecart'
 import { attackSeats, isAttackSeat } from './camps'
 import { legalMovesForSeat } from './legalMoves'
-import { computeDealScore } from './score'
+import { computeDealBreakdown } from './score'
+import { cardPoints, isOudler } from './deck'
 import { resolveTrick } from './trick'
+import { SALON_CHARACTERS } from '../play/salonCharacters'
 import type {
   Actor,
   ApplyResult,
@@ -158,6 +160,11 @@ function resetDealFields(state: GameState): GameState {
     attackTricks: 0,
     defenseTricks: 0,
     tricksWonBySeat: Array.from({ length: state.playerCount }, () => 0),
+    pointsWonBySeat: undefined,
+    oudlersWonBySeat: undefined,
+    lastDeal: undefined,
+    scoringHeld: undefined,
+    autoContinueAt: undefined,
     lastTrick: null,
     lastTrickWinnerSeat: null,
     petitAuBoutCamp: undefined,
@@ -334,7 +341,7 @@ function allHandsEmpty(state: GameState): boolean {
   return state.hands.every(hand => hand.length === 0)
 }
 
-function resolveChelemOutcome(state: GameState): Parameters<typeof computeDealScore>[0]['chelem'] {
+function resolveChelemOutcome(state: GameState): Parameters<typeof computeDealBreakdown>[0]['chelem'] {
   const attackChelem = state.defenseTricks === 0 && state.attackTricks > 0
   const defenseChelem = state.attackTricks === 0 && state.defenseTricks > 0
 
@@ -372,7 +379,8 @@ function scoreDeal(state: GameState): { state: GameState, events: GameEvent[] } 
   const poigneePrime = (state.poignees ?? [])
     .reduce((total, entry) => total + (poigneePrimeForTier(state.playerCount, entry.tier) ?? 0), 0)
 
-  const deltas = computeDealScore({
+  const chelem = resolveChelemOutcome(state)
+  const breakdown = computeDealBreakdown({
     playerCount: state.playerCount,
     contract,
     takerSeat,
@@ -382,8 +390,9 @@ function scoreDeal(state: GameState): { state: GameState, events: GameEvent[] } 
     defenseCards: state.pilesDefense,
     poigneePrime: poigneePrime || undefined,
     petitAuBoutCamp: state.petitAuBoutCamp,
-    chelem: resolveChelemOutcome(state),
+    chelem,
   })
+  const deltas = breakdown.deltas
 
   const scores = state.scores.map((score, seat) => score + (deltas[seat] ?? 0))
   const events: GameEvent[] = [{ type: 'dealScored', deltas }]
@@ -401,11 +410,35 @@ function scoreDeal(state: GameState): { state: GameState, events: GameEvent[] } 
       phase: 'Scoring',
       scores,
       lastDeltas: deltas,
+      lastDeal: breakdown,
+      dealHistory: [...(state.dealHistory ?? []), {
+        takerSeat,
+        partnerSeat: state.partnerSeat,
+        contract,
+        success: breakdown.success,
+        diff: breakdown.diff,
+        deltas,
+        tricksWonBySeat: [...state.tricksWonBySeat],
+        petitAuBoutCamp: state.petitAuBoutCamp,
+        chelem: chelem === 'announced_made' || chelem === 'unannounced_made' || undefined,
+      }],
+      scoringHeld: undefined,
       matchShouldEnd: thresholdReached || dealsReached,
       currentSeat: state.dealerSeat,
     },
     events,
   }
+}
+
+/** A seated player asks the table to wait on the deal summary. */
+function handleHoldScoring(state: GameState, actor: Actor): ApplyResult {
+  if (state.phase !== 'Scoring') {
+    return failure('WRONG_PHASE', 'The table can only wait during Scoring')
+  }
+  if (actorSeat(state, actor) === null) {
+    return failure('UNAUTHORIZED', 'Only seated players may pause')
+  }
+  return success({ ...state, scoringHeld: true, autoContinueAt: undefined }, [])
 }
 
 function handleContinue(state: GameState, actor: Actor): ApplyResult {
@@ -422,6 +455,8 @@ function handleContinue(state: GameState, actor: Actor): ApplyResult {
         ...state,
         phase: 'MatchOver',
         matchShouldEnd: undefined,
+        autoContinueAt: undefined,
+        scoringHeld: undefined,
       },
       [{ type: 'matchOver' }],
     )
@@ -476,6 +511,16 @@ function resolveCompletedTrick(state: GameState): ApplyResult {
   const tricksWonBySeat = state.tricksWonBySeat.map((count, seat) =>
     seat === winnerSeat ? count + 1 : count,
   )
+  const pointsWonBySeat = [...(state.pointsWonBySeat ?? Array.from({ length: state.playerCount }, () => 0))]
+  const oudlersWonBySeat = [...(state.oudlersWonBySeat ?? Array.from({ length: state.playerCount }, () => 0))]
+  for (const { seat, card } of state.trick) {
+    // The Excuse stays with whoever played it, except on the last trick.
+    const owner = card === 'excuse' && !lastTrick && !excuseWonChelem ? seat : winnerSeat
+    pointsWonBySeat[owner] = (pointsWonBySeat[owner] ?? 0) + cardPoints(card)
+    if (isOudler(card)) {
+      oudlersWonBySeat[owner] = (oudlersWonBySeat[owner] ?? 0) + 1
+    }
+  }
 
   let next: GameState = {
     ...state,
@@ -488,6 +533,8 @@ function resolveCompletedTrick(state: GameState): ApplyResult {
     attackTricks: state.attackTricks + (attackWon ? 1 : 0),
     defenseTricks: state.defenseTricks + (attackWon ? 0 : 1),
     tricksWonBySeat,
+    pointsWonBySeat,
+    oudlersWonBySeat,
     petitTrick: petitInTrick ? { number: previousTricks + 1, camp: winnerCamp } : state.petitTrick,
   }
 
@@ -526,6 +573,7 @@ function handleJoin(state: GameState, intent: Extract<Intent, { type: 'join' }>,
           ...seat,
           userId: actor.userId,
           name: intent.name,
+          picture: intent.picture ?? null,
           connected: true,
           controlledBy: 'human' as const,
         }
@@ -536,6 +584,24 @@ function handleJoin(state: GameState, intent: Extract<Intent, { type: 'join' }>,
     { ...state, seats },
     [{ type: 'joined', seat: emptyIndex, userId: actor.userId }],
   )
+}
+
+/**
+ * Bots play as salon characters: a name and a portrait, never twice at the
+ * same table. The order changes from table to table.
+ */
+function pickBotCharacter(state: GameState) {
+  const used = new Set(state.seats.map(seat => seat.character).filter(Boolean))
+  const names = new Set(state.seats.map(seat => seat.name.toLowerCase()))
+  const free = SALON_CHARACTERS.filter(character => !used.has(character.id) && !names.has(character.name.toLowerCase()))
+  if (!free.length) {
+    return null
+  }
+  let hash = 0
+  for (const char of state.code ?? '') {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0
+  }
+  return free[(hash + used.size * 7) % free.length]!
 }
 
 function handleAddBot(state: GameState, intent: Extract<Intent, { type: 'addBot' }>, actor: Actor): ApplyResult {
@@ -550,12 +616,14 @@ function handleAddBot(state: GameState, intent: Extract<Intent, { type: 'addBot'
     return failure('TABLE_FULL', 'No empty seats')
   }
   const botId = `bot:${emptyIndex + 1}`
+  const character = pickBotCharacter(state)
   const seats = state.seats.map((seat, index) =>
     index === emptyIndex
       ? {
           ...seat,
           userId: botId,
-          name: intent.name ?? `Bot ${emptyIndex + 1}`,
+          name: intent.name ?? character?.name ?? `Bot ${emptyIndex + 1}`,
+          character: character?.id,
           connected: true,
           controlledBy: 'bot' as const,
           botLevel: isBotLevel(intent.level) ? intent.level : DEFAULT_BOT_LEVEL,
@@ -922,6 +990,8 @@ export function apply(state: GameState, intent: Intent, actor: Actor): ApplyResu
       return handlePlayCard(state, intent, actor)
     case 'continue':
       return handleContinue(state, actor)
+    case 'holdScoring':
+      return handleHoldScoring(state, actor)
     case 'leave':
       return handleLeave(state, actor)
     default: {

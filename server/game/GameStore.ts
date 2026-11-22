@@ -10,7 +10,10 @@ const TRICK_RESOLVE_PAUSE_MS = 3_600
  * Scoring with people at the table: wait for someone to press "Donne suivante",
  * and only move on alone if nobody does for this long.
  */
-const SCORING_HUMAN_FALLBACK_MS = 45_000
+/** With people at the table, the deal summary moves on by itself after this (countdown shown). */
+const SCORING_AUTO_CONTINUE_MS = 15_000
+/** Someone pressed Pause: wait for a "Continuer", but never forever. */
+const SCORING_HELD_FALLBACK_MS = 180_000
 /** A person who does not cut the pack: cut for them after this long. */
 const CUT_HUMAN_FALLBACK_MS = 40_000
 
@@ -116,6 +119,7 @@ class GameStore {
   createTable(opts: {
     hostUserId: string
     hostName: string
+    hostPicture?: string | null
     playerCount: 3 | 4 | 5
     endMode: 'threshold' | 'deals'
     endValue: number
@@ -129,6 +133,7 @@ class GameStore {
     const state = createEmptyGame({
       hostUserId: opts.hostUserId,
       hostName: opts.hostName,
+      hostPicture: opts.hostPicture ?? null,
       playerCount: opts.playerCount,
       endMode: opts.endMode,
       endValue: opts.endValue,
@@ -291,9 +296,23 @@ class GameStore {
       : botDelayForState(state)
 
     // Scoring: bots-only tables move on after a short pause; with people at the
-    // table, someone presses "Donne suivante" (fallback if everyone is away).
+    // table, a countdown is shown and the next deal starts by itself unless
+    // someone pressed Pause (then a long fallback if everyone is away).
     if (state.phase === 'Scoring') {
-      const scoringDelay = humanAtTable(state) ? SCORING_HUMAN_FALLBACK_MS : delayMs
+      let scoringDelay: number
+      if (state.scoringHeld) {
+        scoringDelay = SCORING_HELD_FALLBACK_MS
+      } else {
+        const now = Date.now()
+        const planned = state.autoContinueAt && state.autoContinueAt > now
+          ? state.autoContinueAt
+          : now + (humanAtTable(state) ? SCORING_AUTO_CONTINUE_MS : delayMs)
+        scoringDelay = planned - now
+        if (state.autoContinueAt !== planned) {
+          room.state = { ...state, autoContinueAt: planned, version: state.version + 1 }
+          this.afterStateUpdate(code)
+        }
+      }
       room.botTimer = setTimeout(() => {
         room.botTimer = null
         const current = this.rooms.get(code)
