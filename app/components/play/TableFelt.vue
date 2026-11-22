@@ -318,7 +318,8 @@ const style = computed(() => ({
   cursor: pointer;
   transition: transform 220ms cubic-bezier(.3, 1.4, .5, 1);
   -webkit-tap-highlight-color: transparent;
-  z-index: 1;
+  /* Above the play layer (z-20), which covers the whole table. */
+  z-index: 25;
 }
 .table-notebook:hover, .table-notebook:focus-visible { transform: rotate(10deg) translateY(4px) scale(1.04); outline: none; }
 .table-notebook:active { transform: rotate(10deg) translateY(6px) scale(0.98); }
