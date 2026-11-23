@@ -21,6 +21,12 @@ export default defineAppConfig({
     },
     dashboardPanel: {
       slots: {
+        // Nuxt UI gives the panel min-h-svh on phones. Inside the dashboard
+        // group (fixed, padded by the safe-area insets in the installed app)
+        // that made the panel taller than the room left, so the group clipped
+        // the bottom of every page by the status-bar + home-bar height.
+        // The panel already stretches to the group's height.
+        root: 'min-h-0',
         body: 'sm:p-6 lg:p-8'
       }
     },
