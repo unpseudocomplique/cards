@@ -67,6 +67,8 @@ export type DeckCardMetadata = {
   format?: CardFormatId
   /** Character layer (chroma-key cutout) of the last generation, to recompose without AI. */
   foregroundImageUrl?: string
+  /** Layout version the face was drawn with (absent = 1); see CardFormat.layoutVersion. */
+  layoutVersion?: number
   /** Set when the face is the classic pip design (no AI image). */
   design?: 'classic'
   /** Colour theme the classic face was drawn with, to redraw it when the theme changes. */
@@ -214,6 +216,8 @@ export type DeckVariantCardMetadata = {
   format?: CardFormatId
   /** Character layer of the last generation. */
   foregroundImageUrl?: string
+  /** Layout version the face was drawn with (absent = 1). */
+  layoutVersion?: number
 }
 
 /**

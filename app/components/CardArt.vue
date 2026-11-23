@@ -2,7 +2,7 @@
 import type { CardTheme } from '~~/shared/utils/cardThemes'
 import { getCardTheme } from '~~/shared/utils/cardThemes'
 import type { CardFormatId } from '~~/shared/utils/printSpec'
-import { CARD_FORMATS, cardFormatRatio, getCardLayoutRatios } from '~~/shared/utils/printSpec'
+import { CARD_FORMATS, cardFormatRatio, getCardLayoutRatios, getIndexHeightRatio } from '~~/shared/utils/printSpec'
 
 /**
  * A card drawn in CSS with the same anatomy as the server renderer
@@ -44,7 +44,8 @@ function cqw(value: number) {
   return `${(value * 100).toFixed(3)}cqw`
 }
 
-const indexHeight = computed(() => layout.value.rankHeight + layout.value.indexGap + layout.value.pipSize)
+const indexHeight = computed(() => getIndexHeightRatio(layout.value))
+const indexRow = computed(() => layout.value.indexDirection === 'row')
 
 /** Window position, mirroring getCardLayout() in the renderer. */
 const windowBox = computed(() => {
@@ -129,10 +130,14 @@ const pip = computed(() => props.index.match(/[♥♦♣♠]/)?.[0] ?? '')
         <span
           v-for="corner in ['top', 'bottom']"
           :key="corner"
-          class="absolute flex flex-col items-center leading-none font-bold"
-          :class="corner === 'bottom' ? 'rotate-180' : ''"
+          class="absolute flex leading-none font-bold"
+          :class="[
+            indexRow ? 'flex-row items-center' : 'flex-col items-center',
+            corner === 'bottom' ? 'rotate-180' : ''
+          ]"
           :style="{
             width: cqw(layout.indexWidth),
+            height: indexRow ? cqw(indexHeight) : undefined,
             color: ink,
             ...(corner === 'top'
               ? { left: cqw(layout.indexX), top: cqw(layout.indexY) }
@@ -141,11 +146,13 @@ const pip = computed(() => props.index.match(/[♥♦♣♠]/)?.[0] ?? '')
         >
           <span
             class="tracking-tight"
-            :style="{ fontSize: cqw(layout.rankHeight * 1.35) }"
+            :style="{ fontSize: cqw(layout.rankHeight * (indexRow ? 1.45 : 1.35)) }"
           >{{ rank }}</span>
           <span
             v-if="pip"
-            :style="{ fontSize: cqw(layout.pipSize * 1.2), marginTop: cqw(layout.indexGap * 0.5) }"
+            :style="indexRow
+              ? { fontSize: cqw(layout.pipSize * 1.3), marginLeft: cqw(layout.indexGap) }
+              : { fontSize: cqw(layout.pipSize * 1.2), marginTop: cqw(layout.indexGap * 0.5) }"
           >{{ pip }}</span>
         </span>
       </template>

@@ -59,7 +59,7 @@ export default defineEventHandler(async (event) => {
         rawImageUrl: face.rawImageUrl,
         finalImageKey: face.finalImageKey,
         finalImageUrl: face.finalImageUrl,
-        metadata: { format: face.format, foregroundImageUrl: face.foregroundImageUrl },
+        metadata: { format: face.format, layoutVersion: face.layoutVersion, foregroundImageUrl: face.foregroundImageUrl },
         errorMessage: null,
         updatedAt: new Date()
       })

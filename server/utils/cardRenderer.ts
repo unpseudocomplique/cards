@@ -5,7 +5,7 @@ import { ensureIndexFont, getIndexFont } from '~~/server/utils/indexFont'
 import type { CardTheme, CardThemeId } from '~~/shared/utils/cardThemes'
 import { getCardTheme } from '~~/shared/utils/cardThemes'
 import type { CardFormat, CardFormatId, RenderProfile } from '~~/shared/utils/printSpec'
-import { getCanvasPx, getCardFormat, getCardLayoutRatios } from '~~/shared/utils/printSpec'
+import { getCanvasPx, getCardFormat, getCardLayoutRatios, getIndexHeightRatio } from '~~/shared/utils/printSpec'
 
 type RenderCard = {
   label: string
@@ -44,6 +44,7 @@ export type CardLayout = {
   hairlineStroke: number
   hairlineGap: number
   index: {
+    direction: 'column' | 'row'
     x: number
     y: number
     width: number
@@ -103,7 +104,7 @@ export function getCardLayout(format: CardFormat, profile: RenderProfile = 'scre
   const rankHeight = unit(ratios.rankHeight)
   const pipSize = unit(ratios.pipSize)
   const indexGap = unit(ratios.indexGap)
-  const indexHeight = rankHeight + indexGap + pipSize
+  const indexHeight = unit(getIndexHeightRatio(ratios))
 
   // Side: indices in a column beside the window (wide poker cards).
   // Band: indices above / below the window, which then spans almost the full
@@ -143,6 +144,7 @@ export function getCardLayout(format: CardFormat, profile: RenderProfile = 'scre
     hairlineStroke: Math.max(1, unit(ratios.hairlineStroke)),
     hairlineGap: Math.max(2, unit(ratios.hairlineGap)),
     index: {
+      direction: ratios.indexDirection,
       x: bleed + indexX,
       y: bleed + indexY,
       width: indexWidth,
@@ -209,14 +211,14 @@ function glyphOutline(font: Font, char: string, fontSize: number) {
  * Index rank drawn from real font outlines (Sharp cannot rasterize <text> reliably).
  * Every rank shares the same cap height on every card; glyphs are laid out
  * from their real bounding boxes (not advance widths) so they are optically
- * centred, and two-digit ranks ("10", "21") are tightened then condensed
+ * placed, and two-digit ranks ("10", "21") are tightened then condensed
  * horizontally instead of being shrunk.
  */
-function drawRank(label: string, centerX: number, top: number, maxWidth: number, capHeight: number, color: string) {
+function layoutRank(label: string, capHeight: number) {
   const text = label.slice(0, 2).toUpperCase()
 
   if (!text) {
-    return ''
+    return { parts: [] as string[], width: 0 }
   }
 
   const font = getIndexFont()
@@ -234,12 +236,32 @@ function drawRank(label: string, centerX: number, top: number, maxWidth: number,
     cursor += box.x2 - box.x1 + tracking
   }
 
-  const totalWidth = cursor - tracking
-  const scaleX = totalWidth > maxWidth ? maxWidth / totalWidth : 1
-  const baseline = top + capHeight
-  const startX = centerX - (totalWidth * scaleX) / 2
+  return { parts, width: cursor - tracking }
+}
 
-  return `<g fill="${color}" transform="translate(${round(startX)} ${round(baseline)}) scale(${round(scaleX * 1000) / 1000} 1)">${parts.join('')}</g>`
+function rankSvg(parts: string[], left: number, baseline: number, scaleX: number, color: string) {
+  return `<g fill="${color}" transform="translate(${round(left)} ${round(baseline)}) scale(${round(scaleX * 1000) / 1000} 1)">${parts.join('')}</g>`
+}
+
+/** Rank centred on `centerX` (column index). */
+function drawRank(label: string, centerX: number, top: number, maxWidth: number, capHeight: number, color: string) {
+  const { parts, width } = layoutRank(label, capHeight)
+
+  if (!parts.length) {
+    return ''
+  }
+
+  const scaleX = width > maxWidth ? maxWidth / width : 1
+
+  return rankSvg(parts, centerX - (width * scaleX) / 2, top + capHeight, scaleX, color)
+}
+
+/** Visible width of each suit pip, as a share of its size (see drawSuit). */
+const suitWidthShare: Record<string, number> = {
+  hearts: 0.86,
+  diamonds: 0.72,
+  clubs: 1,
+  spades: 0.86
 }
 
 function drawSuit(suit: string | undefined, cx: number, cy: number, size: number, color: string) {
@@ -290,10 +312,19 @@ function drawStar(cx: number, cy: number, outerRadius: number, color: string) {
   return `<polygon fill="${color}" points="${points.join(' ')}"/>`
 }
 
-/** One index corner (rank over suit pip). The opposite corner is the same group rotated 180°. */
+/**
+ * One index corner. Column: rank over the suit pip. Row: rank then suit on
+ * one line, both as tall as the cap height. The opposite corner is the same
+ * group rotated 180°.
+ */
 function drawIndex(card: RenderCard, layout: CardLayout, theme: CardTheme) {
   const color = getInk(card, theme)
   const { index } = layout
+
+  if (index.direction === 'row') {
+    return drawRowIndex(card, layout, color)
+  }
+
   const centerX = index.x + index.width / 2
 
   if (card.role === 'excuse') {
@@ -309,6 +340,35 @@ function drawIndex(card: RenderCard, layout: CardLayout, theme: CardTheme) {
   const pipCy = index.y + index.rankHeight + index.gap + index.pipSize / 2
 
   return rank + drawSuit(card.suit, centerX, pipCy, index.pipSize, color)
+}
+
+/** Row index, left-aligned on the index column: "10♥", "R♣", "21", ★. */
+function drawRowIndex(card: RenderCard, layout: CardLayout, color: string) {
+  const { index } = layout
+  const capHeight = index.rankHeight
+  const middle = index.y + capHeight / 2
+
+  if (card.role === 'excuse') {
+    const radius = capHeight * 0.62
+    return drawStar(index.x + radius, middle, radius, color)
+  }
+
+  const { parts, width } = layoutRank(getRankLabel(card), capHeight)
+  const suited = Boolean(card.suit && card.suit !== 'trumps' && suitWidthShare[card.suit])
+  const suitWidth = suited ? index.pipSize * (suitWidthShare[card.suit!] ?? 1) : 0
+  const gap = suited ? index.gap : 0
+  // Condense the rank (never the suit) when the line would be too wide.
+  const room = index.width - suitWidth - gap
+  const scaleX = width > room ? Math.max(0.72, room / width) : 1
+  const rank = parts.length ? rankSvg(parts, index.x, index.y + capHeight, scaleX, color) : ''
+
+  if (!suited) {
+    return rank
+  }
+
+  const suitCx = index.x + width * scaleX + gap + suitWidth / 2
+
+  return rank + drawSuit(card.suit, suitCx, middle, index.pipSize, color)
 }
 
 function paperGrainDefs() {
