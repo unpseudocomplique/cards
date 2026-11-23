@@ -67,6 +67,8 @@ export type GeneratedCardFace = {
   finalImageKey: string
   finalImageUrl: string
   format: CardFormatId
+  /** Layout version the face was drawn with. */
+  layoutVersion: number
   foregroundImageUrl: string
 }
 
@@ -182,6 +184,7 @@ export async function generatePersonCardFace(options: {
     finalImageKey,
     finalImageUrl,
     format: format.id,
+    layoutVersion: format.layoutVersion,
     foregroundImageUrl
   }
 }

@@ -53,7 +53,7 @@ export async function renderAndStoreClassicCard(deck: ClassicDeck, card: Classic
       rawImageUrl: null,
       finalImageKey: key,
       finalImageUrl: url,
-      metadata: { ...metadata, format: format.id, design: 'classic', theme: theme.id },
+      metadata: { ...metadata, format: format.id, layoutVersion: format.layoutVersion, design: 'classic', theme: theme.id },
       errorMessage: null,
       updatedAt: new Date()
     })
@@ -89,6 +89,7 @@ export async function syncClassicCards(deck: ClassicDeck) {
         && card.status === 'ready'
         && card.metadata.theme === theme.id
         && card.metadata.format === format.id
+        && (card.metadata.layoutVersion ?? 1) >= format.layoutVersion
 
       if (!upToDate && card.status !== 'generating') {
         await renderAndStoreClassicCard(deck, card)

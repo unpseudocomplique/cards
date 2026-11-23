@@ -67,7 +67,36 @@ describe('cardRenderer', () => {
   it('keeps the historical poker layout untouched', () => {
     const layout = getCardLayout(CARD_FORMATS.poker, 'screen')
     expect(layout.contour.x).toBe(31)
-    expect(layout.index).toMatchObject({ x: 52, y: 63, width: 79 })
+    expect(layout.index).toMatchObject({ direction: 'column', x: 52, y: 63, width: 79 })
     expect(layout.window).toMatchObject({ x: 153, y: 63, width: 594, height: 1074 })
   })
+
+  it('puts the tarot index on one line, bigger, inside the strip left visible in a fanned hand', () => {
+    const layout = getCardLayout(CARD_FORMATS.tarot, 'screen')
+    const poker = getCardLayout(CARD_FORMATS.poker, 'screen')
+    expect(layout.index.direction).toBe('row')
+    // Rank and suit much taller than the stacked poker index.
+    expect(layout.index.rankHeight).toBeGreaterThanOrEqual(poker.index.rankHeight * 1.6)
+    expect(layout.index.pipSize).toBeGreaterThanOrEqual(poker.index.pipSize * 1.9)
+    // Whole line within the left 35 % (about 40 % of each card shows in a phone hand).
+    expect(layout.index.x + layout.index.width).toBeLessThanOrEqual(layout.width * 0.35)
+    // The window starts right under the single line.
+    expect(layout.window.y).toBeGreaterThan(layout.index.y + layout.index.height)
+    expect(layout.index.height).toBe(Math.max(layout.index.rankHeight, layout.index.pipSize))
+  })
+
+  it('keeps the index line inside its width, even for "10" and a club', async () => {
+    const card = { label: '10 de Trèfle', shortLabel: '10♣', rank: '10', role: 'number', suit: 'clubs' }
+    const image = await renderCardImage(await solid('#ffffff'), card, undefined, { theme: 'royal', format: 'tarot' })
+    const layout = getCardLayout(CARD_FORMATS.tarot, 'screen')
+    // Look for ink in the band right of the index box, above the window.
+    const right = Math.round(layout.index.x + layout.index.width + 2)
+    const band = await sharp(image)
+      .extract({ left: right, top: layout.index.y, width: Math.round(layout.width / 2) - right, height: layout.index.height })
+      .removeAlpha()
+      .raw()
+      .toBuffer()
+    const darkest = Math.min(...band)
+    expect(darkest).toBeGreaterThan(180)
+  }, 60_000)
 })

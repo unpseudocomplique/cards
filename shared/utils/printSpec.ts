@@ -65,6 +65,12 @@ export type CardFormat = {
   /** Ratio asked to the image model for the back pattern. */
   backAspectRatio: ArtAspectRatio
   layout: CardLayoutKind
+  /**
+   * Version of the face layout (index corners, window). Bumped when the
+   * layout of this format changes, so stored faces are redrawn
+   * (server/utils/cardRelayout.ts) without any AI call.
+   */
+  layoutVersion: number
 }
 
 export const CARD_FORMATS: Record<CardFormatId, CardFormat> = {
@@ -77,7 +83,8 @@ export const CARD_FORMATS: Record<CardFormatId, CardFormat> = {
     screenPx: { width: 900, height: 1200 },
     artAspectRatio: '3:4',
     backAspectRatio: '3:4',
-    layout: 'side'
+    layout: 'side',
+    layoutVersion: 1
   },
   /** French tarot stock (61 × 112 mm). Tarot 56 and tarot 78 decks. */
   tarot: {
@@ -88,7 +95,9 @@ export const CARD_FORMATS: Record<CardFormatId, CardFormat> = {
     screenPx: { width: 900, height: 1652 },
     artAspectRatio: '2:3',
     backAspectRatio: '9:16',
-    layout: 'band'
+    layout: 'band',
+    // 2: index on one line (rank then suit), larger, readable in a fanned hand.
+    layoutVersion: 2
   }
 }
 
@@ -183,11 +192,20 @@ export type CardLayoutRatios = {
   contourRadius: number
   /** Screen corner radius (print keeps square bleed edges). */
   cardRadius: number
+  /**
+   * - `column`: rank above the suit pip (narrow side column).
+   * - `row`: rank then suit on one line, so both can be larger; it stays in
+   *   the card's left strip, the part still visible in an overlapped hand.
+   */
+  indexDirection: 'column' | 'row'
   indexX: number
   indexY: number
+  /** Width the index may take (the rank is condensed to fit). */
   indexWidth: number
+  /** Cap height of the rank. */
   rankHeight: number
   pipSize: number
+  /** Column: space between rank and pip. Row: space between rank and suit. */
   indexGap: number
   /** Side: gap between the index column and the window. Band: gap under the index block. */
   windowGap: number
@@ -203,6 +221,7 @@ export type CardLayoutRatios = {
 
 const sideLayoutRatios: CardLayoutRatios = {
   layout: 'side',
+  indexDirection: 'column',
   contourInset: 0.034,
   contourStroke: 0.005,
   contourRadius: 0.03,
@@ -237,12 +256,27 @@ export function getCardLayoutRatios(format: CardFormat): CardLayoutRatios {
     ...sideLayoutRatios,
     layout: 'band',
     contourInset,
+    indexDirection: 'row',
     indexX,
     indexY: contourInset + mm(1.8),
+    // Rank and suit side by side, ~7 mm tall (was 4.3 mm and 3.4 mm stacked).
+    // Kept within ~34 % of the width: on a phone the hand overlaps the cards
+    // and only that strip of each card shows.
+    rankHeight: 0.115,
+    pipSize: 0.11,
+    indexGap: 0.018,
+    indexWidth: 0.26,
     windowX: indexX,
     windowGap: mm(2.4),
     foregroundGap: mm(0.7)
   }
+}
+
+/** Height of the index block, as a fraction of the trim width. */
+export function getIndexHeightRatio(ratios: CardLayoutRatios) {
+  return ratios.indexDirection === 'row'
+    ? Math.max(ratios.rankHeight, ratios.pipSize)
+    : ratios.rankHeight + ratios.indexGap + ratios.pipSize
 }
 
 export function getPrintSpecSummary(format: CardFormat) {

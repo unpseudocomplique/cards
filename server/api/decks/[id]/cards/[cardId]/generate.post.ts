@@ -86,7 +86,7 @@ export default defineEventHandler(async (event) => {
         finalImageKey: face.finalImageKey,
         finalImageUrl: face.finalImageUrl,
         // Remember the format this face was rendered in (decks can change format).
-        metadata: { ...currentCard.metadata, format: face.format, foregroundImageUrl: face.foregroundImageUrl },
+        metadata: { ...currentCard.metadata, format: face.format, layoutVersion: face.layoutVersion, foregroundImageUrl: face.foregroundImageUrl },
         errorMessage: null,
         updatedAt: new Date()
       })
