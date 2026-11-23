@@ -198,6 +198,28 @@ function rectSvg(rect: Rect, attrs: string, offset = 0) {
   return `<rect x="${round(rect.x - offset)}" y="${round(rect.y - offset)}" width="${round(rect.width + offset * 2)}" height="${round(rect.height + offset * 2)}" rx="${round(Math.max(1, rect.radius + offset))}" ${attrs}/>`
 }
 
+/**
+ * SVG path data of a glyph. Built by hand: opentype.js toPathData() can
+ * print NaN for some points (rounding bug), which breaks the glyph.
+ */
+function svgPathData(path: Path) {
+  const n = (value: number) => String(Math.round(value * 100) / 100)
+
+  return path.commands.map((command) => {
+    switch (command.type) {
+      case 'M':
+      case 'L':
+        return `${command.type}${n(command.x)} ${n(command.y)}`
+      case 'Q':
+        return `Q${n(command.x1)} ${n(command.y1)} ${n(command.x)} ${n(command.y)}`
+      case 'C':
+        return `C${n(command.x1)} ${n(command.y1)} ${n(command.x2)} ${n(command.y2)} ${n(command.x)} ${n(command.y)}`
+      default:
+        return 'Z'
+    }
+  }).join('')
+}
+
 /** Glyph outline + its tight bounding box at a given size. */
 function glyphOutline(font: Font, char: string, fontSize: number) {
   const glyph = font.charToGlyph(char)
@@ -232,7 +254,7 @@ function layoutRank(label: string, capHeight: number) {
 
   for (const { path, box } of glyphs) {
     const dx = cursor - box.x1
-    parts.push(`<path transform="translate(${round(dx)} 0)" d="${path.toPathData(2)}"/>`)
+    parts.push(`<path transform="translate(${round(dx)} 0)" d="${svgPathData(path)}"/>`)
     cursor += box.x2 - box.x1 + tracking
   }
 
