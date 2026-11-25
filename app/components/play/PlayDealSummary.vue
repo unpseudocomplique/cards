@@ -18,7 +18,11 @@ const props = defineProps<{
 const emit = defineEmits<{
   continue: []
   hold: []
+  /** Go through the tricks of the deal again (the table waits). */
+  review: []
 }>()
+
+const canReview = computed(() => Boolean(props.state.dealTricks?.length))
 
 const deal = computed(() => props.state.lastDeal ?? null)
 
@@ -230,11 +234,18 @@ const isShort = useMediaQuery('(max-height: 520px)')
     </div>
 
     <motion.div
-      class="flex items-center gap-3"
+      class="flex flex-wrap items-center justify-center gap-3"
       :initial="prefersReduced ? false : { opacity: 0, y: 12 }"
       :animate="{ opacity: 1, y: 0 }"
       :transition="{ delay: 0.6 + rows.length * 0.16 }"
     >
+      <PlayGameButton
+        v-if="canReview"
+        label="Revoir les plis"
+        icon="i-lucide-history"
+        :size="isShort ? 'md' : 'lg'"
+        @click="emit('review')"
+      />
       <PlayGameButton
         v-if="!state.scoringHeld && remainingS != null"
         label="Pause"

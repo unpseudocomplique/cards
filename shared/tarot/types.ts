@@ -232,6 +232,11 @@ export type PublicGameView = {
    * (lastTrick is cleared at the next card), so players can look at it again.
    */
   previousTrick?: { cards: Array<{ seat: number, card: CardId }>, winnerSeat: number } | null
+  /**
+   * Scoring only: every trick of the deal just played, in order, with who
+   * took it, so the table can go through them again before the next deal.
+   */
+  dealTricks?: Array<{ cards: Array<{ seat: number, card: CardId }>, winnerSeat: number }>
   poignees?: PoigneeShown[]
   ecartShownTrumps?: CardId[]
   chelemAnnounce?: GameState['chelemAnnounce']

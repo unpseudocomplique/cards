@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto'
-import { apply, botChelemIntent, chooseBotIntent, chooseCutIntent, createEmptyGame, TAKEOVER_BOT_LEVEL, toPrivateView } from '~~/shared/tarot'
+import { apply, botChelemIntent, chooseBotIntent, chooseCutIntent, createEmptyGame, FINAL_TRICK_PAUSE_MS, TAKEOVER_BOT_LEVEL, toPrivateView } from '~~/shared/tarot'
 import type { Actor, ApplyResult, GameEvent, GameState, Intent } from '~~/shared/tarot'
 import type { PeerHandle, Room } from './types'
 
@@ -324,7 +324,8 @@ class GameStore {
         const now = Date.now()
         const planned = state.autoContinueAt && state.autoContinueAt > now
           ? state.autoContinueAt
-          : now + (humanAtTable(state) ? SCORING_AUTO_CONTINUE_MS : delayMs)
+          // The last trick stays on the felt first, then the full countdown.
+          : now + FINAL_TRICK_PAUSE_MS + (humanAtTable(state) ? SCORING_AUTO_CONTINUE_MS : delayMs)
         scoringDelay = planned - now
         if (state.autoContinueAt !== planned) {
           room.state = { ...state, autoContinueAt: planned, version: state.version + 1 }
