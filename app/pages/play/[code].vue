@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { CardId } from '~~/shared/tarot'
-import { countPoigneeTrumps, poigneeTiers } from '~~/shared/tarot'
+import { countPoigneeTrumps, FINAL_TRICK_PAUSE_MS, poigneeTiers } from '~~/shared/tarot'
 import { tarotCardLabel } from '~/utils/tarotCardLabel'
 
 definePageMeta({
@@ -91,7 +91,32 @@ const needsKingCall = computed(() =>
 
 const discardSize = computed<3 | 6>(() => publicState.value?.playerCount === 5 ? 3 : 6)
 const canDiscard = computed(() => phase.value === 'DogEcarta' && isTaker.value && Boolean(privateState.value) && !needsKingCall.value)
-const showSummary = computed(() => phase.value === 'Scoring' || phase.value === 'MatchOver')
+/*
+ * The last card of the deal: leave the last trick on the felt (it lands, the
+ * table reads who took it, it is gathered) before the summary covers it.
+ * The server's countdown starts after this pause too.
+ */
+const finalTrickShowing = shallowRef(false)
+let finalTrickTimer: ReturnType<typeof setTimeout> | undefined
+watch(phase, (current, previous) => {
+  if (current === 'Scoring' && (previous === 'Trick' || previous === 'ReadyToPlay')) {
+    finalTrickShowing.value = true
+    clearTimeout(finalTrickTimer)
+    finalTrickTimer = setTimeout(() => {
+      finalTrickShowing.value = false
+    }, FINAL_TRICK_PAUSE_MS)
+  } else if (current !== 'Scoring') {
+    clearTimeout(finalTrickTimer)
+    finalTrickShowing.value = false
+  }
+})
+onBeforeUnmount(() => clearTimeout(finalTrickTimer))
+function skipFinalTrick() {
+  clearTimeout(finalTrickTimer)
+  finalTrickShowing.value = false
+}
+
+const showSummary = computed(() => (phase.value === 'Scoring' && !finalTrickShowing.value) || phase.value === 'MatchOver')
 
 /*
  * The cut: shown while the pack waits on the table, then a moment more so
@@ -239,17 +264,40 @@ function play(card: CardId) {
 /* The score notebook on the table. */
 const scoresOpen = shallowRef(false)
 
-/* The previous trick, brought back with one tap. */
+/*
+ * The previous trick, brought back with one tap. At the end of the deal, the
+ * same sheet goes through every trick of the deal.
+ */
 const lastTrickOpen = shallowRef(false)
 const canReviewTrick = computed(() =>
-  (phase.value === 'Trick' || phase.value === 'ReadyToPlay')
-  && Boolean(publicState.value?.previousTrick?.cards.length)
+  ((phase.value === 'Trick' || phase.value === 'ReadyToPlay')
+    && Boolean(publicState.value?.previousTrick?.cards.length))
+  || (phase.value === 'Scoring' && Boolean(publicState.value?.dealTricks?.length))
 )
 watch(canReviewTrick, (can) => {
   if (!can) {
     lastTrickOpen.value = false
   }
 })
+
+/** Going through the tricks of the deal: the table waits (same as Pause). */
+function reviewDealTricks() {
+  skipFinalTrick()
+  lastTrickOpen.value = true
+  if (phase.value === 'Scoring' && !publicState.value?.scoringHeld) {
+    sendIntent({ type: 'holdScoring' })
+  }
+}
+
+function toggleTrickReview() {
+  if (lastTrickOpen.value) {
+    lastTrickOpen.value = false
+  } else if (phase.value === 'Scoring') {
+    reviewDealTricks()
+  } else {
+    lastTrickOpen.value = true
+  }
+}
 
 /* Sounds and vibrations (set in the table settings). */
 useTableSoundCues({ publicState, privateState, emotes })
@@ -305,7 +353,7 @@ useTableFullscreen().install()
           :can-review-trick="canReviewTrick"
           :review-open="lastTrickOpen"
           @leave="leaveOpen = true"
-          @last-trick="lastTrickOpen = !lastTrickOpen"
+          @last-trick="toggleTrickReview"
           @emote="sendEmote"
           @scores="scoresOpen = true"
         />
@@ -385,6 +433,26 @@ useTableFullscreen().install()
           :local-seat="localSeat"
           @continue="sendIntent({ type: 'continue' })"
           @hold="sendIntent({ type: 'holdScoring' })"
+          @review="reviewDealTricks"
+        />
+      </div>
+
+      <div
+        v-if="finalTrickShowing"
+        class="pointer-events-auto absolute inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] flex justify-center gap-3"
+      >
+        <PlayGameButton
+          label="Revoir les plis"
+          icon="i-lucide-history"
+          size="sm"
+          @click="reviewDealTricks"
+        />
+        <PlayGameButton
+          label="Voir le bilan"
+          variant="gold"
+          size="sm"
+          trailing-icon="i-lucide-arrow-right"
+          @click="skipFinalTrick"
         />
       </div>
     </div>

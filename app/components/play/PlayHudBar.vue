@@ -46,7 +46,7 @@ const emit = defineEmits<{
         <PlayRoundButton
           v-if="canReviewTrick"
           icon="i-lucide-history"
-          label="Revoir le pli précédent"
+          :label="state.phase === 'Scoring' ? 'Revoir les plis de la donne' : 'Revoir le pli précédent'"
           :active="reviewOpen"
           @click="emit('lastTrick')"
         />

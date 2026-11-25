@@ -85,6 +85,18 @@ describe('live points and the end-of-deal sheet', () => {
     expect(view.dealHistory?.[0]?.tricksWonBySeat.reduce((a, b) => a + b, 0)).toBe(count === 3 ? 24 : count === 4 ? 18 : 15)
   })
 
+  it.each([3, 4, 5] as const)('%i players: the summary carries every trick of the deal to look at again', (count) => {
+    const before = playUntil(table(count, 7), s => s.phase === 'Trick' && s.trick.length > 0)
+    expect(toPublicView(before).dealTricks).toBeUndefined()
+    const state = playUntil(before, s => s.phase === 'Scoring')
+    const tricks = toPublicView(state).dealTricks ?? []
+    expect(tricks).toHaveLength(count === 3 ? 24 : count === 4 ? 18 : 15)
+    expect(tricks.every(trick => trick.cards.length === count)).toBe(true)
+    expect(tricks.map(trick => trick.winnerSeat)).toEqual(state.playedTrickWinners)
+    const cards = tricks.flatMap(trick => trick.cards.map(entry => entry.card))
+    expect(new Set(cards).size).toBe(78 - (count === 5 ? 3 : 6))
+  })
+
   it('pausing the summary stops the automatic next deal', () => {
     let state = playUntil(table(4, 5), s => s.phase === 'Scoring')
     state = { ...state, autoContinueAt: Date.now() + 15_000 }

@@ -32,6 +32,17 @@ function previousTrick(state: GameState): PublicGameView['previousTrick'] {
   return { cards: cards.map(entry => ({ ...entry })), winnerSeat }
 }
 
+/** Scoring: the whole deal, trick by trick (all of them were played face up). */
+function dealTricks(state: GameState): PublicGameView['dealTricks'] {
+  if (state.phase !== 'Scoring' || !state.playedTricks?.length) {
+    return undefined
+  }
+  return state.playedTricks.map((cards, index) => ({
+    cards: cards.map(entry => ({ ...entry })),
+    winnerSeat: state.playedTrickWinners?.[index] ?? resolveTrick(cards).winnerSeat
+  }))
+}
+
 function chienRevealed(state: GameState): CardId[] | null {
   // FFT: prise / garde turn the dog face up for everyone (5 players: after the
   // king call) until the taker discards. Garde sans / contre: nobody sees it.
@@ -107,6 +118,7 @@ export function toPublicView(state: GameState): PublicGameView {
     lastTrick: state.lastTrick ? state.lastTrick.map(entry => ({ ...entry })) : null,
     lastTrickWinnerSeat: state.lastTrickWinnerSeat ?? null,
     previousTrick: previousTrick(state),
+    dealTricks: dealTricks(state),
     poignees: state.poignees?.map(entry => ({ ...entry, cards: [...entry.cards] })),
     ecartShownTrumps: state.ecartShownTrumps ? [...state.ecartShownTrumps] : undefined,
     chelemAnnounce: state.chelemAnnounce,

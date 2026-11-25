@@ -6,7 +6,7 @@
  * and only ever receives what its player is allowed to see.
  */
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { chooseBotIntent, cutDeck, dealFromShuffled } from '../../shared/tarot'
+import { chooseBotIntent, cutDeck, dealFromShuffled, FINAL_TRICK_PAUSE_MS } from '../../shared/tarot'
 import type { CardId, Contract, GameState, Intent, PrivateGameView } from '../../shared/tarot'
 import type { gameStore as GameStoreInstance } from '../../server/game/GameStore'
 
@@ -123,6 +123,8 @@ class Client {
     const allowed = new Set<string>([
       // The previous trick, brought back on demand: only cards already seen in a trick.
       ...(view.previousTrick?.cards ?? []).map(entry => entry.card).filter(card => this.playedSeen.has(card)),
+      // End of the deal: every trick again, same rule.
+      ...(view.dealTricks ?? []).flatMap(trick => trick.cards.map(entry => entry.card)).filter(card => this.playedSeen.has(card)),
       ...view.hand,
       ...view.trick.map(entry => entry.card),
       ...(view.lastTrick ?? []).map(entry => entry.card),
@@ -715,6 +717,27 @@ describe('real-time multiplayer table', () => {
     expect(serverState(code).phase).toBe('Scoring')
     vi.advanceTimersByTime(60_000)
     expect(serverState(code).phase).not.toBe('Scoring')
+  })
+
+  it('the last trick stays on the felt before the 15 s countdown of the summary starts', async () => {
+    const { code, clients } = await seatHumans(4, 4)
+    startDeal(code, clients)
+    let guard = 0
+    while (guard < 400 && serverState(code).phase !== 'Scoring') {
+      humanStep(code, clients)
+      guard++
+    }
+    const scoring = serverState(code)
+    expect(scoring.phase).toBe('Scoring')
+    expect(scoring.autoContinueAt! - Date.now()).toBe(FINAL_TRICK_PAUSE_MS + 15_000)
+    for (const client of clients) {
+      expect(client.view?.dealTricks).toHaveLength(18)
+    }
+    vi.advanceTimersByTime(15_000)
+    expect(serverState(code).phase).toBe('Scoring')
+    vi.advanceTimersByTime(FINAL_TRICK_PAUSE_MS)
+    expect(serverState(code).phase).not.toBe('Scoring')
+    expectNoLeaks(clients)
   })
 
   it('a late visitor cannot join a running game and only sees public information', async () => {

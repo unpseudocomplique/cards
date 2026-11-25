@@ -7,6 +7,8 @@ import { seatAvatar } from '~/utils/seatAvatar'
 /**
  * The previous trick, brought back on a small sheet of felt: the cards in the
  * order they were laid, who laid each one, who took it and what it was worth.
+ * At the end of a deal (dealTricks), every trick of the deal can be gone
+ * through, one after the other, starting from the last one.
  */
 const props = defineProps<{
   state: PublicGameView
@@ -16,11 +18,32 @@ const props = defineProps<{
 
 const emit = defineEmits<{ close: [] }>()
 
-const trick = computed(() => props.state.previousTrick?.cards ?? [])
-const winnerSeat = computed(() => props.state.previousTrick?.winnerSeat ?? null)
+/** End of the deal: the whole deal to browse. */
+const dealTricks = computed(() => props.state.dealTricks ?? [])
+const browsing = computed(() => dealTricks.value.length > 0)
+const index = shallowRef(Math.max(0, dealTricks.value.length - 1))
+watch(() => dealTricks.value.length, (length) => {
+  index.value = Math.max(0, length - 1)
+})
+
+const shown = computed(() => browsing.value
+  ? dealTricks.value[index.value] ?? null
+  : props.state.previousTrick ?? null)
+const trick = computed(() => shown.value?.cards ?? [])
+const winnerSeat = computed(() => shown.value?.winnerSeat ?? null)
 
 /** Tricks played so far in this deal; the one shown is the last of them. */
-const trickNumber = computed(() => props.state.tricksWonBySeat.reduce((sum, count) => sum + count, 0))
+const trickNumber = computed(() => browsing.value
+  ? index.value + 1
+  : props.state.tricksWonBySeat.reduce((sum, count) => sum + count, 0))
+const isLastOfDeal = computed(() => browsing.value && index.value === dealTricks.value.length - 1)
+
+function go(step: number) {
+  if (!browsing.value) {
+    return
+  }
+  index.value = Math.min(dealTricks.value.length - 1, Math.max(0, index.value + step))
+}
 
 function seatName(seat: number) {
   return seat === props.localSeat ? 'Vous' : props.state.seats[seat]?.name ?? `Joueur ${seat + 1}`
@@ -39,9 +62,10 @@ const summary = computed(() => {
 })
 
 /** Card points the winner takes (the Excuse stays with its owner before the last trick). */
+const excuseKept = computed(() => !isLastOfDeal.value)
 const points = computed(() => {
   const total = trick.value.reduce((sum, entry) => {
-    if (entry.card === 'excuse' && entry.seat !== winnerSeat.value) {
+    if (excuseKept.value && entry.card === 'excuse' && entry.seat !== winnerSeat.value) {
       return sum
     }
     return sum + cardPoints(entry.card)
@@ -50,15 +74,34 @@ const points = computed(() => {
   return `${text} ${total < 2 ? 'point' : 'points'}`
 })
 
-const hasExcuse = computed(() => trick.value.some(entry => entry.card === 'excuse' && entry.seat !== winnerSeat.value))
+const hasExcuse = computed(() => excuseKept.value && trick.value.some(entry => entry.card === 'excuse' && entry.seat !== winnerSeat.value))
 
 const calledKing = computed(() => props.state.calledKing ?? null)
 
 onKeyStroke('Escape', () => emit('close'))
+onKeyStroke('ArrowLeft', () => go(-1))
+onKeyStroke('ArrowRight', () => go(1))
+
+/* Swipe between tricks on a phone. */
+const sheet = useTemplateRef<HTMLElement>('sheet')
+const { direction, lengthX } = useSwipe(sheet, {
+  threshold: 40,
+  onSwipeEnd() {
+    if (Math.abs(lengthX.value) < 40) {
+      return
+    }
+    if (direction.value === 'left') {
+      go(1)
+    } else if (direction.value === 'right') {
+      go(-1)
+    }
+  }
+})
 </script>
 
 <template>
   <div
+    ref="sheet"
     class="peek"
     role="dialog"
     aria-modal="true"
@@ -70,11 +113,11 @@ onKeyStroke('Escape', () => emit('close'))
           id="last-trick-title"
           class="font-display text-lg leading-tight text-[#f6e7c4] short:text-base"
         >
-          Pli précédent
+          {{ browsing ? (isLastOfDeal ? 'Dernier pli' : 'Pli') : 'Pli précédent' }}
           <span
             v-if="trickNumber"
             class="ml-1 text-sm text-[#e0c06a]/80"
-          >n° {{ trickNumber }}</span>
+          >n° {{ trickNumber }}<template v-if="browsing"> / {{ dealTricks.length }}</template></span>
         </p>
         <p
           v-if="summary"
@@ -91,15 +134,18 @@ onKeyStroke('Escape', () => emit('close'))
       />
     </header>
 
-    <ol class="cards">
+    <ol
+      :key="trickNumber"
+      class="cards"
+    >
       <li
-        v-for="(entry, index) in trick"
+        v-for="(entry, order) in trick"
         :key="`${entry.seat}-${entry.card}`"
         class="card-slot"
         :class="{ 'card-slot--winner': entry.seat === winnerSeat }"
-        :style="{ '--seat': seatColor(entry.seat), '--delay': `${index * 45}ms` }"
+        :style="{ '--seat': seatColor(entry.seat), '--delay': `${order * 45}ms` }"
       >
-        <span class="order">{{ index + 1 }}</span>
+        <span class="order">{{ order + 1 }}</span>
         <div class="card-box">
           <UIcon
             v-if="entry.seat === winnerSeat"
@@ -152,6 +198,45 @@ onKeyStroke('Escape', () => emit('close'))
         class="text-white/50"
       > (l’Excuse reste à son joueur)</span></span>
     </footer>
+
+    <nav
+      v-if="browsing && dealTricks.length > 1"
+      class="flex items-center justify-between gap-2"
+      aria-label="Plis de la donne"
+    >
+      <PlayGameButton
+        icon="i-lucide-chevron-left"
+        label="Précédent"
+        variant="felt"
+        size="sm"
+        :disabled="index === 0"
+        @click="go(-1)"
+      />
+      <ol class="flex min-w-0 flex-1 flex-wrap items-center justify-center gap-1">
+        <li
+          v-for="(item, position) in dealTricks"
+          :key="position"
+        >
+          <button
+            type="button"
+            class="dot"
+            :class="{ 'dot--on': position === index }"
+            :style="{ '--seat': seatColor(item.winnerSeat) }"
+            :aria-label="`Pli n° ${position + 1}`"
+            :aria-current="position === index ? 'step' : undefined"
+            @click="index = position"
+          />
+        </li>
+      </ol>
+      <PlayGameButton
+        trailing-icon="i-lucide-chevron-right"
+        label="Suivant"
+        variant="felt"
+        size="sm"
+        :disabled="index === dealTricks.length - 1"
+        @click="go(1)"
+      />
+    </nav>
   </div>
 </template>
 
@@ -258,6 +343,20 @@ onKeyStroke('Escape', () => emit('close'))
   font-weight: 800;
 }
 .avatar img { width: 100%; height: 100%; object-fit: cover; }
+.dot {
+  display: block;
+  width: 9px;
+  height: 9px;
+  border-radius: 9999px;
+  background: var(--seat);
+  opacity: 0.45;
+  transition: transform 150ms, opacity 150ms;
+}
+.dot--on {
+  opacity: 1;
+  transform: scale(1.45);
+  box-shadow: 0 0 0 1.5px #f2d79a;
+}
 
 @keyframes deal-in {
   from { opacity: 0; transform: translateY(14px) rotate(4deg); }
